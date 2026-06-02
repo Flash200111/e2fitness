@@ -1,0 +1,38 @@
+{
+  "name": "E2Fitness",
+  "short_name": "E2Fitness",
+  "description": "No dad body necessary! Track training, nutrition, and progress.",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#e8ff47",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "fitness"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Daily Log",
+      "url": "/app.html#log",
+      "description": "Log today's food and workout"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/app.html#dashboard",
+      "description": "View your daily stats"
+    }
+  ]
+}
