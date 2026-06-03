@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2Fitness — No Dad Body Necessary!</title>
+<meta name="description" content="E2Fitness — track your training, nail your nutrition, build the body you want. No dad body necessary.">
+<meta property="og:title" content="E2Fitness — No Dad Body Necessary!">
+<meta property="og:description" content="Track training, nutrition, and progress. Built for real people who lift.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:ital,wght@0,400;0,600;1,400;1,900&family=Barlow+Condensed:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #080808;
+    --white: #f5f0e8;
+    --red: #e63222;
+    --red-dark: #b82418;
+    --yellow: #f5c842;
+    --gray: #1a1a1a;
+    --gray2: #2a2a2a;
+    --muted: #888;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  .cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--red);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+    mix-blend-mode: normal;
+  }
+
+  .cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1.5px solid rgba(230,50,34,0.5);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99998;
+    transform: translate(-50%, -50%);
+    transition: transform 0.15s ease-out, width 0.3s, height 0.3s;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(8,8,8,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .logo {
+    font-family: 'Anton', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: 3px;
+    color: var(--white);
+    text-decoration: none;
+  }
+
+  .logo span { color: var(--red); }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--white); }
+
+  .nav-cta {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: var(--red);
+    color: var(--white);
+    border: none;
+    padding: 10px 24px;
+    cursor: none;
+    transition: background 0.2s, transform 0.2s;
+    text-decoration: none;
+  }
+
+  .nav-cta:hover { background: var(--red-dark); transform: translateY(-1px); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Background number grid */
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    opacity: 0.03;
+    pointer-events: none;
+    font-family: 'Anton', sans-serif;
+    font-size: 1.2rem;
+    color: var(--white);
+    overflow: hidden;
+  }
+
+  .hero-bg span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 4s ease-in-out infinite;
+    animation-delay: calc(var(--d) * 0.3s);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* Diagonal accent line */
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -10%;
+    right: -5%;
+    width: 55%;
+    height: 130%;
+    background: linear-gradient(135deg, transparent 40%, rgba(230,50,34,0.04) 40%, rgba(230,50,34,0.08) 60%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .hero-tag {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.2s;
+  }
+
+  .hero-title {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(4rem, 12vw, 10rem);
+    line-height: 0.9;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards 0.35s;
+  }
+
+  .hero-title .outline {
+    -webkit-text-stroke: 2px var(--white);
+    color: transparent;
+  }
+
+  .hero-title .red { color: var(--red); }
+
+  .hero-sub {
+    font-family: 'Barlow', sans-serif;
+    font-size: clamp(1.1rem, 3vw, 1.6rem);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--yellow);
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards 0.5s;
+    letter-spacing: 1px;
+  }
+
+  .hero-ctas {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards 0.65s;
+  }
+
+  .btn-hero {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 18px 40px;
+    text-decoration: none;
+    cursor: none;
+    transition: all 0.2s;
+    display: inline-block;
+  }
+
+  .btn-hero.primary {
+    background: var(--red);
+    color: var(--white);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .btn-hero.primary:hover {
+    background: var(--red-dark);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(230,50,34,0.3);
+  }
+
+  .btn-hero.outline {
+    border: 2px solid rgba(245,240,232,0.3);
+    color: var(--white);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .btn-hero.outline:hover {
+    border-color: var(--white);
+    transform: translateY(-3px);
+  }
+
+  .hero-stats {
+    position: absolute;
+    bottom: 60px;
+    right: 48px;
+    text-align: right;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards 0.8s;
+  }
+
+  .hero-stat-num {
+    font-family: 'Anton', sans-serif;
+    font-size: 3.5rem;
+    line-height: 1;
+    color: var(--red);
+  }
+
+  .hero-stat-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 32px;
+    left: 48px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    animation: fadeUp 0.7s ease forwards 1s;
+  }
+
+  .scroll-line {
+    width: 40px;
+    height: 1px;
+    background: var(--muted);
+    animation: scrollPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes scrollPulse {
+    0%, 100% { width: 40px; opacity: 0.5; }
+    50% { width: 60px; opacity: 1; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── MARQUEE ── */
+  .marquee-wrap {
+    overflow: hidden;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: var(--red);
+    padding: 14px 0;
+  }
+
+  .marquee-track {
+    display: flex;
+    gap: 0;
+    animation: marquee 20s linear infinite;
+    white-space: nowrap;
+  }
+
+  .marquee-item {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--white);
+    padding: 0 40px;
+    flex-shrink: 0;
+  }
+
+  .marquee-dot {
+    color: rgba(255,255,255,0.4);
+    padding: 0 8px;
+  }
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ── FEATURES ── */
+  .features {
+    padding: 120px 48px;
+    position: relative;
+  }
+
+  .section-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    line-height: 0.95;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 64px;
+  }
+
+  .section-title .dim { color: rgba(245,240,232,0.2); }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .feature-card {
+    background: var(--gray);
+    padding: 40px 32px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 0; height: 3px;
+    background: var(--red);
+    transition: width 0.4s ease;
+  }
+
+  .feature-card:hover::before { width: 100%; }
+  .feature-card:hover { background: var(--gray2); }
+
+  .feature-num {
+    font-family: 'Anton', sans-serif;
+    font-size: 4rem;
+    line-height: 1;
+    color: rgba(230,50,34,0.15);
+    margin-bottom: 20px;
+    transition: color 0.3s;
+  }
+
+  .feature-card:hover .feature-num { color: rgba(230,50,34,0.3); }
+
+  .feature-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    color: var(--white);
+  }
+
+  .feature-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how {
+    padding: 120px 48px;
+    background: var(--gray);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .how::before {
+    content: 'WORK';
+    position: absolute;
+    right: -40px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Anton', sans-serif;
+    font-size: 20vw;
+    color: rgba(255,255,255,0.02);
+    pointer-events: none;
+    line-height: 1;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    margin-top: 64px;
+  }
+
+  .step {
+    padding: 40px 28px;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    position: relative;
+  }
+
+  .step:first-child { border-left: none; }
+
+  .step-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--red);
+    margin-bottom: 24px;
+  }
+
+  .step-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 1.6rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    line-height: 1.1;
+  }
+
+  .step-desc {
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── SOCIAL SECTION ── */
+  .social-section {
+    padding: 120px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .social-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(230,50,34,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .social-grid {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 48px;
+    flex-wrap: wrap;
+  }
+
+  .social-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--gray);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 16px 28px;
+    text-decoration: none;
+    color: var(--white);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    cursor: none;
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+
+  .social-link:hover {
+    border-color: var(--red);
+    background: rgba(230,50,34,0.1);
+    transform: translateY(-3px);
+  }
+
+  .social-icon { font-size: 1.2rem; }
+
+  /* ── CTA BANNER ── */
+  .cta-banner {
+    padding: 100px 48px;
+    background: var(--red);
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .cta-banner::before {
+    content: 'E2';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Anton', sans-serif;
+    font-size: 40vw;
+    color: rgba(0,0,0,0.1);
+    pointer-events: none;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .cta-banner .section-title {
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+
+  .cta-subtitle {
+    font-family: 'Barlow', sans-serif;
+    font-style: italic;
+    font-size: 1.4rem;
+    color: rgba(245,240,232,0.7);
+    margin-bottom: 48px;
+  }
+
+  .btn-white {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: var(--white);
+    color: var(--red);
+    padding: 20px 56px;
+    text-decoration: none;
+    cursor: none;
+    display: inline-block;
+    transition: all 0.2s;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .btn-white:hover {
+    background: var(--black);
+    color: var(--white);
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--black);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .footer-logo {
+    font-family: 'Anton', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    color: var(--white);
+  }
+
+  .footer-logo span { color: var(--red); }
+
+  .footer-copy {
+    font-size: 0.78rem;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+    cursor: none;
+  }
+
+  .footer-links a:hover { color: var(--white); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1024px) {
+    .features-grid { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    header { padding: 16px 20px; }
+    .nav-links { display: none; }
+    .hero { padding: 100px 20px 80px; }
+    .hero-stats { display: none; }
+    .features { padding: 80px 20px; }
+    .features-grid { grid-template-columns: 1fr; gap: 2px; }
+    .how { padding: 80px 20px; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .social-section { padding: 80px 20px; }
+    .cta-banner { padding: 80px 20px; }
+    footer { padding: 32px 20px; flex-direction: column; text-align: center; }
+    body { cursor: auto; }
+    .cursor, .cursor-ring { display: none; }
+    * { cursor: auto !important; }
+    a, button { cursor: pointer !important; }
+  }
+
+  @media (max-width: 480px) {
+    .steps { grid-template-columns: 1fr; }
+    .hero-title { font-size: 3.5rem; }
+    .btn-hero { padding: 14px 28px; font-size: 0.9rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- HEADER -->
+<header>
+  <a href="#" class="logo">E2<span>FITNESS</span></a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#social">Community</a></li>
+    <li><a href="#contact">Coaching</a></li>
+  </ul>
+  <a href="app.html" class="nav-cta">Launch App</a>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg" id="heroBg"></div>
+
+  <div class="hero-tag">— Built for people who actually train</div>
+
+  <h1 class="hero-title">
+    E<span class="red">2</span><br>
+    <span class="outline">FIT</span><br>
+    NESS
+  </h1>
+
+  <p class="hero-sub">"No dad body necessary!"</p>
+
+  <div class="hero-ctas">
+    <a href="app.html" class="btn-hero primary">Start Training Free</a>
+    <a href="#features" class="btn-hero outline">See Features</a>
+  </div>
+
+  <div class="hero-stats">
+    <div class="hero-stat-num">100%</div>
+    <div class="hero-stat-label">Built for results</div>
+  </div>
+
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    Scroll to explore
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track" id="marqueeTrack"></div>
+</div>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">What you get</div>
+  <h2 class="section-title">BUILT FOR<br><span class="dim">REAL</span> RESULTS</h2>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-num">01</div>
+      <div class="feature-name">Daily Log</div>
+      <div class="feature-desc">Track every meal, macro, and set. Calorie targets, protein goals, surplus or deficit — all calculated automatically.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-num">02</div>
+      <div class="feature-name">Goal Tracking</div>
+      <div class="feature-desc">Set body composition and strength goals. Watch progress bars move as you log. Stay locked in on what matters.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-num">03</div>
+      <div class="feature-name">Exercise DB</div>
+      <div class="feature-desc">Curated exercise library with injury-aware ratings. Safe, caution, and avoid flags so you train smart — not just hard.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-num">04</div>
+      <div class="feature-name">Video Lab</div>
+      <div class="feature-desc">Link YouTube tutorials and workout science videos. Add notes, key takeaways, and timestamps — all in one place.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-num">05</div>
+      <div class="feature-name">Calorie Balance</div>
+      <div class="feature-desc">Real-time surplus and deficit tracking. Know exactly where you stand against your TDEE every single day.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-num">06</div>
+      <div class="feature-name">Installable App</div>
+      <div class="feature-desc">Add to your home screen for a full native app experience. Fast, offline-ready, no app store required.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="section-label">Simple process</div>
+  <h2 class="section-title">HOW IT<br><span class="dim">WORKS</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">STEP 01</div>
+      <div class="step-title">Create Your Account</div>
+      <div class="step-desc">Sign up free with your email. Set your calorie and protein targets. Choose your phase — cut, bulk, or maintain.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 02</div>
+      <div class="step-title">Log Daily</div>
+      <div class="step-desc">Track every meal and workout in seconds. The dashboard shows you exactly where you stand in real time.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 03</div>
+      <div class="step-title">Build Your Lab</div>
+      <div class="step-desc">Add YouTube videos you learn from. Take notes, discuss techniques, and build a personal knowledge base.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 04</div>
+      <div class="step-title">See Results</div>
+      <div class="step-desc">Log body metrics over time. Watch goals progress. No dad body necessary — the data doesn't lie.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SOCIAL -->
+<section class="social-section" id="social">
+  <div class="section-label">Join the community</div>
+  <h2 class="section-title">FOLLOW<br><span style="color:rgba(245,240,232,0.2)">THE</span> JOURNEY</h2>
+  <p style="color:var(--muted);font-size:0.95rem;max-width:400px;margin:0 auto 0;line-height:1.6">
+    Follow E2Fitness on social media for training tips, nutrition breakdowns, and community challenges.
+  </p>
+
+  <div class="social-grid">
+    <a href="#" class="social-link" id="link-instagram">
+      <span class="social-icon">📸</span> Instagram
+    </a>
+    <a href="#" class="social-link" id="link-tiktok">
+      <span class="social-icon">🎵</span> TikTok
+    </a>
+    <a href="#" class="social-link" id="link-facebook">
+      <span class="social-icon">📘</span> Facebook
+    </a>
+    <a href="#" class="social-link" id="link-twitter">
+      <span class="social-icon">𝕏</span> X / Twitter
+    </a>
+    <a href="#" class="social-link" id="link-youtube">
+      <span class="social-icon">▶</span> YouTube
+    </a>
+  </div>
+
+  <p style="margin-top:24px;font-size:0.75rem;color:var(--muted);letter-spacing:1px">
+    UPDATE THESE LINKS: Edit the <code style="color:var(--red)">href="#"</code> values in the HTML with your actual social URLs
+  </p>
+</section>
+
+<!-- CONTACT / COACHING -->
+<section style="padding:120px 48px;background:var(--gray);" id="contact">
+  <div style="max-width:600px;margin:0 auto;">
+    <div class="section-label">Work with me</div>
+    <h2 class="section-title">GET<br><span style="color:rgba(245,240,232,0.2)">COACHED</span></h2>
+    <p style="color:var(--muted);font-size:0.95rem;line-height:1.7;margin-bottom:40px;">
+      Ready to stop guessing and start seeing real results? Fill out the form below and I'll get back to you personally.
+    </p>
+    <form action="https://formspree.io/f/YOUR_FORM_ID" method="POST" style="display:flex;flex-direction:column;gap:14px;">
+      <!-- Replace YOUR_FORM_ID with your Formspree ID -->
+      <input type="hidden" name="_replyto" value="Flash2001@hotmail.com">
+      <input type="hidden" name="_cc" value="2108675309@txt.att.net">
+      <!-- Replace 2108675309 with your actual AT&T number -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <input type="text" name="name" placeholder="Your Name" required style="flex:1;min-width:140px;background:var(--gray2);border:1px solid rgba(255,255,255,0.08);color:var(--white);font-family:'Barlow',sans-serif;font-size:0.9rem;padding:12px 16px;border-radius:4px;outline:none;">
+        <input type="email" name="email" placeholder="Your Email" required style="flex:1;min-width:140px;background:var(--gray2);border:1px solid rgba(255,255,255,0.08);color:var(--white);font-family:'Barlow',sans-serif;font-size:0.9rem;padding:12px 16px;border-radius:4px;outline:none;">
+      </div>
+      <select name="goal" style="background:var(--gray2);border:1px solid rgba(255,255,255,0.08);color:var(--white);font-family:'Barlow',sans-serif;font-size:0.9rem;padding:12px 16px;border-radius:4px;outline:none;">
+        <option value="">What's your goal?</option>
+        <option value="Lose Fat">Lose Fat</option>
+        <option value="Build Muscle">Build Muscle</option>
+        <option value="Lean Bulk">Lean Bulk</option>
+        <option value="Improve Strength">Improve Strength</option>
+        <option value="General Fitness">General Fitness</option>
+        <option value="Rehab / Recovery">Rehab / Recovery</option>
+      </select>
+      <textarea name="message" placeholder="Tell me about yourself — current fitness level, schedule, any injuries..." rows="4" style="background:var(--gray2);border:1px solid rgba(255,255,255,0.08);color:var(--white);font-family:'Barlow',sans-serif;font-size:0.9rem;padding:12px 16px;border-radius:4px;outline:none;resize:vertical;"></textarea>
+      <button type="submit" class="btn-hero primary" style="align-self:flex-start;cursor:pointer;">Send Inquiry</button>
+      <p style="font-size:0.75rem;color:var(--muted);">I'll respond within 24 hours. No spam, ever.</p>
+    </form>
+  </div>
+</section>
+
+
+<section class="cta-banner">
+  <h2 class="section-title">START<br>TODAY</h2>
+  <p class="cta-subtitle">"No dad body necessary!"</p>
+  <a href="app.html" class="btn-white">Launch E2Fitness Free</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">E2<span>FITNESS</span></div>
+  <div class="footer-copy">© 2026 E2Fitness. Built for people who actually train.</div>
+  <ul class="footer-links">
+    <li><a href="app.html">App</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#social">Community</a></li>
+  </ul>
+</footer>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top = my + 'px';
+  });
+
+  function animateRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  document.querySelectorAll('a, button').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.width = '20px';
+      cursor.style.height = '20px';
+      ring.style.width = '52px';
+      ring.style.height = '52px';
+    });
+    el.addEventListener('mouseleave', () => {
+      cursor.style.width = '12px';
+      cursor.style.height = '12px';
+      ring.style.width = '36px';
+      ring.style.height = '36px';
+    });
+  });
+
+  // Hero background grid
+  const bg = document.getElementById('heroBg');
+  const nums = ['1', '2', '3', '5', '8', '10', '15', '20', 'X', 'E'];
+  for (let i = 0; i < 96; i++) {
+    const span = document.createElement('span');
+    span.textContent = nums[Math.floor(Math.random() * nums.length)];
+    span.style.setProperty('--d', Math.random() * 10);
+    bg.appendChild(span);
+  }
+
+  // Marquee
+  const marqueeItems = [
+    'Track Your Gains', 'Crush Your Goals', 'No Dad Body Necessary',
+    'Log Every Rep', 'Own Your Nutrition', 'Build The Body You Want',
+    'E2Fitness', 'Science-Backed Training', 'Results That Last'
+  ];
+  const track = document.getElementById('marqueeTrack');
+  // Duplicate for seamless loop
+  [...marqueeItems, ...marqueeItems].forEach(item => {
+    const span = document.createElement('span');
+    span.className = 'marquee-item';
+    span.innerHTML = item + '<span class="marquee-dot">◆</span>';
+    track.appendChild(span);
+  });
+
+  // Intersection observer for fade-in
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.feature-card, .step').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    observer.observe(el);
+  });
+</script>
+</body>
+</html>
