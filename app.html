@@ -1644,16 +1644,17 @@ async function addVideo() {
   const vid = extractYouTubeId(url);
   if (!url || !title) return toast('Enter URL and title');
   if (!vid) return toast('Invalid YouTube URL');
-  const data = { url, title, cat, notes, vid_id: vid, discussion: [] };
+  const data = { url, title, cat, notes, vid_id: vid };
   const result = await sbInsert('videos', data);
-  if (result) {
-    saveState(); renderVideos(); closeModal('videoModal'); toast('Video added ✓');
-    ['v-url','v-title','v-notes'].forEach(id => document.getElementById(id).value = '');
+  // Supabase returns array on success, error object on failure
+  if (result && !result.error) {
+    renderVideos(); closeModal('videoModal'); toast('Video added ✓');
   } else {
     // Fallback to local storage
     state.videos.unshift({ url, title, cat, notes, vid, id: Date.now(), discussion: [] });
     saveState(); renderVideos(); closeModal('videoModal'); toast('Video added ✓');
   }
+  ['v-url','v-title','v-notes'].forEach(id => document.getElementById(id).value = '');
 }
 
 async function renderVideos() {
@@ -1830,7 +1831,7 @@ async function addResource() {
   const notes = document.getElementById('r-notes').value.trim();
   if (!title || !url) return toast('Enter a title and URL');
   const result = await sbInsert('resources', { title, url, category: cat, notes });
-  if (result) {
+  if (result && !result.error) {
     renderResources(); closeModal('resourceModal'); toast('Link saved ✓');
   } else {
     if (!state.resources) state.resources = [];
