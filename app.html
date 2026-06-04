@@ -1692,8 +1692,6 @@ async function renderVideos() {
     </div>`).join('');
 }
 
-}
-
 function addDiscussion(id) {
   const input = document.getElementById('disc-input-' + id);
   const text = input.value.trim();
@@ -1861,25 +1859,6 @@ async function renderResources() {
     const cat = r.cat || r.category || '';
     const color = resCatColors[cat] || 'var(--accent)';
     const label = resCatLabels[cat] || cat;
-    let domain = '';
-    try { domain = new URL(r.url).hostname.replace('www.',''); } catch(e) {}
-    return `<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:8px;padding:16px;">
-      <div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:8px;">
-        <div>
-          <span style="display:inline-block;font-size:0.62rem;letter-spacing:1.2px;text-transform:uppercase;background:${color}22;color:${color};padding:2px 8px;border-radius:2px;margin-bottom:6px;">${label}</span>
-          <div style="font-weight:600;font-size:0.9rem;line-height:1.3;">${r.title}</div>
-          <div style="font-size:0.72rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${domain}</div>
-        </div>
-        <button class="log-item-del" onclick="removeResource(${r.id})">✕</button>
-      </div>
-      ${r.notes ? `<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;">${r.notes}</div>` : ''}
-      <a href="${r.url}" target="_blank" rel="noopener" class="btn" style="font-size:0.75rem;padding:6px 14px;text-decoration:none;display:inline-block;">Open Link ↗</a>
-    </div>`;
-  }).join('');
-}
-  grid.innerHTML = items.map(r => {
-    const color = resCatColors[r.cat] || 'var(--accent)';
-    const label = resCatLabels[r.cat] || r.cat;
     let domain = '';
     try { domain = new URL(r.url).hostname.replace('www.',''); } catch(e) {}
     return `<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:8px;padding:16px;">
@@ -2194,6 +2173,30 @@ async function analyzePhotoNow() {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: currentPhotoBase64 } },
+            { type: 'text', text: 'Analyze this food image. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}' }
+          ]
+        }]
+      })
+    });
+    if (!response.ok) { toast('API Error: ' + response.status); showAiLoading(false); return; }
+    const data = await response.json();
+    const text = data.content.map(c => c.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    incrementAiUsage();
+    fillAiResult(parsed);
+  } catch(e) {
+    toast('Analysis failed: ' + e.message);
+  }
+  showAiLoading(false);
+}
 
 function showAiLoading(show) {
   document.getElementById('ai-loading').style.display = show ? 'block' : 'none';
