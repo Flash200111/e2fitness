@@ -1157,7 +1157,7 @@
         <label class="form-label">Notes / Key Takeaways</label>
         <textarea id="v-notes" rows="3" placeholder="What stood out? Key timestamps, ideas..."></textarea>
       </div>
-      <button class="btn btn-primary" onclick="addVideo()">Add to Lab</button>
+      <button class="btn btn-primary" id="addVideoBtn">Add to Lab</button>
     </div>
   </div>
 </div>
@@ -2344,6 +2344,12 @@ async function renderTransformations() {
 }
 
 init();
+
+document.getElementById('addVideoBtn').addEventListener('click', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  addVideo();
+});
 
 // PWA Service Worker
 if ('serviceWorker' in navigator) {
