@@ -1102,6 +1102,7 @@
 </div>
 
 
+<div class="modal-overlay" id="goalModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('goalModal')">✕</button>
     <div class="modal-title">New Goal</div>
@@ -1157,7 +1158,7 @@
         <label class="form-label">Notes / Key Takeaways</label>
         <textarea id="v-notes" rows="3" placeholder="What stood out? Key timestamps, ideas..."></textarea>
       </div>
-      <button class="btn btn-primary" id="addVideoBtn">Add to Lab</button>
+      <button class="btn btn-primary" onclick="event.preventDefault(); event.stopPropagation(); addVideo();">Add to Lab</button>
     </div>
   </div>
 </div>
@@ -1637,7 +1638,6 @@ function extractYouTubeId(url) {
 }
 
 async function addVideo() {
-  alert('addVideo called! coachUnlocked=' + coachUnlocked);
   if (!coachUnlocked) return toast('Enter your coach PIN first');
   const url = document.getElementById('v-url').value.trim();
   const title = document.getElementById('v-title').value.trim();
@@ -1645,16 +1645,25 @@ async function addVideo() {
   const notes = document.getElementById('v-notes').value.trim();
   const vid = extractYouTubeId(url);
   if (!url || !title) return toast('Enter URL and title');
-  if (!vid) return toast('Invalid YouTube URL');
+  if (!vid) return toast('Invalid YouTube URL — try youtube.com/watch?v= format');
+  toast('Saving...');
   const data = { url, title, cat, notes, vid_id: vid };
-  const result = await sbInsert('videos', data);
-  // Supabase returns array on success, error object on failure
-  if (result && !result.error) {
-    renderVideos(); closeModal('videoModal'); toast('Video added ✓');
-  } else {
-    // Fallback to local storage
-    state.videos.unshift({ url, title, cat, notes, vid, id: Date.now(), discussion: [] });
-    saveState(); renderVideos(); closeModal('videoModal'); toast('Video added ✓');
+  try {
+    const result = await sbInsert('videos', data);
+    if (result && !result.error && Array.isArray(result)) {
+      await renderVideos();
+      closeModal('videoModal');
+      toast('Video added to database ✓');
+    } else {
+      const errMsg = result ? JSON.stringify(result).slice(0,80) : 'null result';
+      toast('Saving locally: ' + errMsg);
+      state.videos.unshift({ url, title, cat, notes, vid, id: Date.now(), discussion: [] });
+      saveState();
+      await renderVideos();
+      closeModal('videoModal');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
   }
   ['v-url','v-title','v-notes'].forEach(id => document.getElementById(id).value = '');
 }
@@ -2345,12 +2354,6 @@ async function renderTransformations() {
 }
 
 init();
-
-document.getElementById('addVideoBtn').addEventListener('click', function(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  addVideo();
-});
 
 // PWA Service Worker
 if ('serviceWorker' in navigator) {
