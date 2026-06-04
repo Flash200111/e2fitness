@@ -1632,11 +1632,12 @@ function removeMetric(id) {
 function openVideoModal() { requireCoach(() => document.getElementById('videoModal').classList.add('open')); }
 
 function extractYouTubeId(url) {
-  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
 async function addVideo() {
+  if (!coachUnlocked) return toast('Enter your coach PIN first');
   const url = document.getElementById('v-url').value.trim();
   const title = document.getElementById('v-title').value.trim();
   const cat = document.getElementById('v-cat').value;
