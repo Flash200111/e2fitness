@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2Fitness — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #111111; --surface2: #1a1a1a; --border: #222222;
+    --accent: #e8ff47; --accent2: #ff6b35; --text: #f0f0f0; --muted: #666;
+    --danger: #ff4545; --success: #47ff8a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+  .auth-wrap {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 420px;
+  }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3rem; letter-spacing: 6px;
+    color: var(--accent); text-align: center;
+    margin-bottom: 8px;
+  }
+  .logo span { color: var(--text); }
+  .tagline {
+    text-align: center; font-size: 0.75rem;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 40px;
+  }
+  .auth-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 32px;
+  }
+  .auth-tabs {
+    display: flex; gap: 0; margin-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .auth-tab {
+    background: none; border: none; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; font-size: 0.8rem;
+    font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+    padding: 10px 20px 12px; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .auth-form { display: none; flex-direction: column; gap: 14px; }
+  .auth-form.active { display: flex; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  label {
+    font-size: 0.68rem; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  input {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; padding: 11px 14px; border-radius: 6px;
+    outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+  .btn-primary {
+    background: var(--accent); color: #000;
+    border: none; font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 13px; border-radius: 6px; cursor: pointer;
+    transition: all 0.2s; margin-top: 4px;
+  }
+  .btn-primary:hover { background: #d4e83c; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .error-msg {
+    background: rgba(255,69,69,0.1); border: 1px solid rgba(255,69,69,0.3);
+    color: var(--danger); font-size: 0.8rem; padding: 10px 14px;
+    border-radius: 6px; display: none;
+  }
+  .success-msg {
+    background: rgba(71,255,138,0.1); border: 1px solid rgba(71,255,138,0.3);
+    color: var(--success); font-size: 0.8rem; padding: 10px 14px;
+    border-radius: 6px; display: none;
+  }
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    color: var(--muted); font-size: 0.75rem;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; padding: 11px 14px; border-radius: 6px;
+    outline: none; width: 100%;
+  }
+  .loading {
+    display: none; text-align: center; padding: 8px;
+    font-size: 0.8rem; color: var(--muted);
+  }
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin-right: 8px; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="logo">E2<span>FITNESS</span></div>
+  <div class="tagline">Train Smart · Track Everything</div>
+
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('signup')">Create Account</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div class="auth-form active" id="form-login">
+      <div class="error-msg" id="login-error"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div class="loading" id="login-loading"><span class="spinner"></span>Signing in...</div>
+      <button class="btn-primary" id="login-btn" onclick="handleLogin()">Sign In</button>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div class="auth-form" id="form-signup">
+      <div class="error-msg" id="signup-error"></div>
+      <div class="success-msg" id="signup-success"></div>
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="signup-name" placeholder="Your full name">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password (min 6 characters)</label>
+        <input type="password" id="signup-password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Age</label>
+          <input type="number" id="signup-age" placeholder="Age" min="13" max="100">
+        </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <select id="signup-gender">
+            <option value="">Select</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer_not">Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Primary Goal</label>
+        <select id="signup-goal">
+          <option value="">Select your goal</option>
+          <option value="lose_fat">Lose Fat</option>
+          <option value="build_muscle">Build Muscle</option>
+          <option value="lean_bulk">Lean Bulk</option>
+          <option value="improve_fitness">Improve General Fitness</option>
+          <option value="improve_strength">Improve Strength</option>
+          <option value="rehab">Rehab / Recovery</option>
+        </select>
+      </div>
+      <div class="loading" id="signup-loading"><span class="spinner"></span>Creating account...</div>
+      <button class="btn-primary" id="signup-btn" onclick="handleSignup()">Create Account</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://bafdfqtnrxptroohhzjp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZmRmcXRucnhwdHJvb2hoempwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDI0OTQsImV4cCI6MjA5NjA3ODQ5NH0.MAJW8P9BzQ2LUPJg-EevKSiEMOYMKcEiZ_nFEZjLQWQ';
+const COACH_EMAIL = 'flash2001@hotmail.com';
+
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById('form-' + tab).classList.add('active');
+}
+
+async function handleLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const loadingEl = document.getElementById('login-loading');
+  const btn = document.getElementById('login-btn');
+
+  errorEl.style.display = 'none';
+  if (!email || !password) { showError('login-error', 'Please enter your email and password'); return; }
+
+  btn.disabled = true;
+  loadingEl.style.display = 'block';
+
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await r.json();
+
+    if (!r.ok || data.error) {
+      showError('login-error', data.error_description || data.msg || 'Invalid email or password');
+    } else {
+      // Store session
+      localStorage.setItem('e2_session', JSON.stringify({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user_id: data.user.id,
+        email: data.user.email,
+        is_coach: data.user.email === COACH_EMAIL
+      }));
+      // Redirect to app
+      window.location.href = 'app.html';
+    }
+  } catch(e) {
+    showError('login-error', 'Connection error. Please try again.');
+  }
+
+  btn.disabled = false;
+  loadingEl.style.display = 'none';
+}
+
+async function handleSignup() {
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const age = document.getElementById('signup-age').value;
+  const gender = document.getElementById('signup-gender').value;
+  const goal = document.getElementById('signup-goal').value;
+  const btn = document.getElementById('signup-btn');
+  const loadingEl = document.getElementById('signup-loading');
+
+  document.getElementById('signup-error').style.display = 'none';
+  document.getElementById('signup-success').style.display = 'none';
+
+  if (!name || !email || !password) { showError('signup-error', 'Please fill in name, email and password'); return; }
+  if (password.length < 6) { showError('signup-error', 'Password must be at least 6 characters'); return; }
+
+  btn.disabled = true;
+  loadingEl.style.display = 'block';
+
+  try {
+    // Create auth user
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await r.json();
+
+    if (!r.ok || data.error) {
+      showError('signup-error', data.msg || data.error_description || 'Could not create account');
+    } else {
+      const userId = data.user?.id || data.id;
+      const token = data.access_token;
+
+      // Create profile
+      if (userId && token) {
+        await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + token,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            id: userId,
+            full_name: name,
+            role: 'client',
+            age: age ? parseInt(age) : null,
+            gender: gender || null,
+            goal: goal || null
+          })
+        });
+
+        // Auto login
+        localStorage.setItem('e2_session', JSON.stringify({
+          access_token: token,
+          refresh_token: data.refresh_token,
+          user_id: userId,
+          email: email,
+          is_coach: email === COACH_EMAIL
+        }));
+        window.location.href = 'app.html';
+      } else {
+        // Email confirmation required
+        const successEl = document.getElementById('signup-success');
+        successEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+        successEl.style.display = 'block';
+      }
+    }
+  } catch(e) {
+    showError('signup-error', 'Connection error. Please try again.');
+  }
+
+  btn.disabled = false;
+  loadingEl.style.display = 'none';
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// Allow Enter key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const activeForm = document.querySelector('.auth-form.active').id;
+    if (activeForm === 'form-login') handleLogin();
+    else handleSignup();
+  }
+});
+
+// Check if already logged in
+const session = localStorage.getItem('e2_session');
+if (session) {
+  try {
+    const s = JSON.parse(session);
+    if (s.access_token) window.location.href = 'app.html';
+  } catch(e) {}
+}
+</script>
+</body>
+</html>

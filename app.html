@@ -155,18 +155,21 @@
 
 <header>
   <div class="logo">E2<span>FITNESS</span></div>
-  <div class="date-display" id="headerDate"></div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="date-display" id="headerDate"></div>
+    <div id="user-display" style="display:flex;align-items:center;"></div>
+  </div>
 </header>
 
 <nav>
-  <button class="active" onclick="showPage('dashboard')">Dashboard</button>
+  <button onclick="showPage('dashboard')">Dashboard</button>
   <button onclick="showPage('log')">Daily Log</button>
   <button onclick="showPage('goals')">Goals</button>
   <button onclick="showPage('lab')">Video Lab</button>
   <button onclick="showPage('exercises')">Exercise DB</button>
   <button onclick="showPage('resources')">Resources</button>
-  <button onclick="showPage('coaching')">Coaching</button>
-  <button onclick="showPage('transformations')">Transformations</button>
+  <button class="coach-only" onclick="showPage('coaching')">Coaching</button>
+  <button class="coach-only" onclick="showPage('transformations')">Transformations</button>
   <button onclick="showPage('settings')">Settings</button>
 </nav>
 
@@ -1106,11 +1109,47 @@ async function renderTransformations(){
   grid.innerHTML=items.map(t=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;animation:slideIn 0.25s ease;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;background:var(--border);"><div style="background:var(--surface2);position:relative;"><div style="position:absolute;top:8px;left:8px;font-size:0.6rem;letter-spacing:1.5px;text-transform:uppercase;background:rgba(0,0,0,0.7);color:var(--muted);padding:2px 8px;border-radius:2px;">BEFORE</div>${t.before_photo?`<img src="${t.before_photo}" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;">`:`<div style="aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem;">No photo</div>`}</div><div style="background:var(--surface2);position:relative;"><div style="position:absolute;top:8px;left:8px;font-size:0.6rem;letter-spacing:1.5px;text-transform:uppercase;background:rgba(0,0,0,0.7);color:var(--accent);padding:2px 8px;border-radius:2px;">AFTER</div>${t.after_photo?`<img src="${t.after_photo}" style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;">`:`<div style="aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem;">No photo</div>`}</div></div><div style="padding:16px;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;"><div style="font-weight:600;font-size:0.95rem;">${t.name}</div><span style="font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;padding:2px 8px;border-radius:2px;${t.status==='approved'?'background:rgba(71,255,138,0.1);color:var(--success)':'background:rgba(255,165,0,0.1);color:orange'}">${t.status==='approved'?'Featured':'Pending'}</span></div>${t.timeframe?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px;">⏱ ${t.timeframe}</div>`:''} ${t.story?`<div style="font-size:0.8rem;color:var(--muted);line-height:1.5;margin-bottom:10px;">${t.story}</div>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap;">${t.status!=='approved'?`<button class="btn btn-primary" style="font-size:0.72rem;padding:6px 12px;" onclick="approveTransformation(${t.id})">⭐ Feature</button>`:''}<button class="btn btn-danger" style="font-size:0.72rem;padding:6px 12px;" onclick="removeTransformation(${t.id})">Remove</button></div></div></div>`).join('');
 }
 
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+const COACH_EMAIL='flash2001@hotmail.com';
+let currentUser=null;
+
+function getSession(){
+  try{const s=localStorage.getItem('e2_session');return s?JSON.parse(s):null;}catch(e){return null;}
+}
+
+function checkAuth(){
+  const session=getSession();
+  if(!session||!session.access_token){window.location.href='login.html';return false;}
+  currentUser=session;
+  if(session.is_coach||session.email===COACH_EMAIL){coachUnlocked=true;}
+  return true;
+}
+
+function signOut(){
+  localStorage.removeItem('e2_session');
+  window.location.href='login.html';
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init(){
+  if(!checkAuth())return;
   loadState();
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('metric-date').value=new Date().toISOString().split('T')[0];
+
+  // Show user info in header
+  const userDisplay=document.getElementById('user-display');
+  if(userDisplay){
+    const session=getSession();
+    const isCoach=session.is_coach||session.email===COACH_EMAIL;
+    userDisplay.innerHTML=`<span style="font-size:0.7rem;color:${isCoach?'var(--accent)':'var(--muted)'};">${isCoach?'⚡ Coach · ':''} ${session.email||''}</span><button onclick="signOut()" style="background:none;border:1px solid var(--border);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:0.7rem;padding:4px 10px;border-radius:4px;cursor:pointer;margin-left:8px;">Sign Out</button>`;
+  }
+
+  // Hide coach-only nav for clients
+  if(!coachUnlocked){
+    document.querySelectorAll('.coach-only').forEach(el=>el.style.display='none');
+  }
+
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
 }
 window.onclick=function(e){if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');}
