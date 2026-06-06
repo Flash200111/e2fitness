@@ -24,7 +24,7 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
     pointer-events: none; z-index: 0; opacity: 0.4;
   }
-  .auth-wrap { position: relative; z-index: 1; width: 100%; max-width: 420px; }
+  .auth-wrap { position: relative; z-index: 1; width: 100%; max-width: 480px; }
   .logo { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; letter-spacing: 6px; color: var(--accent); text-align: center; margin-bottom: 8px; }
   .logo span { color: var(--text); }
   .tagline { text-align: center; font-size: 0.75rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 40px; }
@@ -50,13 +50,71 @@
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .error-msg { background: rgba(255,69,69,0.1); border: 1px solid rgba(255,69,69,0.3); color: var(--danger); font-size: 0.8rem; padding: 10px 14px; border-radius: 6px; display: none; }
   .success-msg { background: rgba(71,255,138,0.1); border: 1px solid rgba(71,255,138,0.3); color: var(--success); font-size: 0.82rem; padding: 14px; border-radius: 6px; display: none; line-height: 1.6; }
-  .info-msg { background: rgba(232,255,71,0.08); border: 1px solid rgba(232,255,71,0.2); color: var(--accent); font-size: 0.82rem; padding: 14px; border-radius: 6px; display: none; line-height: 1.6; }
   .form-row { display: flex; gap: 10px; }
   .form-row .form-group { flex: 1; }
   .loading { display: none; text-align: center; padding: 8px; font-size: 0.8rem; color: var(--muted); }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .confirmed-banner { background: rgba(71,255,138,0.1); border: 1px solid rgba(71,255,138,0.3); color: var(--success); font-size: 0.85rem; padding: 14px; border-radius: 6px; text-align: center; margin-bottom: 20px; display: none; }
+
+  /* Waiver styles */
+  .waiver-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    max-height: 240px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #aaa;
+    margin-top: 4px;
+  }
+  .waiver-box h4 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .waiver-box h5 {
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-top: 12px;
+    margin-bottom: 4px;
+  }
+  .waiver-box p { margin-bottom: 8px; }
+  .waiver-scroll-hint {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+  .waiver-agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(232,255,71,0.05);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .waiver-agree input[type="checkbox"] {
+    width: 18px; height: 18px; min-width: 18px;
+    cursor: pointer; accent-color: var(--accent);
+    margin-top: 2px;
+  }
+  .waiver-agree-text {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .waiver-agree-text strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -78,7 +136,6 @@
     <!-- LOGIN FORM -->
     <div class="auth-form active" id="form-login">
       <div class="error-msg" id="login-error"></div>
-      <div class="info-msg" id="login-info"></div>
       <div class="form-group">
         <label>Email</label>
         <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
@@ -95,6 +152,7 @@
     <div class="auth-form" id="form-signup">
       <div class="error-msg" id="signup-error"></div>
       <div class="success-msg" id="signup-success"></div>
+
       <div class="form-group">
         <label>Full Name</label>
         <input type="text" id="signup-name" placeholder="Your full name">
@@ -135,6 +193,58 @@
           <option value="rehab">Rehab / Recovery</option>
         </select>
       </div>
+
+      <!-- WAIVER -->
+      <div class="form-group">
+        <label>Waiver & Release of Liability</label>
+        <div class="waiver-box" id="waiver-text">
+          <h4>E2FITNESS — PARTICIPANT WAIVER, RELEASE OF LIABILITY & ASSUMPTION OF RISK</h4>
+          <p style="text-align:center;color:var(--muted);font-size:0.72rem;">Kings County, New York</p>
+          <p style="text-align:center;color:var(--muted);font-size:0.72rem;margin-bottom:12px;">Please read this entire document carefully before creating your account.</p>
+
+          <h5>1. Assumption of Risk</h5>
+          <p>I understand and acknowledge that participation in physical exercise, fitness programs, and athletic activities involves inherent risks of injury, including but not limited to: muscle strains, sprains, fractures, cardiovascular events, and in rare cases, death. I voluntarily assume all such risks.</p>
+
+          <h5>2. Medical Clearance</h5>
+          <p>I confirm that I am in adequate physical condition to participate in exercise activities. I have consulted with a licensed physician if I have any known medical conditions, recent injuries, cardiovascular issues, or any condition that may be affected by physical activity. I understand that E2Fitness does not provide medical advice.</p>
+
+          <h5>3. Not Medical Advice</h5>
+          <p>The content, programs, and guidance provided through E2Fitness are for general fitness and educational purposes only. Nothing on this platform constitutes medical advice, diagnosis, or treatment. The coach associated with this platform is not a licensed medical doctor or physical therapist. Any guidance provided is purely for general fitness education and is offered to help guide you toward your personal goals. You are solely responsible for how you choose to apply any guidance, and its use is entirely at your own discretion. Always consult a qualified healthcare provider before beginning any exercise program.</p>
+
+          <h5>4. Limitation of Liability & Waiver of Legal Action</h5>
+          <p>To the fullest extent permitted by New York law, I hereby release, waive, and discharge E2Fitness, its coaches, representatives, and affiliates from any and all claims, damages, losses, or liability arising from my participation in any fitness program or use of this platform, whether caused by negligence or otherwise. I expressly waive my right to bring any lawsuit, legal claim, or legal action against E2Fitness or its coaches arising from my use of this platform or participation in any fitness activity.</p>
+
+          <h5>5. Free Platform — Entertainment & Educational Purposes</h5>
+          <p>E2Fitness is provided free of charge for entertainment and educational purposes only. No professional coaching relationship, personal trainer-client relationship, or fitness contract is created by use of this platform. Users access this platform voluntarily and understand that it does not replace professional medical, nutritional, or physical therapy services.</p>
+
+          <h5>6. Fitness Results Disclaimer</h5>
+          <p>Fitness results vary significantly between individuals and are dependent upon personal factors including but not limited to: time committed, effort applied, consistency, genetics, nutrition, sleep, and overall lifestyle. E2Fitness makes no guarantees regarding specific fitness outcomes or results. Any progress is solely the result of the individual's own dedication and effort.</p>
+
+          <h5>7. Voluntary Participation</h5>
+          <p>I confirm that my participation is entirely voluntary. I am free to stop any activity at any time if I feel discomfort, pain, or distress.</p>
+
+          <h5>8. Age Requirement</h5>
+          <p>I confirm that I am 18 years of age or older. If I am under 18, I confirm that a parent or legal guardian has reviewed and agreed to this waiver on my behalf.</p>
+
+          <h5>9. Electronic Agreement</h5>
+          <p>I understand that checking the agreement box below constitutes my electronic signature and has the same legal effect as a handwritten signature. I confirm I have read and understood this entire document.</p>
+
+          <h5>10. Governing Law</h5>
+          <p>This agreement shall be governed by the laws of the State of New York. Any disputes shall be resolved in Kings County, New York.</p>
+
+          <p style="text-align:center;margin-top:16px;color:var(--muted);font-style:italic;font-size:0.75rem;">By creating an account you confirm you have read, understood, and voluntarily agreed to this waiver in its entirety.</p>
+        </div>
+        <div class="waiver-scroll-hint">↕ Scroll to read full waiver</div>
+      </div>
+
+      <label class="waiver-agree" onclick="toggleWaiver()">
+        <input type="checkbox" id="waiver-checkbox">
+        <div class="waiver-agree-text">
+          <strong>I have read and agree to the Waiver & Release of Liability.</strong><br>
+          I understand this is a free platform for entertainment and educational purposes, that results are not guaranteed, and that I waive my right to bring legal action against E2Fitness.
+        </div>
+      </label>
+
       <div class="loading" id="signup-loading"><span class="spinner"></span>Creating account...</div>
       <button class="btn-primary" id="signup-btn" onclick="handleSignup()">Create Account</button>
     </div>
@@ -147,50 +257,39 @@ const SUPABASE_URL = 'https://bafdfqtnrxptroohhzjp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZmRmcXRucnhwdHJvb2hoempwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDI0OTQsImV4cCI6MjA5NjA3ODQ5NH0.MAJW8P9BzQ2LUPJg-EevKSiEMOYMKcEiZ_nFEZjLQWQ';
 const COACH_EMAIL = 'flash2001@hotmail.com';
 
-// ── HANDLE EMAIL CONFIRMATION REDIRECT ───────────────────────────────────────
-// When user clicks confirmation link in email, Supabase redirects back here
-// with access_token and refresh_token in the URL hash
+function toggleWaiver() {
+  const cb = document.getElementById('waiver-checkbox');
+  cb.checked = !cb.checked;
+}
+
 async function handleAuthCallback() {
   const hash = window.location.hash;
   if (!hash) return false;
-
   const params = new URLSearchParams(hash.substring(1));
   const accessToken = params.get('access_token');
   const refreshToken = params.get('refresh_token');
   const type = params.get('type');
-
   if (accessToken && (type === 'signup' || type === 'magiclink')) {
-    // Get user info
     try {
       const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + accessToken }
       });
       const user = await r.json();
-
       localStorage.setItem('e2_session', JSON.stringify({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        user_id: user.id,
-        email: user.email,
+        access_token: accessToken, refresh_token: refreshToken,
+        user_id: user.id, email: user.email,
         is_coach: user.email === COACH_EMAIL
       }));
-
-      // Clear hash from URL
       window.history.replaceState(null, '', window.location.pathname);
       window.location.href = 'app.html';
       return true;
     } catch(e) {}
   }
-
   if (type === 'recovery') {
-    // Password reset flow - show message
-    document.getElementById('login-info').textContent = 'Your email is confirmed! Please sign in.';
-    document.getElementById('login-info').style.display = 'block';
     document.getElementById('confirmed-banner').style.display = 'block';
     window.history.replaceState(null, '', window.location.pathname);
     return true;
   }
-
   return false;
 }
 
@@ -207,14 +306,10 @@ async function handleLogin() {
   const errorEl = document.getElementById('login-error');
   const loadingEl = document.getElementById('login-loading');
   const btn = document.getElementById('login-btn');
-
   errorEl.style.display = 'none';
-  document.getElementById('login-info').style.display = 'none';
   if (!email || !password) { showError('login-error', 'Please enter your email and password'); return; }
-
   btn.disabled = true;
   loadingEl.style.display = 'block';
-
   try {
     const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
@@ -222,28 +317,22 @@ async function handleLogin() {
       body: JSON.stringify({ email, password })
     });
     const data = await r.json();
-
     if (!r.ok || data.error) {
       const msg = data.error_description || data.msg || 'Invalid email or password';
-      if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('confirm')) {
+      if (msg.toLowerCase().includes('confirm')) {
         showError('login-error', 'Please check your email and click the confirmation link first, then try signing in again.');
       } else {
         showError('login-error', msg);
       }
     } else {
       localStorage.setItem('e2_session', JSON.stringify({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        user_id: data.user.id,
-        email: data.user.email,
+        access_token: data.access_token, refresh_token: data.refresh_token,
+        user_id: data.user.id, email: data.user.email,
         is_coach: data.user.email === COACH_EMAIL
       }));
       window.location.href = 'app.html';
     }
-  } catch(e) {
-    showError('login-error', 'Connection error. Please try again.');
-  }
-
+  } catch(e) { showError('login-error', 'Connection error. Please try again.'); }
   btn.disabled = false;
   loadingEl.style.display = 'none';
 }
@@ -255,6 +344,7 @@ async function handleSignup() {
   const age = document.getElementById('signup-age').value;
   const gender = document.getElementById('signup-gender').value;
   const goal = document.getElementById('signup-goal').value;
+  const waiverChecked = document.getElementById('waiver-checkbox').checked;
   const btn = document.getElementById('signup-btn');
   const loadingEl = document.getElementById('signup-loading');
 
@@ -263,6 +353,7 @@ async function handleSignup() {
 
   if (!name || !email || !password) { showError('signup-error', 'Please fill in name, email and password'); return; }
   if (password.length < 6) { showError('signup-error', 'Password must be at least 6 characters'); return; }
+  if (!waiverChecked) { showError('signup-error', 'You must read and agree to the Waiver & Release of Liability to create an account'); return; }
 
   btn.disabled = true;
   loadingEl.style.display = 'block';
@@ -277,46 +368,26 @@ async function handleSignup() {
       })
     });
     const data = await r.json();
-
     if (!r.ok || data.error) {
       showError('signup-error', data.msg || data.error_description || 'Could not create account');
     } else {
       const userId = data.user?.id;
       const token = data.access_token;
-
-      // Save profile data for after confirmation
-      localStorage.setItem('e2_pending_profile', JSON.stringify({
-        id: userId, full_name: name, role: 'client',
-        age: age ? parseInt(age) : null,
-        gender: gender || null, goal: goal || null
-      }));
-
-      // If we got a token, they're in directly (no confirmation required)
       if (token) {
+        await createProfile(userId, token, { full_name: name, age, gender, goal, waiver_agreed: true });
         localStorage.setItem('e2_session', JSON.stringify({
           access_token: token, refresh_token: data.refresh_token,
-          user_id: userId, email: email,
-          is_coach: email === COACH_EMAIL
+          user_id: userId, email: email, is_coach: email === COACH_EMAIL
         }));
-        // Create profile
-        await createProfile(userId, token, { full_name: name, age, gender, goal });
         window.location.href = 'app.html';
       } else {
-        // Email confirmation required
         const successEl = document.getElementById('signup-success');
-        successEl.innerHTML = `
-          <strong>✓ Account created!</strong><br><br>
-          We sent a confirmation email to <strong>${email}</strong>.<br><br>
-          Please check your inbox, click the confirmation link, and you'll be signed in automatically.
-        `;
+        successEl.innerHTML = `<strong>✓ Account created!</strong><br><br>We sent a confirmation email to <strong>${email}</strong>.<br><br>Please check your inbox and click the confirmation link to activate your account.`;
         successEl.style.display = 'block';
         btn.textContent = 'Resend Email';
-        btn.disabled = false;
       }
     }
-  } catch(e) {
-    showError('signup-error', 'Connection error. Please try again.');
-  }
+  } catch(e) { showError('signup-error', 'Connection error. Please try again.'); }
 
   loadingEl.style.display = 'none';
   if (btn.textContent !== 'Resend Email') btn.disabled = false;
@@ -345,7 +416,6 @@ function showError(id, msg) {
   el.style.display = 'block';
 }
 
-// Allow Enter key
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const activeForm = document.querySelector('.auth-form.active').id;
@@ -354,13 +424,11 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Check if already logged in
 const session = localStorage.getItem('e2_session');
 if (session) {
   try { const s = JSON.parse(session); if (s.access_token) window.location.href = 'app.html'; } catch(e) {}
 }
 
-// Handle email confirmation callback
 handleAuthCallback();
 </script>
 </body>

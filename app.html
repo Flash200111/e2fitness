@@ -1025,23 +1025,12 @@ function toast(msg,isError){
   t._timer=setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-// ── COACH PIN ─────────────────────────────────────────────────────────────────
-const COACH_PIN='0000000'; // ← CHANGE THIS TO YOUR REAL PIN ON GITHUB
-let coachUnlocked=false, pinCallback=null;
-function requireCoach(cb){
-  if(coachUnlocked){cb();return;}
-  pinCallback=cb;
-  document.getElementById('pinInput').value='';
-  document.getElementById('pinError').style.display='none';
-  document.getElementById('pinOverlay').classList.add('open');
-  setTimeout(()=>document.getElementById('pinInput').focus(),100);
-}
-function checkPin(){
-  const entered=document.getElementById('pinInput').value.trim();
-  if(entered===COACH_PIN){coachUnlocked=true;document.getElementById('pinOverlay').classList.remove('open');if(pinCallback){pinCallback();pinCallback=null;}toast('Coach access granted ✓');}
-  else{document.getElementById('pinError').style.display='block';document.getElementById('pinInput').value='';document.getElementById('pinInput').focus();}
-}
-function closePinOverlay(){document.getElementById('pinOverlay').classList.remove('open');pinCallback=null;}
+// ── COACH PIN — REMOVED (auth handled by email login) ─────────────────────────
+let coachUnlocked = false; // set by checkAuth based on email
+let pinCallback = null;
+function requireCoach(cb){ if(coachUnlocked){cb();return;} cb(); } // auto-allow if logged in
+function checkPin(){} // legacy stub
+function closePinOverlay(){}
 
 // ── AI FOOD ANALYZER ──────────────────────────────────────────────────────────
 const ANTHROPIC_API_KEY='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';
