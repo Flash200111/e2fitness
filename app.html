@@ -346,9 +346,9 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">VIDEO LAB</div>
-      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Curated training & nutrition content</div>
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Curated training &amp; nutrition content</div>
     </div>
-    <button class="btn btn-primary coach-only" onclick="openVideoModal()">+ Add Video</button>
+    <div id="lab-add-btn"></div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="lab-filters">
     <button class="filter-btn active" onclick="filterLab('all',this)">All</button>
@@ -391,7 +391,7 @@
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">RESOURCES</div>
       <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Articles · Studies · Products · Tools · Videos</div>
     </div>
-    <button class="btn btn-primary coach-only" onclick="openResourceModal()">+ Add Link</button>
+    <div id="res-add-btn"></div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="res-filters">
     <button class="filter-btn active" onclick="filterResources('all',this)">All</button>
@@ -1020,16 +1020,11 @@ function renderExercises(){
   grid.innerHTML=filtered.map(e=>{
     const tagClass=e.tags[0]==='highrisk'?'tag-avoid':e.tags[0]==='caution'?'tag-caution':'tag-safe';
     const tagLabel=e.tags[0]==='highrisk'?'⚠️ High Risk':e.tags[0]==='caution'?'⚠️ Caution':'✓ Safe';
-    const searchQuery=encodeURIComponent(`${e.name} technique site:youtube.com menno henselmans OR eric helms OR jeff nippard OR "sean nalewanyj" OR "jeremy ethier" OR "alan thrall" OR "squat university" OR "layne norton"`);
-    const ytSearch=`https://www.youtube.com/results?search_query=${encodeURIComponent(e.name + ' technique form menno henselmans OR eric helms OR jeff nippard OR sean nalewanyj OR jeremy ethier OR alan thrall OR squat university OR layne norton')}`;
     return `<div class="ex-card">
       <div class="ex-name">${e.name}</div>
       <div class="ex-muscle">${e.muscle}</div>
       <div class="ex-note">${e.note}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
-        <span class="ex-tag ${tagClass}">${tagLabel}</span>
-        <a href="${ytSearch}" target="_blank" rel="noopener" class="btn" style="font-size:0.7rem;padding:5px 12px;text-decoration:none;display:inline-block;">▶ Watch Demo</a>
-      </div>
+      <div style="margin-top:10px;"><span class="ex-tag ${tagClass}">${tagLabel}</span></div>
     </div>`;
   }).join('');
 }
@@ -1260,6 +1255,14 @@ function init(){
   // Hide coach-only nav for clients
   if(!coachUnlocked){
     document.querySelectorAll('.coach-only').forEach(el=>el.style.display='none');
+  }
+
+  // Show coach-only buttons
+  if(coachUnlocked){
+    const labBtn=document.getElementById('lab-add-btn');
+    if(labBtn)labBtn.innerHTML='<button class="btn btn-primary" onclick="openVideoModal()">+ Add Video</button>';
+    const resBtn=document.getElementById('res-add-btn');
+    if(resBtn)resBtn.innerHTML='<button class="btn btn-primary" onclick="openResourceModal()">+ Add Link</button>';
   }
 
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
