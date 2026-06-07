@@ -398,7 +398,6 @@
     <button class="filter-btn" onclick="filterResources('supplement',this)">Supplements &amp; Products</button>
     <button class="filter-btn" onclick="filterResources('article',this)">Articles</button>
     <button class="filter-btn" onclick="filterResources('research',this)">Research</button>
-    <button class="filter-btn" onclick="filterResources('video',this)">YouTube</button>
     <button class="filter-btn" onclick="filterResources('tool',this)">Tools &amp; Apps</button>
   </div>
   <div id="resources-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
@@ -534,7 +533,6 @@
           <option value="supplement">Supplements &amp; Products</option>
           <option value="article">Article / Blog Post</option>
           <option value="research">Research / Study</option>
-          <option value="video">YouTube Video</option>
           <option value="tool">Tool / App</option>
         </select>
       </div>
@@ -1057,18 +1055,43 @@ function renderExercises(){
   }).join('');
 }
 
+let currentDemoExercise=null;
+
 function addExerciseDemo(exName){
-  const url=prompt('Paste YouTube URL for: '+exName);
-  if(!url)return;
-  const vid=extractYouTubeId(url);
-  if(!vid){toast('Invalid YouTube URL');return;}
-  if(!state.exerciseVideos)state.exerciseVideos={};
-  state.exerciseVideos[exName]=url;
-  saveState();renderExercises();toast('Demo video saved ✓');
+  currentDemoExercise=exName;
+  document.getElementById('demo-video-exercise-name').textContent=exName;
+  document.getElementById('demo-video-url').value='';
+  document.getElementById('demo-video-preview').style.display='none';
+  document.getElementById('demoVideoModal').classList.add('open');
 }
 
 function editExerciseDemo(exName){
-  addExerciseDemo(exName);
+  currentDemoExercise=exName;
+  document.getElementById('demo-video-exercise-name').textContent=exName;
+  const saved=(state.exerciseVideos||{})[exName]||'';
+  document.getElementById('demo-video-url').value=saved;
+  document.getElementById('demo-video-preview').style.display='none';
+  document.getElementById('demoVideoModal').classList.add('open');
+}
+
+function previewDemoVideo(){
+  const url=document.getElementById('demo-video-url').value.trim();
+  const vid=extractYouTubeId(url);
+  if(!vid){toast('Invalid YouTube URL');return;}
+  document.getElementById('demo-video-iframe').src='https://www.youtube.com/embed/'+vid;
+  document.getElementById('demo-video-preview').style.display='block';
+}
+
+function saveDemoVideo(){
+  const url=document.getElementById('demo-video-url').value.trim();
+  const vid=extractYouTubeId(url);
+  if(!vid){toast('Invalid YouTube URL');return;}
+  if(!state.exerciseVideos)state.exerciseVideos={};
+  state.exerciseVideos[currentDemoExercise]=url;
+  saveState();
+  closeModal('demoVideoModal');
+  renderExercises();
+  toast('Demo video saved ✓');
 }
 
 function removeExerciseDemo(exName){
@@ -1108,7 +1131,7 @@ function toast(msg,isError){
 // ── COACH PIN — REMOVED (auth handled by email login) ─────────────────────────
 let coachUnlocked = false; // set by checkAuth based on email
 let pinCallback = null;
-function requireCoach(cb){ if(coachUnlocked){cb();return;} cb(); } // auto-allow if logged in
+function requireCoach(cb){ if(coachUnlocked){cb();return;} toast('Coach access required');}
 function checkPin(){} // legacy stub
 function closePinOverlay(){}
 
@@ -1320,5 +1343,27 @@ document.addEventListener('DOMContentLoaded',()=>{document.getElementById('pinIn
 init();
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}
 </script>
+<!-- DEMO VIDEO MODAL -->
+<div class="modal-overlay" id="demoVideoModal">
+  <div class="modal" style="max-width:440px;">
+    <button class="modal-close" onclick="closeModal('demoVideoModal')">✕</button>
+    <div class="modal-title">Add Demo Video</div>
+    <div id="demo-video-exercise-name" style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;letter-spacing:1px;"></div>
+    <div class="form-group">
+      <label class="form-label">YouTube URL</label>
+      <input type="text" id="demo-video-url" placeholder="https://youtube.com/watch?v=...">
+    </div>
+    <div id="demo-video-preview" style="display:none;margin:12px 0;">
+      <div style="aspect-ratio:16/9;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+        <iframe id="demo-video-iframe" allowfullscreen style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn" style="flex:1;" onclick="previewDemoVideo()">Preview</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveDemoVideo()">Save Video</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
