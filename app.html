@@ -343,15 +343,25 @@
 
 <!-- VIDEO LAB -->
 <div id="page-lab" class="page">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">VIDEO LAB</div>
-      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Link YouTube videos · Take notes · Discuss</div>
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Curated training & nutrition content</div>
     </div>
     <button class="btn btn-primary" onclick="openVideoModal()">+ Add Video</button>
   </div>
+  <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="lab-filters">
+    <button class="filter-btn active" onclick="filterLab('all',this)">All</button>
+    <button class="filter-btn" onclick="filterLab('Nutrition & Diet',this)">Nutrition &amp; Diet</button>
+    <button class="filter-btn" onclick="filterLab('Training Science',this)">Training Science</button>
+    <button class="filter-btn" onclick="filterLab('Mindset & Motivation',this)">Mindset &amp; Motivation</button>
+    <button class="filter-btn" onclick="filterLab('Recovery & Sleep',this)">Recovery &amp; Sleep</button>
+    <button class="filter-btn" onclick="filterLab('Mobility & Flexibility',this)">Mobility &amp; Flexibility</button>
+    <button class="filter-btn" onclick="filterLab('Programming & Periodization',this)">Programming</button>
+    <button class="filter-btn" onclick="filterLab('Transformation Stories',this)">Transformations</button>
+  </div>
   <div class="lab-grid" id="video-grid">
-    <div class="empty-state" style="grid-column:1/-1">No videos yet. Add your first YouTube link above.</div>
+    <div class="empty-state" style="grid-column:1/-1">No videos yet. Add your first video above.</div>
   </div>
 </div>
 
@@ -495,8 +505,13 @@
       <div class="form-group">
         <label class="form-label">Category</label>
         <select id="v-cat">
-          <option>Exercise Demo</option><option>Workout Science</option><option>Nutrition</option>
-          <option>Recovery</option><option>Programming</option><option>Mindset</option>
+          <option value="Nutrition & Diet">Nutrition &amp; Diet</option>
+          <option value="Training Science">Training Science</option>
+          <option value="Mindset & Motivation">Mindset &amp; Motivation</option>
+          <option value="Recovery & Sleep">Recovery &amp; Sleep</option>
+          <option value="Mobility & Flexibility">Mobility &amp; Flexibility</option>
+          <option value="Programming & Periodization">Programming &amp; Periodization</option>
+          <option value="Transformation Stories">Transformation Stories</option>
         </select>
       </div>
       <div class="form-group"><label class="form-label">Notes / Key Takeaways</label><textarea id="v-notes" rows="3" placeholder="What stood out? Key timestamps, ideas..."></textarea></div>
@@ -794,6 +809,14 @@ function renderMetrics(){
 function removeMetric(id){state.metrics=state.metrics.filter(m=>m.id!==id);saveState();renderMetrics();}
 
 // ── VIDEO LAB — FIXED ─────────────────────────────────────────────────────────
+let currentLabFilter='all';
+function filterLab(cat,btn){
+  currentLabFilter=cat;
+  document.querySelectorAll('#lab-filters .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderVideos();
+}
+
 function openVideoModal(){
   requireCoach(()=>document.getElementById('videoModal').classList.add('open'));
 }
@@ -838,9 +861,18 @@ async function renderVideos(){
   grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">Loading...</div>';
   const dbVideos=await sbGet('videos');
   const localVideos=(state.videos||[]).filter(lv=>!dbVideos.find(sv=>sv.vid_id===(lv.vid_id||lv.vid)));
-  const all=[...dbVideos,...localVideos];
-  if(!all.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No videos yet. Click + Add Video to get started.</div>';return;}
-  grid.innerHTML=all.map(v=>{
+  let allVideos=[...dbVideos,...localVideos];
+
+  // Apply category filter
+  if(currentLabFilter!=='all'){
+    allVideos=allVideos.filter(v=>(v.cat||v.category||'')=== currentLabFilter);
+  }
+
+  if(!allVideos.length){
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No videos in this category yet.</div>';
+    return;
+  }
+  grid.innerHTML=allVideos.map(v=>{
     const vidId=v.vid_id||v.vid||'';
     const vId=String(v.id||'');
     return `<div class="video-card">
@@ -988,11 +1020,16 @@ function renderExercises(){
   grid.innerHTML=filtered.map(e=>{
     const tagClass=e.tags[0]==='highrisk'?'tag-avoid':e.tags[0]==='caution'?'tag-caution':'tag-safe';
     const tagLabel=e.tags[0]==='highrisk'?'⚠️ High Risk':e.tags[0]==='caution'?'⚠️ Caution':'✓ Safe';
+    const searchQuery=encodeURIComponent(`${e.name} technique site:youtube.com menno henselmans OR eric helms OR jeff nippard OR "sean nalewanyj" OR "jeremy ethier" OR "alan thrall" OR "squat university" OR "layne norton"`);
+    const ytSearch=`https://www.youtube.com/results?search_query=${encodeURIComponent(e.name + ' technique form menno henselmans OR eric helms OR jeff nippard OR sean nalewanyj OR jeremy ethier OR alan thrall OR squat university OR layne norton')}`;
     return `<div class="ex-card">
       <div class="ex-name">${e.name}</div>
       <div class="ex-muscle">${e.muscle}</div>
       <div class="ex-note">${e.note}</div>
-      <div><span class="ex-tag ${tagClass}">${tagLabel}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
+        <span class="ex-tag ${tagClass}">${tagLabel}</span>
+        <a href="${ytSearch}" target="_blank" rel="noopener" class="btn" style="font-size:0.7rem;padding:5px 12px;text-decoration:none;display:inline-block;">▶ Watch Demo</a>
+      </div>
     </div>`;
   }).join('');
 }
