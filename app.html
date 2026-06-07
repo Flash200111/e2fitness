@@ -1020,13 +1020,61 @@ function renderExercises(){
   grid.innerHTML=filtered.map(e=>{
     const tagClass=e.tags[0]==='highrisk'?'tag-avoid':e.tags[0]==='caution'?'tag-caution':'tag-safe';
     const tagLabel=e.tags[0]==='highrisk'?'⚠️ High Risk':e.tags[0]==='caution'?'⚠️ Caution':'✓ Safe';
+    const savedVideos=state.exerciseVideos||{};
+    const demoUrl=savedVideos[e.name];
+    const demoVid=demoUrl?extractYouTubeId(demoUrl):null;
+
+    let demoSection='';
+    if(coachUnlocked){
+      if(demoVid){
+        demoSection=`
+          <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+            <div style="aspect-ratio:16/9;"><iframe src="https://www.youtube.com/embed/${demoVid}" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;"></iframe></div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <button class="btn" style="font-size:0.7rem;flex:1;" onclick="editExerciseDemo('${e.name.replace(/'/g,"\\'")}')">✏️ Change Video</button>
+            <button class="btn btn-danger" style="font-size:0.7rem;" onclick="removeExerciseDemo('${e.name.replace(/'/g,"\\'")}')">✕</button>
+          </div>`;
+      } else {
+        demoSection=`<button class="btn" style="margin-top:10px;width:100%;font-size:0.75rem;" onclick="addExerciseDemo('${e.name.replace(/'/g,"\\'")}')">+ Add Demo Video</button>`;
+      }
+    } else {
+      if(demoVid){
+        demoSection=`
+          <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+            <div style="aspect-ratio:16/9;"><iframe src="https://www.youtube.com/embed/${demoVid}" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;"></iframe></div>
+          </div>`;
+      }
+    }
+
     return `<div class="ex-card">
       <div class="ex-name">${e.name}</div>
       <div class="ex-muscle">${e.muscle}</div>
       <div class="ex-note">${e.note}</div>
       <div style="margin-top:10px;"><span class="ex-tag ${tagClass}">${tagLabel}</span></div>
+      ${demoSection}
     </div>`;
   }).join('');
+}
+
+function addExerciseDemo(exName){
+  const url=prompt('Paste YouTube URL for: '+exName);
+  if(!url)return;
+  const vid=extractYouTubeId(url);
+  if(!vid){toast('Invalid YouTube URL');return;}
+  if(!state.exerciseVideos)state.exerciseVideos={};
+  state.exerciseVideos[exName]=url;
+  saveState();renderExercises();toast('Demo video saved ✓');
+}
+
+function editExerciseDemo(exName){
+  addExerciseDemo(exName);
+}
+
+function removeExerciseDemo(exName){
+  if(!state.exerciseVideos)return;
+  delete state.exerciseVideos[exName];
+  saveState();renderExercises();toast('Demo video removed');
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
