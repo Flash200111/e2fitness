@@ -1555,7 +1555,6 @@ async function submitCommunityPost() {
   if (!text) return toast('Write something first');
   const session = getSession();
   const result = await sbInsertAuth('community_posts', {
-    user_id: session.user_id,
     user_email: session.email,
     user_name: session.full_name || session.email.split('@')[0],
     content: text
@@ -1576,7 +1575,6 @@ async function submitReply(postId) {
   const session = getSession();
   const result = await sbInsertAuth('community_replies', {
     post_id: postId,
-    user_id: session.user_id,
     user_email: session.email,
     user_name: session.full_name || session.email.split('@')[0],
     content: text
@@ -1686,7 +1684,6 @@ async function sendClientMessage() {
   if (!text) return toast('Write a message first');
   const session = getSession();
   const result = await sbInsertAuth('messages', {
-    client_id: session.user_id,
     client_email: session.email,
     content: text
   });
