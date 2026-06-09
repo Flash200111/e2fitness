@@ -130,6 +130,10 @@
   .pin-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 20px; }
   .pin-input { font-family: 'DM Mono', monospace; font-size: 1.5rem; letter-spacing: 8px; text-align: center; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 12px; border-radius: 6px; width: 100%; margin-bottom: 14px; }
   .pin-error { color: var(--danger); font-size: 0.8rem; margin-bottom: 10px; display: none; }
+  
+  .community-post { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .reply-thread { margin-left: 16px; border-left: 2px solid var(--border); padding-left: 12px; margin-top: 10px; }
+
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -166,9 +170,12 @@
   <button onclick="showPage('dashboard')">Dashboard</button>
   <button onclick="showPage('log')">Daily Log</button>
   <button onclick="showPage('goals')">Goals</button>
+  <button onclick="showPage('myplan')">My Plan</button>
   <button onclick="showPage('lab')">Video Lab</button>
   <button onclick="showPage('exercises')">Exercise DB</button>
   <button onclick="showPage('resources')">Resources</button>
+  <button onclick="showPage('community')">Community</button>
+  <button onclick="showPage('inbox')" id="nav-inbox">Inbox <span id="inbox-badge" style="display:none;background:var(--danger);color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:10px;margin-left:4px;">!</span></button>
   <button class="coach-only" onclick="showPage('coaching')">Coaching</button>
   <button class="coach-only" onclick="showPage('transformations')">Transformations</button>
   <button onclick="showPage('settings')">Settings</button>
@@ -462,6 +469,56 @@
   </div>
 </div>
 
+
+<!-- MY PLAN PAGE -->
+<div id="page-myplan" class="page">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">MY PLAN</div>
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Your personal training plan from Coach E</div>
+    </div>
+    <button class="btn" onclick="showPage('inbox')" style="font-size:0.75rem;">💬 Message Coach</button>
+  </div>
+  <div id="myplan-content"><div class="empty-state" style="padding:48px;">Loading your plan...</div></div>
+</div>
+
+<!-- COMMUNITY PAGE -->
+<div id="page-community" class="page">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">COMMUNITY</div>
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Ask questions · Share progress · Connect</div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">New Post</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <textarea id="community-post-text" rows="3" placeholder="Share something with the community..."></textarea>
+      <button class="btn btn-primary" onclick="submitCommunityPost()" style="align-self:flex-end;padding:8px 24px;">Post</button>
+    </div>
+  </div>
+  <div id="community-posts-list"><div class="empty-state">Loading posts...</div></div>
+</div>
+
+<!-- INBOX PAGE -->
+<div id="page-inbox" class="page">
+  <div style="margin-bottom:20px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">INBOX</div>
+    <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;" id="inbox-subtitle">Messages with Coach E</div>
+  </div>
+  <div id="inbox-content"></div>
+  <!-- Client message form (shown for non-coach) -->
+  <div id="client-message-form" style="display:none;" class="panel" style="margin-top:16px;">
+    <div class="panel-title">Send Message to Coach</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <textarea id="client-msg-text" rows="3" placeholder="Ask a question, report progress, flag an issue..."></textarea>
+      <button class="btn btn-primary" onclick="sendClientMessage()">Send Message</button>
+    </div>
+  </div>
+  <!-- Coach inbox (shown for coach) -->
+  <div id="coach-inbox" style="display:none;"></div>
+</div>
+
 </main>
 
 <!-- PIN MODAL -->
@@ -639,7 +696,13 @@ const sbH = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authoriza
 
 async function sbGet(table) {
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`, {headers:sbH});
+    const session = getSession ? getSession() : null;
+    const token = (session && session.access_token) ? session.access_token : SUPABASE_KEY;
+    const headers = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token };
+    const url = table.includes('?')
+      ? `${SUPABASE_URL}/rest/v1/${table}`
+      : `${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`;
+    const r = await fetch(url, {headers});
     const d = await r.json();
     return (r.ok && Array.isArray(d)) ? d : [];
   } catch(e) { return []; }
@@ -677,15 +740,18 @@ function saveState(){localStorage.setItem('e2fitness_state',JSON.stringify(state
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick').includes("'"+id+"'")));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
   if(id==='dashboard') refreshDashboard();
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
   if(id==='resources'){if(!state.resources)state.resources=[];renderResources();}
-  if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();}
+  if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();renderCoachingPage();}
   if(id==='transformations'){if(!state.transformations)state.transformations=[];renderTransformations();}
   if(id==='settings') loadSettings();
+  if(id==='myplan') renderMyPlan();
+  if(id==='community') renderCommunity();
+  if(id==='inbox') renderInbox();
 }
 
 // ── FOOD LOG ──────────────────────────────────────────────────────────────────
@@ -798,6 +864,7 @@ function saveMetrics(){
   if(!weight&&!bf)return toast('Enter at least one metric');
   state.metrics.unshift({weight,bf,waist,date,id:Date.now()});
   saveState();renderMetrics();toast('Metrics saved ✓');
+  saveMetricsToSupabase(weight, bf, waist);
 }
 function renderMetrics(){
   const el=document.getElementById('metrics-history');
@@ -1245,11 +1312,14 @@ function selectClient(id){activeClientId=id;renderClientList();renderClientDetai
 function renderClientDetail(){
   const c=(state.clients||[]).find(c=>c.id===activeClientId);if(!c)return;
   const panel=document.getElementById('client-detail');
-  panel.innerHTML=`<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;"><div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;">${c.name}</div><div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">${c.email||'No email'}</div></div><button class="btn btn-primary" onclick="openWorkoutModal(${c.id})">+ Build Workout Plan</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">${[['Goal',c.goal],['Level',c.level],['Age',c.age||'—'],['Days/Week',c.days],['Equipment',c.equipment||'—'],['Injuries',c.injuries||'None']].map(([k,v])=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px 14px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${k}</div><div style="font-size:0.85rem;font-weight:500;">${v}</div></div>`).join('')}</div><div style="margin-bottom:20px;"><div class="section-sub" style="border-top:none;padding-top:0;margin-top:0;">Workout Plans (${(c.workoutPlans||[]).length})</div>${(c.workoutPlans||[]).length?c.workoutPlans.map((wp,i)=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div><div style="font-weight:600;font-size:0.9rem;">${wp.name}</div><div style="font-size:0.72rem;color:var(--muted);">${wp.day} · ${(wp.exercises||[]).length} exercises</div></div><button class="log-item-del" onclick="removeWorkoutPlan(${c.id},${i})">✕</button></div>${(wp.exercises||[]).map(e=>`<div style="display:flex;gap:16px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem;"><span style="flex:2;font-weight:500;">${e.name}</span><span style="color:var(--accent);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><span style="color:var(--muted);">${e.rest||''}</span></div>`).join('')}${wp.notes?`<div style="font-size:0.78rem;color:var(--muted);margin-top:8px;font-style:italic;">${wp.notes}</div>`:''}</div>`).join(''):'<div class="empty-state">No workout plans yet</div>'}</div><div><div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Coaching Notes</div><div style="margin-bottom:10px;">${(c.notes||[]).length?c.notes.map((n,i)=>`<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px;"><div style="display:flex;justify-content:space-between;width:100%;"><div style="font-size:0.7rem;color:var(--muted);font-family:'DM Mono',monospace;">${n.date}</div><button class="log-item-del" onclick="removeClientNote(${c.id},${i})">✕</button></div><div style="font-size:0.85rem;line-height:1.5;">${n.text}</div></div>`).join(''):'<div class="empty-state">No notes yet</div>'}</div><div style="display:flex;gap:8px;"><input type="text" id="new-client-note" placeholder="Add coaching note, progress update..." style="flex:1;"><button class="btn btn-primary" onclick="addClientNote(${c.id})">Add</button></div></div>`;
+  panel.innerHTML=`<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;"><div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;">${c.name}</div><div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">${c.email||'No email'}</div></div><button class="btn btn-primary" onclick="openWorkoutModal(${c.id})">+ Quick Plan</button><button class="btn btn-primary" style="margin-left:8px;" onclick="openPlanBuilderForClient('${c.email}')">📋 Build Full Plan</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">${[['Goal',c.goal],['Level',c.level],['Age',c.age||'—'],['Days/Week',c.days],['Equipment',c.equipment||'—'],['Injuries',c.injuries||'None']].map(([k,v])=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px 14px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${k}</div><div style="font-size:0.85rem;font-weight:500;">${v}</div></div>`).join('')}</div><div style="margin-bottom:20px;"><div class="section-sub" style="border-top:none;padding-top:0;margin-top:0;">Workout Plans (${(c.workoutPlans||[]).length})</div>${(c.workoutPlans||[]).length?c.workoutPlans.map((wp,i)=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div><div style="font-weight:600;font-size:0.9rem;">${wp.name}</div><div style="font-size:0.72rem;color:var(--muted);">${wp.day} · ${(wp.exercises||[]).length} exercises</div></div><button class="log-item-del" onclick="removeWorkoutPlan(${c.id},${i})">✕</button></div>${(wp.exercises||[]).map(e=>`<div style="display:flex;gap:16px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem;"><span style="flex:2;font-weight:500;">${e.name}</span><span style="color:var(--accent);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><span style="color:var(--muted);">${e.rest||''}</span></div>`).join('')}${wp.notes?`<div style="font-size:0.78rem;color:var(--muted);margin-top:8px;font-style:italic;">${wp.notes}</div>`:''}</div>`).join(''):'<div class="empty-state">No workout plans yet</div>'}</div><div><div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Coaching Notes</div><div style="margin-bottom:10px;">${(c.notes||[]).length?c.notes.map((n,i)=>`<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px;"><div style="display:flex;justify-content:space-between;width:100%;"><div style="font-size:0.7rem;color:var(--muted);font-family:'DM Mono',monospace;">${n.date}</div><button class="log-item-del" onclick="removeClientNote(${c.id},${i})">✕</button></div><div style="font-size:0.85rem;line-height:1.5;">${n.text}</div></div>`).join(''):'<div class="empty-state">No notes yet</div>'}</div><div style="display:flex;gap:8px;"><input type="text" id="new-client-note" placeholder="Add coaching note, progress update..." style="flex:1;"><button class="btn btn-primary" onclick="addClientNote(${c.id})">Add</button></div></div>`;
 }
 function addClientNote(clientId){const input=document.getElementById('new-client-note');const text=input.value.trim();if(!text)return;const c=state.clients.find(c=>c.id===clientId);if(!c.notes)c.notes=[];c.notes.unshift({text,date:new Date().toLocaleDateString()});input.value='';saveState();renderClientDetail();toast('Note added ✓');}
 function removeClientNote(clientId,idx){const c=state.clients.find(c=>c.id===clientId);c.notes.splice(idx,1);saveState();renderClientDetail();}
 function removeClient(id){if(!confirm('Remove this client?'))return;state.clients=state.clients.filter(c=>c.id!==id);if(activeClientId===id){activeClientId=null;document.getElementById('client-detail').innerHTML='<div class="empty-state" style="padding:48px">Select a client to view their profile</div>';}saveState();renderClientList();toast('Client removed');}
+function openPlanBuilderForClient(clientEmail){
+  openPlanBuilder(clientEmail);
+}
 function openWorkoutModal(clientId){activeClientId=clientId;tempWorkoutExercises=[];['wp-name','wp-day','wp-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('wp-exercises-list').innerHTML='';document.getElementById('workoutModal').classList.add('open');}
 function addExToWorkoutPlan(){const name=document.getElementById('wp-ex-name').value.trim();if(!name)return toast('Enter exercise name');tempWorkoutExercises.push({name,sets:document.getElementById('wp-ex-sets').value,reps:document.getElementById('wp-ex-reps').value.trim(),rest:document.getElementById('wp-ex-rest').value.trim(),notes:document.getElementById('wp-ex-notes').value.trim()});['wp-ex-name','wp-ex-sets','wp-ex-reps','wp-ex-rest','wp-ex-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('wp-exercises-list').innerHTML=tempWorkoutExercises.map((e,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px;font-size:0.82rem;"><span><b>${e.name}</b> — ${e.sets||'?'}×${e.reps||'?'} ${e.rest?'· '+e.rest:''}</span><button class="log-item-del" onclick="removeTempEx(${i})">✕</button></div>`).join('');}
 function removeTempEx(i){tempWorkoutExercises.splice(i,1);document.getElementById('wp-exercises-list').innerHTML=tempWorkoutExercises.map((e,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px;font-size:0.82rem;"><span><b>${e.name}</b> — ${e.sets||'?'}×${e.reps||'?'}</span><button class="log-item-del" onclick="removeTempEx(${i})">✕</button></div>`).join('');}
@@ -1310,6 +1380,515 @@ function signOut(){
   window.location.href='login.html';
 }
 
+
+// ── SUPABASE AUTH HEADERS WITH USER TOKEN ─────────────────────────────────────
+function getAuthHeaders() {
+  const session = getSession();
+  const token = session ? session.access_token : SUPABASE_KEY;
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + token
+  };
+}
+
+async function sbGetAuth(table, filter) {
+  try {
+    const url = filter
+      ? `${SUPABASE_URL}/rest/v1/${table}?${filter}&order=created_at.desc`
+      : `${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`;
+    const r = await fetch(url, {headers: getAuthHeaders()});
+    const d = await r.json();
+    return (r.ok && Array.isArray(d)) ? d : [];
+  } catch(e) { return []; }
+}
+
+async function sbInsertAuth(table, data) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: 'POST',
+      headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+      body: JSON.stringify(data)
+    });
+    const d = await r.json();
+    return (r.ok && Array.isArray(d) && d.length) ? d[0] : null;
+  } catch(e) { return null; }
+}
+
+async function sbUpdateAuth(table, id, data) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+  } catch(e) {}
+}
+
+async function sbDeleteAuth(table, id) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+  } catch(e) {}
+}
+
+// ── MY PLAN ───────────────────────────────────────────────────────────────────
+async function renderMyPlan() {
+  const session = getSession();
+  const container = document.getElementById('myplan-content');
+  container.innerHTML = '<div class="empty-state">Loading...</div>';
+
+  const plans = await sbGetAuth('workout_plans', `client_email=eq.${encodeURIComponent(session.email)}&status=eq.approved`);
+
+  if (!plans.length) {
+    container.innerHTML = `
+      <div class="panel" style="text-align:center;padding:48px;">
+        <div style="font-size:2rem;margin-bottom:12px;">🏋️</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;margin-bottom:8px;">No Plan Yet</div>
+        <div style="color:var(--muted);font-size:0.85rem;margin-bottom:20px;">Your coach is working on your personalized plan. Check back soon!</div>
+        <button class="btn" onclick="showPage('inbox')">Message Coach</button>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = plans.map(plan => {
+    const p = plan.plan_data;
+    const days = p.days || [];
+    return `
+      <div class="panel" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;">${p.name || 'My Workout Plan'}</div>
+          <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
+        </div>
+        ${plan.coach_notes ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;font-style:italic;">${plan.coach_notes}</div>` : ''}
+        ${days.map((day, di) => `
+          <div style="margin-bottom:20px;">
+            <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.name}</div>
+            ${(day.exercises || []).map(ex => `
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                  <div style="font-weight:600;font-size:0.9rem;">${ex.name}</div>
+                  <div style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--accent);">${ex.sets} × ${ex.reps}</div>
+                </div>
+                ${ex.rest ? `<div style="font-size:0.72rem;color:var(--muted);">Rest: ${ex.rest}</div>` : ''}
+                ${ex.notes ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:4px;font-style:italic;">${ex.notes}</div>` : ''}
+                <div style="margin-top:10px;">
+                  <button class="btn btn-primary" style="font-size:0.72rem;padding:5px 12px;" onclick="logPlanExercise('${ex.name.replace(/'/g,"\'")}', '${ex.sets}', '${ex.reps}')">Log This ✓</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>`;
+  }).join('');
+}
+
+function logPlanExercise(name, sets, reps) {
+  document.getElementById('ex-name').value = name;
+  document.getElementById('ex-sets').value = sets;
+  document.getElementById('ex-reps').value = reps;
+  showPage('log');
+  toast('Exercise loaded — fill in weight and RPE ✓');
+}
+
+// ── COMMUNITY ─────────────────────────────────────────────────────────────────
+async function renderCommunity() {
+  const list = document.getElementById('community-posts-list');
+  list.innerHTML = '<div class="empty-state">Loading...</div>';
+  const posts = await sbGet('community_posts');
+  if (!posts.length) {
+    list.innerHTML = '<div class="empty-state">No posts yet — be the first to post!</div>';
+    return;
+  }
+  const session = getSession();
+  list.innerHTML = posts.map(post => `
+    <div class="panel" style="margin-bottom:12px;" id="post-${post.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:600;font-size:0.85rem;">${post.user_name || post.user_email || 'Member'}</div>
+          <div style="font-size:0.7rem;color:var(--muted);font-family:'DM Mono',monospace;">${new Date(post.created_at).toLocaleDateString()}</div>
+        </div>
+        ${(coachUnlocked || post.user_id === session.user_id) ? `<button class="log-item-del" onclick="deleteCommunityPost('${post.id}')" title="Delete post">✕</button>` : ''}
+      </div>
+      <div style="font-size:0.88rem;line-height:1.6;margin-bottom:12px;">${post.content}</div>
+      <div id="replies-${post.id}" style="margin-left:12px;border-left:2px solid var(--border);padding-left:12px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="reply-input-${post.id}" placeholder="Reply..." style="font-size:0.8rem;">
+        <button class="btn" style="white-space:nowrap;font-size:0.75rem;" onclick="submitReply('${post.id}')">Reply</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Load replies for each post
+  for (const post of posts) {
+    loadReplies(post.id);
+  }
+}
+
+async function loadReplies(postId) {
+  const replies = await sbGet(`community_replies?post_id=eq.${postId}&order=created_at.asc`);
+  const container = document.getElementById(`replies-${postId}`);
+  if (!container) return;
+  if (!replies.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  const session = getSession();
+  container.innerHTML = replies.map(r => `
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-size:0.72rem;font-weight:600;color:${r.user_email === 'flash2001@hotmail.com' ? 'var(--accent)' : 'var(--text)'};">
+          ${r.user_email === 'flash2001@hotmail.com' ? '⚡ Coach' : (r.user_name || 'Member')}
+        </span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;color:var(--muted);font-family:'DM Mono',monospace;">${new Date(r.created_at).toLocaleDateString()}</span>
+          ${(coachUnlocked || r.user_id === session.user_id) ? `<button class="log-item-del" onclick="deleteReply('${r.id}', '${postId}')" style="font-size:0.75rem;">✕</button>` : ''}
+        </div>
+      </div>
+      <div style="font-size:0.82rem;line-height:1.5;color:var(--muted);">${r.content}</div>
+    </div>
+  `).join('');
+}
+
+async function submitCommunityPost() {
+  const text = document.getElementById('community-post-text').value.trim();
+  if (!text) return toast('Write something first');
+  const session = getSession();
+  const result = await sbInsertAuth('community_posts', {
+    user_id: session.user_id,
+    user_email: session.email,
+    user_name: session.full_name || session.email.split('@')[0],
+    content: text
+  });
+  if (result) {
+    document.getElementById('community-post-text').value = '';
+    renderCommunity();
+    toast('Posted ✓');
+  } else {
+    toast('Could not post — try again', true);
+  }
+}
+
+async function submitReply(postId) {
+  const input = document.getElementById(`reply-input-${postId}`);
+  const text = input.value.trim();
+  if (!text) return;
+  const session = getSession();
+  const result = await sbInsertAuth('community_replies', {
+    post_id: postId,
+    user_id: session.user_id,
+    user_email: session.email,
+    user_name: session.full_name || session.email.split('@')[0],
+    content: text
+  });
+  if (result) {
+    input.value = '';
+    loadReplies(postId);
+    toast('Reply posted ✓');
+  } else {
+    toast('Could not post reply', true);
+  }
+}
+
+async function deleteCommunityPost(id) {
+  if (!confirm('Delete this post?')) return;
+  await sbDeleteAuth('community_posts', id);
+  renderCommunity();
+  toast('Post removed');
+}
+
+async function deleteReply(id, postId) {
+  await sbDeleteAuth('community_replies', id);
+  loadReplies(postId);
+}
+
+// ── INBOX / MESSAGING ─────────────────────────────────────────────────────────
+async function renderInbox() {
+  const session = getSession();
+  const isCoach = coachUnlocked;
+
+  document.getElementById('client-message-form').style.display = isCoach ? 'none' : 'block';
+  document.getElementById('coach-inbox').style.display = isCoach ? 'block' : 'none';
+
+  if (isCoach) {
+    renderCoachInbox();
+  } else {
+    renderClientInbox();
+  }
+}
+
+async function renderClientInbox() {
+  const session = getSession();
+  const container = document.getElementById('inbox-content');
+  const msgs = await sbGetAuth('messages', `client_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc`);
+
+  // Mark unread replies as read
+  for (const m of msgs) {
+    if (m.reply && !m.read_by_client) {
+      await sbUpdateAuth('messages', m.id, { read_by_client: true });
+    }
+  }
+  document.getElementById('inbox-badge').style.display = 'none';
+
+  if (!msgs.length) {
+    container.innerHTML = '<div class="empty-state">No messages yet. Send Coach a message below!</div>';
+    return;
+  }
+
+  container.innerHTML = msgs.map(m => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;">
+      <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:6px;">You · ${new Date(m.created_at).toLocaleDateString()}</div>
+      <div style="font-size:0.88rem;margin-bottom:${m.reply ? '12px' : '0'};">${m.content}</div>
+      ${m.reply ? `
+        <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.2);border-radius:6px;padding:12px;">
+          <div style="font-size:0.68rem;color:var(--accent);font-family:'DM Mono',monospace;margin-bottom:4px;">⚡ Coach · ${new Date(m.replied_at).toLocaleDateString()}</div>
+          <div style="font-size:0.88rem;">${m.reply}</div>
+        </div>` : '<div style="font-size:0.72rem;color:var(--muted);margin-top:8px;font-style:italic;">Awaiting reply...</div>'}
+    </div>
+  `).join('');
+}
+
+async function renderCoachInbox() {
+  const container = document.getElementById('coach-inbox');
+  document.getElementById('inbox-subtitle').textContent = 'All Client Messages';
+  container.innerHTML = '<div class="empty-state">Loading messages...</div>';
+
+  // Get all messages
+  const msgs = await sbGet('messages');
+
+  if (!msgs.length) {
+    container.innerHTML = '<div class="empty-state">No messages from clients yet</div>';
+    return;
+  }
+
+  container.innerHTML = msgs.map(m => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;" id="msg-${m.id}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+        <div style="font-weight:600;font-size:0.85rem;">${m.client_email}</div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;">${new Date(m.created_at).toLocaleDateString()}</div>
+      </div>
+      <div style="font-size:0.88rem;margin-bottom:12px;">${m.content}</div>
+      ${m.reply ? `
+        <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.2);border-radius:6px;padding:10px;margin-bottom:10px;">
+          <div style="font-size:0.68rem;color:var(--accent);margin-bottom:4px;">Your reply · ${new Date(m.replied_at).toLocaleDateString()}</div>
+          <div style="font-size:0.85rem;">${m.reply}</div>
+        </div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <input type="text" id="coach-reply-${m.id}" placeholder="Type your reply..." style="font-size:0.82rem;" value="${m.reply || ''}">
+        <button class="btn btn-primary" style="white-space:nowrap;font-size:0.75rem;" onclick="sendCoachReply('${m.id}', '${m.client_email}')">Send</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function sendClientMessage() {
+  const text = document.getElementById('client-msg-text').value.trim();
+  if (!text) return toast('Write a message first');
+  const session = getSession();
+  const result = await sbInsertAuth('messages', {
+    client_id: session.user_id,
+    client_email: session.email,
+    content: text
+  });
+  if (result) {
+    document.getElementById('client-msg-text').value = '';
+    // Send email alert via Cloudflare Worker
+    try {
+      await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          type: 'email_alert',
+          to: 'flash2001@hotmail.com',
+          subject: 'E2Fitness: New Message from ' + session.email,
+          body: `You have a new message from ${session.email}:
+
+"${text}"
+
+Log in to reply: https://e2fitnessapp.com`
+        })
+      });
+    } catch(e) {}
+    renderClientInbox();
+    toast('Message sent ✓');
+  } else {
+    toast('Could not send — try again', true);
+  }
+}
+
+async function sendCoachReply(msgId, clientEmail) {
+  const reply = document.getElementById(`coach-reply-${msgId}`).value.trim();
+  if (!reply) return toast('Write a reply first');
+  await sbUpdate('messages', msgId, {
+    reply: reply,
+    replied_at: new Date().toISOString(),
+    read_by_client: false
+  });
+  renderCoachInbox();
+  toast('Reply sent ✓');
+}
+
+async function checkUnreadMessages() {
+  const session = getSession();
+  if (coachUnlocked) return;
+  const msgs = await sbGetAuth('messages', `client_email=eq.${encodeURIComponent(session.email)}&reply=not.is.null&read_by_client=eq.false`);
+  if (msgs.length > 0) {
+    document.getElementById('inbox-badge').style.display = 'inline';
+  }
+}
+
+// ── WORKOUT PLAN MANAGEMENT (COACH) ──────────────────────────────────────────
+async function renderPendingPlans() {
+  const plans = await sbGet('workout_plans');
+  return plans;
+}
+
+async function approvePlan(planId) {
+  await sbUpdate('workout_plans', planId, { status: 'approved', approved_at: new Date().toISOString() });
+  toast('Plan approved — client can now see it ✓');
+  renderCoachingPage();
+}
+
+async function rejectPlan(planId) {
+  await sbUpdate('workout_plans', planId, { status: 'rejected' });
+  toast('Plan rejected');
+  renderCoachingPage();
+}
+
+// ── ASSIGN PLAN TO CLIENT (COACH) ─────────────────────────────────────────────
+let planBuilderDays = [];
+let planBuilderCurrentDay = 0;
+let planBuilderClientEmail = '';
+
+function openPlanBuilder(clientEmail) {
+  planBuilderClientEmail = clientEmail;
+  planBuilderDays = [];
+  document.getElementById('pb-client-name').textContent = clientEmail;
+  document.getElementById('pb-plan-name').value = '';
+  document.getElementById('pb-days-list').innerHTML = '';
+  document.getElementById('planBuilderModal').classList.add('open');
+}
+
+function addPlanDay() {
+  const dayName = document.getElementById('pb-day-name').value.trim();
+  if (!dayName) return toast('Enter a day name');
+  planBuilderDays.push({ name: dayName, exercises: [] });
+  planBuilderCurrentDay = planBuilderDays.length - 1;
+  document.getElementById('pb-day-name').value = '';
+  renderPlanDays();
+  toast('Day added');
+}
+
+function addExToPlanDay() {
+  if (!planBuilderDays.length) return toast('Add a day first');
+  const name = document.getElementById('pb-ex-name2').value.trim();
+  const sets = document.getElementById('pb-ex-sets2').value;
+  const reps = document.getElementById('pb-ex-reps2').value.trim();
+  const rest = document.getElementById('pb-ex-rest2').value.trim();
+  const notes = document.getElementById('pb-ex-notes2').value.trim();
+  if (!name) return toast('Enter exercise name');
+  planBuilderDays[planBuilderCurrentDay].exercises.push({ name, sets, reps, rest, notes });
+  ['pb-ex-name2','pb-ex-sets2','pb-ex-reps2','pb-ex-rest2','pb-ex-notes2'].forEach(id => document.getElementById(id).value = '');
+  renderPlanDays();
+}
+
+function renderPlanDays() {
+  const container = document.getElementById('pb-days-list');
+  container.innerHTML = planBuilderDays.map((day, di) => `
+    <div style="background:var(--surface2);border:1px solid ${di === planBuilderCurrentDay ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="planBuilderCurrentDay=${di};renderPlanDays()">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:6px;">${day.name} <span style="font-size:0.7rem;color:var(--muted);">(${day.exercises.length} exercises)</span></div>
+      ${day.exercises.map(e => `<div style="font-size:0.78rem;color:var(--muted);padding:2px 0;">${e.name} · ${e.sets}×${e.reps}</div>`).join('')}
+    </div>
+  `).join('');
+}
+
+async function savePlanToClient() {
+  const planName = document.getElementById('pb-plan-name').value.trim();
+  const coachNotes = document.getElementById('pb-coach-notes').value.trim();
+  if (!planName) return toast('Enter a plan name');
+  if (!planBuilderDays.length) return toast('Add at least one day');
+
+  const result = await sbInsertAuth('workout_plans', {
+    client_email: planBuilderClientEmail,
+    plan_data: { name: planName, days: planBuilderDays },
+    status: 'approved',
+    coach_notes: coachNotes,
+    approved_at: new Date().toISOString()
+  });
+
+  if (result) {
+    closeModal('planBuilderModal');
+    toast('Plan sent to client ✓');
+  } else {
+    toast('Could not save plan', true);
+  }
+}
+
+// ── ENHANCED COACHING PAGE ────────────────────────────────────────────────────
+async function renderCoachingPage() {
+  // Load messages count
+  const msgs = await sbGet('messages');
+  const unread = msgs.filter(m => !m.reply).length;
+  if (unread > 0) {
+    document.getElementById('inbox-badge').style.display = 'inline';
+  }
+}
+
+// ── SAVE WORKOUT TO SUPABASE ──────────────────────────────────────────────────
+async function syncWorkoutToSupabase() {
+  const session = getSession();
+  if (!session) return;
+  const today = new Date().toISOString().split('T')[0];
+  if (!state.today.workout.length && !state.today.cardio.length) return;
+
+  await sbInsertAuth('client_workout_logs', {
+    user_id: session.user_id,
+    user_email: session.email,
+    log_date: today,
+    exercises: state.today.workout,
+    notes: ''
+  });
+}
+
+// ── SAVE NUTRITION TO SUPABASE ────────────────────────────────────────────────
+async function syncNutritionToSupabase() {
+  const session = getSession();
+  if (!session) return;
+  const today = new Date().toISOString().split('T')[0];
+  if (!state.today.food.length) return;
+
+  const totalCal = state.today.food.reduce((s,f)=>s+(f.cal||0),0);
+  const totalProtein = state.today.food.reduce((s,f)=>s+(f.protein||0),0);
+  const totalCarbs = state.today.food.reduce((s,f)=>s+(f.carbs||0),0);
+  const totalFat = state.today.food.reduce((s,f)=>s+(f.fat||0),0);
+
+  await sbInsertAuth('client_nutrition_logs', {
+    user_id: session.user_id,
+    user_email: session.email,
+    log_date: today,
+    food_items: state.today.food,
+    total_calories: totalCal,
+    total_protein: totalProtein,
+    total_carbs: totalCarbs,
+    total_fat: totalFat
+  });
+}
+
+// ── SAVE METRICS TO SUPABASE ──────────────────────────────────────────────────
+async function saveMetricsToSupabase(weight, bf, waist) {
+  const session = getSession();
+  if (!session) return;
+  await sbInsertAuth('client_metrics', {
+    user_id: session.user_id,
+    user_email: session.email,
+    log_date: new Date().toISOString().split('T')[0],
+    weight: weight || null,
+    body_fat: bf || null,
+    waist: waist || null
+  });
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init(){
   if(!checkAuth())return;
@@ -1339,6 +1918,9 @@ function init(){
   }
 
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
+  checkUnreadMessages();
+  // Auto-sync workout and nutrition at end of day on load
+  setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000); // every 5 min
 }
 window.onclick=function(e){if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');}
 document.addEventListener('DOMContentLoaded',()=>{document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')checkPin();});});
@@ -1364,6 +1946,39 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
       <button class="btn" style="flex:1;" onclick="previewDemoVideo()">Preview</button>
       <button class="btn btn-primary" style="flex:1;" onclick="saveDemoVideo()">Save Video</button>
     </div>
+  </div>
+</div>
+
+
+<!-- PLAN BUILDER MODAL -->
+<div class="modal-overlay" id="planBuilderModal">
+  <div class="modal" style="max-width:680px;">
+    <button class="modal-close" onclick="closeModal('planBuilderModal')">✕</button>
+    <div class="modal-title">Build Client Plan</div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;">Client: <span id="pb-client-name" style="color:var(--accent);"></span></div>
+    <div class="form-group"><label class="form-label">Plan Name</label><input id="pb-plan-name" type="text" placeholder="e.g. 4-Week Push/Pull/Legs"></div>
+    <div class="form-group"><label class="form-label">Coach Notes for Client</label><textarea id="pb-coach-notes" rows="2" placeholder="Warm-up protocol, key technique cues, goals..."></textarea></div>
+    <hr class="divider">
+    <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Training Days</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="pb-day-name" type="text" placeholder="Day name (e.g. Day 1 — Push)" style="flex:1;">
+      <button class="btn btn-primary" onclick="addPlanDay()">+ Add Day</button>
+    </div>
+    <div id="pb-days-list" style="margin-bottom:14px;"></div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Add Exercise to Selected Day</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="pb-ex-name2" type="text" placeholder="Exercise name">
+        <div style="display:flex;gap:8px;">
+          <input id="pb-ex-sets2" type="number" placeholder="Sets" min="1">
+          <input id="pb-ex-reps2" type="text" placeholder="Reps / Time">
+          <input id="pb-ex-rest2" type="text" placeholder="Rest (e.g. 90s)">
+        </div>
+        <input id="pb-ex-notes2" type="text" placeholder="Coaching cue for this exercise">
+        <button class="btn" onclick="addExToPlanDay()">+ Add Exercise</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;" onclick="savePlanToClient()">✓ Send Plan to Client</button>
   </div>
 </div>
 
