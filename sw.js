@@ -1,4 +1,4 @@
-const CACHE_NAME = 'e2fitness-v1';
+const CACHE_NAME = 'e2fitness-v3';
 const ASSETS = [
   '/app.html',
   '/manifest.json'
@@ -22,13 +22,27 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch — cache first for app assets, network first for API calls
+// Fetch — network first for HTML, cache first for other assets
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // Always go network for API calls
-  if (url.hostname === 'api.anthropic.com') {
+  if (url.hostname === 'api.anthropic.com' || url.hostname.includes('supabase.co') || url.hostname.includes('workers.dev')) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Network first for HTML files so updates are always fresh
+  if (request.destination === 'document' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
     return;
   }
 
@@ -36,7 +50,6 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(cached => {
       return cached || fetch(event.request).then(response => {
-        // Cache fresh responses for same-origin assets
         if (response.ok && url.origin === self.location.origin) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
