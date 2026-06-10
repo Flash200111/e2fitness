@@ -175,7 +175,7 @@
   <button onclick="showPage('exercises')">Exercise DB</button>
   <button onclick="showPage('resources')">Resources</button>
   <button onclick="showPage('community')">Community</button>
-  <button onclick="showPage('inbox')" id="nav-inbox">Inbox <span id="inbox-badge" style="display:none;background:var(--danger);color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:10px;margin-left:4px;">!</span></button>
+  <button onclick="showPage('messaging')" id="nav-messaging">Messaging <span id="messaging-badge" style="display:none;background:var(--danger);color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:10px;margin-left:4px;">!</span></button>
   <button class="coach-only" onclick="showPage('coaching')">Coaching</button>
   <button class="coach-only" onclick="showPage('transformations')">Transformations</button>
   <button onclick="showPage('settings')">Settings</button>
@@ -477,7 +477,7 @@
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">MY PLAN</div>
       <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">Your personal training plan from Coach E</div>
     </div>
-    <button class="btn" onclick="showPage('inbox')" style="font-size:0.75rem;">💬 Message Coach</button>
+    <button class="btn" onclick="showPage('messaging')" style="font-size:0.75rem;">💬 Message Coach</button>
   </div>
   <div id="myplan-content"><div class="empty-state" style="padding:48px;">Loading your plan...</div></div>
 </div>
@@ -500,13 +500,13 @@
   <div id="community-posts-list"><div class="empty-state">Loading posts...</div></div>
 </div>
 
-<!-- INBOX PAGE -->
-<div id="page-inbox" class="page">
+<!-- MESSAGING PAGE -->
+<div id="page-messaging" class="page">
   <div style="margin-bottom:20px;">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">INBOX</div>
-    <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;" id="inbox-subtitle">Messages with Coach E</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;">MESSAGING</div>
+    <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;" id="messaging-subtitle">Messages with Coach E</div>
   </div>
-  <div id="inbox-content"></div>
+  <div id="messaging-content"></div>
   <!-- Client message form (shown for non-coach) -->
   <div id="client-message-form" style="display:none;" class="panel" style="margin-top:16px;">
     <div class="panel-title">Send Message to Coach</div>
@@ -751,7 +751,7 @@ function showPage(id) {
   if(id==='settings') loadSettings();
   if(id==='myplan') renderMyPlan();
   if(id==='community') renderCommunity();
-  if(id==='inbox') renderInbox();
+  if(id==='messaging') renderMessaging();
 }
 
 // ── FOOD LOG ──────────────────────────────────────────────────────────────────
@@ -1448,7 +1448,7 @@ async function renderMyPlan() {
         <div style="font-size:2rem;margin-bottom:12px;">🏋️</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;margin-bottom:8px;">No Plan Yet</div>
         <div style="color:var(--muted);font-size:0.85rem;margin-bottom:20px;">Your coach is working on your personalized plan. Check back soon!</div>
-        <button class="btn" onclick="showPage('inbox')">Message Coach</button>
+        <button class="btn" onclick="showPage('messaging')">Message Coach</button>
       </div>`;
     return;
   }
@@ -1600,8 +1600,8 @@ async function deleteReply(id, postId) {
   loadReplies(postId);
 }
 
-// ── INBOX / MESSAGING ─────────────────────────────────────────────────────────
-async function renderInbox() {
+// ── MESSAGING / MESSAGING ─────────────────────────────────────────────────────────
+async function renderMessaging() {
   const session = getSession();
   const isCoach = coachUnlocked;
 
@@ -1617,7 +1617,7 @@ async function renderInbox() {
 
 async function renderClientInbox() {
   const session = getSession();
-  const container = document.getElementById('inbox-content');
+  const container = document.getElementById('messaging-content');
   const msgs = await sbGetAuth('messages', `client_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc`);
 
   // Mark unread replies as read
@@ -1626,7 +1626,7 @@ async function renderClientInbox() {
       await sbUpdateAuth('messages', m.id, { read_by_client: true });
     }
   }
-  document.getElementById('inbox-badge').style.display = 'none';
+  document.getElementById('messaging-badge').style.display = 'none';
 
   if (!msgs.length) {
     container.innerHTML = '<div class="empty-state">No messages yet. Send Coach a message below!</div>';
@@ -1648,7 +1648,7 @@ async function renderClientInbox() {
 
 async function renderCoachInbox() {
   const container = document.getElementById('coach-inbox');
-  document.getElementById('inbox-subtitle').textContent = 'All Client Messages';
+  document.getElementById('messaging-subtitle').textContent = 'All Client Messages';
   container.innerHTML = '<div class="empty-state">Loading messages...</div>';
 
   // Get all messages
@@ -1722,15 +1722,37 @@ async function sendCoachReply(msgId, clientEmail) {
     read_by_client: false
   });
   renderCoachInbox();
+  checkUnreadMessages();
   toast('Reply sent ✓');
 }
 
 async function checkUnreadMessages() {
   const session = getSession();
-  if (coachUnlocked) return;
+  if (coachUnlocked) {
+    // Coach: highlight messaging tab if there are unreplied messages
+    const msgs = await sbGet('messages');
+    const unreplied = msgs.filter(m => !m.reply);
+    const navBtns = document.querySelectorAll('nav button');
+    navBtns.forEach(btn => {
+      if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'messaging'")) {
+        if (unreplied.length > 0) {
+          btn.style.color = 'var(--accent)';
+          btn.style.background = 'rgba(232,255,71,0.15)';
+          btn.style.borderRadius = '4px';
+          btn.textContent = `Messaging (${unreplied.length})`;
+        } else {
+          btn.style.color = '';
+          btn.style.background = '';
+          btn.textContent = 'Messaging';
+        }
+      }
+    });
+    return;
+  }
+  // Client: show badge if coach replied
   const msgs = await sbGetAuth('messages', `client_email=eq.${encodeURIComponent(session.email)}&reply=not.is.null&read_by_client=eq.false`);
   if (msgs.length > 0) {
-    document.getElementById('inbox-badge').style.display = 'inline';
+    document.getElementById('messaging-badge').style.display = 'inline';
   }
 }
 
@@ -1827,7 +1849,7 @@ async function renderCoachingPage() {
   const msgs = await sbGet('messages');
   const unread = msgs.filter(m => !m.reply).length;
   if (unread > 0) {
-    document.getElementById('inbox-badge').style.display = 'inline';
+    document.getElementById('messaging-badge').style.display = 'inline';
   }
 }
 
@@ -1917,7 +1939,8 @@ function init(){
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
   checkUnreadMessages();
   // Auto-sync workout and nutrition at end of day on load
-  setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000); // every 5 min
+  setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000);
+  setInterval(()=>{ checkUnreadMessages(); }, 60000); // check for new messages every minute // every 5 min
 }
 window.onclick=function(e){if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');}
 document.addEventListener('DOMContentLoaded',()=>{document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')checkPin();});});
