@@ -2578,7 +2578,7 @@ Respond ONLY with this exact JSON structure, no other text:
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 4000,
         messages: [{role: 'user', content: prompt}]
       })
@@ -2586,7 +2586,8 @@ Respond ONLY with this exact JSON structure, no other text:
 
     const data = await response.json();
     if (!data || !data.content || !Array.isArray(data.content)) {
-      throw new Error('Invalid API response');
+      const errDetail = data?.error?.message || JSON.stringify(data).substring(0,200);
+      throw new Error('API: ' + errDetail);
     }
 
     const text = data.content.map(c => c.text || '').join('');
@@ -2859,7 +2860,7 @@ Respond ONLY with this exact JSON (no other text):
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 4000,
         messages: [{role: 'user', content: prompt}]
       })
