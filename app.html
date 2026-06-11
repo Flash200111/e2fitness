@@ -1393,6 +1393,9 @@ async function analyzePhotoNow(){
     const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'Analyze this food image. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
+    if(!data || !data.content || !Array.isArray(data.content)){
+      toast('API Error: unexpected response format',true);showAiLoading(false);return;
+    }
     const text=data.content.map(c=>c.text||'').join('');
     const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
     incrementAiUsage();fillAiResult(parsed);
@@ -1408,6 +1411,9 @@ async function analyzeByDescription(){
     const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:'Estimate nutrition for: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
+    if(!data || !data.content || !Array.isArray(data.content)){
+      toast('API Error: unexpected response format',true);showAiLoading(false);return;
+    }
     const text=data.content.map(c=>c.text||'').join('');
     const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
     incrementAiUsage();fillAiResult(parsed);
