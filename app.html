@@ -922,7 +922,7 @@ function showPage(id) {
 }
 
 // ── FOOD LOG ──────────────────────────────────────────────────────────────────
-function addFoodEntry(){
+async function addFoodEntry(){
   const name=document.getElementById('food-name').value.trim();
   const cal=parseInt(document.getElementById('food-cal').value)||0;
   const protein=parseInt(document.getElementById('food-protein').value)||0;
@@ -930,17 +930,69 @@ function addFoodEntry(){
   const fat=parseInt(document.getElementById('food-fat').value)||0;
   const meal=document.getElementById('food-meal').value;
   if(!name||!cal)return toast('Enter food name and calories');
-  state.today.food.push({name,cal,protein,carbs,fat,meal,id:Date.now()});
+  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()};
+  
+  // Save to Supabase
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  await sbInsertAuth('client_nutrition_logs',{
+    user_email:session.email,
+    log_date:today,
+    food_items:[entry],
+    total_calories:cal,
+    total_protein:protein,
+    total_carbs:carbs,
+    total_fat:fat
+  });
+  
+  // Also keep in localStorage for today
+  state.today.food.push(entry);
   saveState();renderFoodLog();refreshDashboard();
   ['food-name','food-cal','food-protein','food-carbs','food-fat'].forEach(id=>document.getElementById(id).value='');
   toast('Food logged ✓');
 }
-function renderFoodLog(){
+async function renderFoodLog(){
   const list=document.getElementById('food-log-list');
-  if(!state.today.food.length){list.innerHTML='<div class="empty-state">No entries yet</div>';return;}
-  list.innerHTML=state.today.food.map(f=>`<div class="log-item"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div><div class="log-item-detail">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  
+  // Load from Supabase
+  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+  
+  // Merge all food items from Supabase logs
+  const allFood=[];
+  for(const log of logs){
+    if(log.food_items && Array.isArray(log.food_items)){
+      allFood.push(...log.food_items.map(f=>({...f,_log_id:log.id})));
+    }
+  }
+  
+  // Also include any local items not yet synced
+  const localOnly=state.today.food.filter(f=>!allFood.find(sf=>sf.id===f.id));
+  const combined=[...allFood,...localOnly];
+  
+  // Update state with combined
+  state.today.food=combined;
+  saveState();
+  
+  if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';return;}
+  list.innerHTML=combined.map(f=>`<div class="log-item"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div><div class="log-item-detail">${f.cal} kcal · ${f.protein||0}g P · ${f.carbs||0}g C · ${f.fat||0}g F</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+  refreshDashboard();
 }
-function removeFoodEntry(id){state.today.food=state.today.food.filter(f=>f.id!==id);saveState();renderFoodLog();refreshDashboard();}
+async function removeFoodEntry(id){
+  // Delete from Supabase
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  for(const log of logs){
+    const items=log.food_items||[];
+    if(items.find(f=>f.id===id)){
+      await sbDeleteAuth('client_nutrition_logs',log.id);
+    }
+  }
+  state.today.food=state.today.food.filter(f=>f.id!==id);
+  saveState();renderFoodLog();refreshDashboard();
+}
 
 // ── WORKOUT LOG ───────────────────────────────────────────────────────────────
 function addWorkoutEntry(){
@@ -1390,11 +1442,12 @@ async function analyzePhotoNow(){
   if(!checkAiLimit())return;
   showAiLoading(true);
   try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'Analyze this food image. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
+    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'Analyze this food image. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data || !data.content || !Array.isArray(data.content)){
-      toast('API Error: unexpected response format',true);showAiLoading(false);return;
+      const errMsg = data.error ? data.error.message : JSON.stringify(data);
+      toast('API Error: '+errMsg,true);showAiLoading(false);return;
     }
     const text=data.content.map(c=>c.text||'').join('');
     const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
@@ -1408,11 +1461,12 @@ async function analyzeByDescription(){
   if(!checkAiLimit())return;
   showAiLoading(true);
   try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,messages:[{role:'user',content:'Estimate nutrition for: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
+    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:'Estimate nutrition for: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data || !data.content || !Array.isArray(data.content)){
-      toast('API Error: unexpected response format',true);showAiLoading(false);return;
+      const errMsg = data.error ? data.error.message : JSON.stringify(data);
+      toast('API Error: '+errMsg,true);showAiLoading(false);return;
     }
     const text=data.content.map(c=>c.text||'').join('');
     const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
@@ -1422,12 +1476,27 @@ async function analyzeByDescription(){
 }
 function showAiLoading(show){document.getElementById('ai-loading').style.display=show?'block':'none';if(show)document.getElementById('ai-result').style.display='none';}
 function fillAiResult(data){document.getElementById('ai-food-name').value=data.name||'';document.getElementById('ai-food-cal').value=data.calories||'';document.getElementById('ai-food-protein').value=data.protein||'';document.getElementById('ai-food-carbs').value=data.carbs||'';document.getElementById('ai-food-fat').value=data.fat||'';document.getElementById('ai-result').style.display='block';}
-function logAiFood(){
+async function logAiFood(){
   const name=document.getElementById('ai-food-name').value.trim(), cal=parseInt(document.getElementById('ai-food-cal').value)||0;
   const protein=parseInt(document.getElementById('ai-food-protein').value)||0, carbs=parseInt(document.getElementById('ai-food-carbs').value)||0;
   const fat=parseInt(document.getElementById('ai-food-fat').value)||0, meal=document.getElementById('ai-food-meal').value;
   if(!name||!cal)return toast('Need at least a name and calories');
-  state.today.food.push({name,cal,protein,carbs,fat,meal,id:Date.now()});
+  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()};
+  
+  // Save to Supabase
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  await sbInsertAuth('client_nutrition_logs',{
+    user_email:session.email,
+    log_date:today,
+    food_items:[entry],
+    total_calories:cal,
+    total_protein:protein,
+    total_carbs:carbs,
+    total_fat:fat
+  });
+  
+  state.today.food.push(entry);
   saveState();renderFoodLog();refreshDashboard();
   ['ai-result','ai-photo-preview','ai-desc-area'].forEach(id=>document.getElementById(id).style.display='none');
   document.getElementById('ai-food-desc').value='';currentPhotoBase64=null;
