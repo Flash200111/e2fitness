@@ -429,6 +429,11 @@
     <div class="panel-title">📋 Plans Pending Your Review</div>
     <div id="pending-review-plans"><div class="empty-state">Loading...</div></div>
   </div>
+  <!-- 6-Week Updates Due -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">⏰ 6-Week Plan Updates Due</div>
+    <div id="plan-updates-due"><div class="empty-state">Loading...</div></div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
     <div class="panel"><div class="panel-title">Clients</div><div id="client-list"><div class="empty-state">No clients yet</div></div></div>
     <div class="panel"><div id="client-detail"><div class="empty-state" style="padding:48px">Select a client to view their profile</div></div></div>
@@ -490,6 +495,7 @@
     <button class="btn" onclick="showPage('messaging')" style="font-size:0.75rem;">💬 Message Coach</button>
   </div>
   <div id="myplan-content"><div class="empty-state" style="padding:48px;">Loading your plan...</div></div>
+  <div id="cardio-recommendations" style="margin-top:16px;"></div>
 </div>
 
 <!-- COMMUNITY PAGE -->
@@ -920,7 +926,7 @@ function showPage(id) {
   if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();renderCoachingPage();renderPendingIntakes();}
   if(id==='transformations'){if(!state.transformations)state.transformations=[];renderTransformations();}
   if(id==='settings') loadSettings();
-  if(id==='myplan') renderMyPlan();
+  if(id==='myplan'){renderMyPlan();renderCardioRecommendations();}
   if(id==='community') renderCommunity();
   if(id==='messaging') renderMessaging();
   if(id==='intake') {} // intake page is self-contained
@@ -2023,6 +2029,7 @@ async function sendCoachReply(msgId, clientEmail) {
   renderCoachInbox();
   checkUnreadMessages();
   checkIntakeStatus();
+  if(coachUnlocked) { setTimeout(checkPlanUpdatesDue, 2000); }
   toast('Reply sent ✓');
 }
 
@@ -2151,6 +2158,8 @@ async function renderCoachingPage() {
   if (unread > 0) {
     document.getElementById('messaging-badge').style.display = 'inline';
   }
+  renderPendingPlans();
+  checkPlanUpdatesDue();
 }
 
 // ── SAVE WORKOUT TO SUPABASE ──────────────────────────────────────────────────
@@ -2671,6 +2680,240 @@ async function approveGeneratedPlan(planId) {
 }
 
 
+
+// ── 6-WEEK PLAN REVIEW SYSTEM ─────────────────────────────────────────────────
+async function checkPlanUpdatesDue() {
+  if (!coachUnlocked) return;
+  const plans = await sbGet('workout_plans');
+  const approved = plans.filter(p => p.status === 'approved' && p.approved_at);
+  const now = new Date();
+  const SIX_WEEKS_MS = 42 * 24 * 60 * 60 * 1000;
+  
+  const due = approved.filter(p => {
+    const approvedDate = new Date(p.approved_at);
+    return (now - approvedDate) >= SIX_WEEKS_MS;
+  });
+
+  const container = document.getElementById('plan-updates-due');
+  if (!container) return;
+
+  if (!due.length) {
+    container.innerHTML = '<div class="empty-state">No plans due for review yet</div>';
+    return;
+  }
+
+  container.innerHTML = due.map(p => {
+    const pd = p.plan_data || {};
+    const approvedDate = new Date(p.approved_at);
+    const weeksAgo = Math.floor((now - approvedDate) / (7 * 24 * 60 * 60 * 1000));
+    return `
+      <div style="background:var(--surface2);border:1px solid var(--accent2);border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-weight:600;">${p.client_email}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">Current: ${pd.name || 'Plan'} · ${pd.plan_type?.replace('_',' ') || ''}</div>
+            <div style="font-size:0.72rem;color:var(--accent2);">⏰ ${weeksAgo} weeks since approval</div>
+          </div>
+          <span style="font-size:0.65rem;background:rgba(255,107,53,0.15);color:var(--accent2);padding:2px 8px;border-radius:2px;letter-spacing:1px;">UPDATE DUE</span>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Update Style</label>
+          <select id="update-type-${p.id}" style="font-size:0.78rem;">
+            <option value="same">Keep Same Style — Progress Intensity</option>
+            <option value="push_pull_legs">Push / Pull / Legs</option>
+            <option value="upper_lower">Upper / Lower Split</option>
+            <option value="full_body">Full Body</option>
+            <option value="bro_split">Bro Split (Body Part)</option>
+            <option value="agonist_antagonist">Agonist / Antagonist</option>
+            <option value="circuit">Circuit Training</option>
+            <option value="full_body_strength">Full Body Strength</option>
+            <option value="hiit_strength">HIIT + Strength Hybrid</option>
+            <option value="deload">Deload Week</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="triggerPlanUpdate('${p.id}', '${p.client_email}')">
+          ⚡ Analyze Progress & Generate Updated Plan
+        </button>
+      </div>`;
+  }).join('');
+}
+
+async function triggerPlanUpdate(planId, clientEmail) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Analyzing progress...';
+
+  const updateType = document.getElementById(`update-type-${planId}`).value;
+
+  // Get client's recent workout logs
+  const workoutLogs = await sbGetAuth('client_workout_logs',
+    `user_email=eq.${encodeURIComponent(clientEmail)}&order=created_at.desc&limit=50`);
+  
+  // Get client's recent metrics
+  const metrics = await sbGetAuth('client_metrics',
+    `user_email=eq.${encodeURIComponent(clientEmail)}&order=created_at.desc&limit=10`);
+
+  // Get current plan
+  const plans = await sbGet('workout_plans');
+  const currentPlan = plans.find(p => String(p.id) === String(planId));
+  const intake = currentPlan?.plan_data?.intake || {};
+  const currentPlanData = currentPlan?.plan_data || {};
+
+  // Build progress summary
+  const exerciseSummary = {};
+  workoutLogs.forEach(log => {
+    (log.exercises || []).forEach(ex => {
+      if (!exerciseSummary[ex.name]) exerciseSummary[ex.name] = [];
+      exerciseSummary[ex.name].push({weight: ex.weight, reps: ex.reps, date: log.log_date});
+    });
+  });
+
+  const metricsSummary = metrics.map(m => 
+    `${m.log_date}: weight=${m.weight}lbs, BF=${m.body_fat}%`
+  ).join('; ');
+
+  const progressNotes = Object.entries(exerciseSummary).slice(0, 10).map(([name, logs]) => 
+    `${name}: ${logs.length} sessions logged`
+  ).join(', ');
+
+  const prompt = `You are an expert certified personal trainer. A client has been on their current program for 6+ weeks. Analyze their progress and generate an updated plan.
+
+CURRENT PLAN: ${currentPlanData.name || 'Unknown'}
+PLAN TYPE: ${currentPlanData.plan_type || 'Unknown'}
+UPDATE STYLE REQUESTED: ${updateType === 'same' ? 'Progress same style with increased intensity' : updateType.replace('_', ' ')}
+
+CLIENT PROFILE:
+- Goal: ${intake.goal?.replace('_',' ') || 'not specified'}
+- Level: ${intake.level || 'intermediate'}
+- Equipment: ${intake.equipment?.replace('_',' ') || 'full gym'}
+- Medical/Injuries: ${intake.medical || 'none'}
+- Days: ${intake.days || 4}, Duration: ${intake.duration || 60} mins
+
+PROGRESS DATA (last 6 weeks):
+- Workouts logged: ${workoutLogs.length}
+- Exercises tracked: ${progressNotes || 'limited data'}
+- Body metrics: ${metricsSummary || 'no metrics logged'}
+
+Based on this data:
+${workoutLogs.length < 10 ? '- LOW WORKOUT COMPLIANCE — consider simpler program and motivation strategies' : '- Good compliance — ready to progress'}
+${metrics.length === 0 ? '- No body metrics tracked — encourage client to log measurements' : ''}
+
+Generate a complete updated program. If updating same style, increase volume/intensity by 10-15%. If changing style, create fresh program with new stimulus.
+
+Respond ONLY with this exact JSON (no other text):
+{
+  "name": "updated plan name - Phase 2",
+  "plan_type": "${updateType === 'same' ? (currentPlanData.plan_type || 'full_body') : updateType}",
+  "overview": "what changed and why, 2-3 sentences",
+  "progress_notes": "brief assessment of client progress",
+  "days": [
+    {
+      "name": "Day 1 — focus",
+      "focus": "muscle groups",
+      "duration_mins": ${intake.duration || 60},
+      "exercises": [
+        {
+          "name": "Exercise",
+          "sets": "4",
+          "reps": "8-10",
+          "rest": "90s",
+          "notes": "cue",
+          "superset_group": null
+        }
+      ]
+    }
+  ],
+  "cardio": [
+    {
+      "day": "Day X",
+      "type": "cardio type",
+      "duration": "duration",
+      "intensity": "intensity",
+      "notes": "guidance"
+    }
+  ],
+  "nutrition_guidance": {
+    "protein": "guidance",
+    "carbs": "guidance", 
+    "fats": "guidance",
+    "meal_timing": "guidance",
+    "hydration": "guidance",
+    "goal_specific": "goal specific advice"
+  },
+  "coach_notes": "notes for coach review"
+}`;
+
+  try {
+    const response = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{role: 'user', content: prompt}]
+      })
+    });
+
+    const data = await response.json();
+    if (!data || !data.content || !Array.isArray(data.content)) throw new Error('Invalid response');
+
+    const text = data.content.map(c => c.text || '').join('');
+    const planData = JSON.parse(text.replace(/```json|```/g, '').trim());
+    planData.intake = intake; // preserve intake data
+
+    // Archive old plan and create new pending review plan
+    await sbUpdate('workout_plans', planId, {status: 'archived'});
+    
+    await sbInsertAuth('workout_plans', {
+      client_email: clientEmail,
+      plan_data: planData,
+      status: 'pending_review',
+      coach_notes: planData.coach_notes || ''
+    });
+
+    toast('Updated plan generated — review it above ✓');
+    renderPendingPlans();
+    checkPlanUpdatesDue();
+
+  } catch(err) {
+    toast('Update failed: ' + err.message, true);
+    btn.disabled = false;
+    btn.textContent = '⚡ Analyze Progress & Generate Updated Plan';
+  }
+}
+
+// ── CARDIO RECOMMENDATIONS ────────────────────────────────────────────────────
+async function renderCardioRecommendations() {
+  const session = getSession();
+  const container = document.getElementById('cardio-recommendations');
+  if (!container) return;
+
+  const plans = await sbGetAuth('workout_plans',
+    `client_email=eq.${encodeURIComponent(session.email)}&status=eq.approved`);
+
+  if (!plans.length || !plans[0].plan_data?.cardio) {
+    container.innerHTML = '<div class="empty-state">No cardio recommendations yet. Ask your coach!</div>';
+    return;
+  }
+
+  const cardio = plans[0].plan_data.cardio || [];
+  container.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:3px;margin-bottom:12px;color:var(--accent);">CARDIO PLAN</div>
+      ${cardio.map(c => `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+            <div style="font-weight:600;font-size:0.88rem;">${c.type}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--accent);">${c.duration}</div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${c.day} · ${c.intensity}</div>
+          ${c.notes ? `<div style="font-size:0.75rem;color:var(--muted);font-style:italic;">${c.notes}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
   if(!checkAuth())return;
@@ -2706,6 +2949,7 @@ async function init(){
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
   checkUnreadMessages();
   checkIntakeStatus();
+  if(coachUnlocked) { setTimeout(checkPlanUpdatesDue, 2000); }
   // Auto-sync workout and nutrition at end of day on load
   setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000);
   setInterval(()=>{ checkUnreadMessages(); }, 60000); // check for new messages every minute // every 5 min
