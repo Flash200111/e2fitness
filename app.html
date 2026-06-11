@@ -419,6 +419,11 @@
     </div>
     <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
   </div>
+  <!-- Pending Intakes -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">⚠️ Pending Intakes — Need Plans Built</div>
+    <div id="pending-intakes"><div class="empty-state">Loading...</div></div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
     <div class="panel"><div class="panel-title">Clients</div><div id="client-list"><div class="empty-state">No clients yet</div></div></div>
     <div class="panel"><div id="client-detail"><div class="empty-state" style="padding:48px">Select a client to view their profile</div></div></div>
@@ -517,6 +522,167 @@
   </div>
   <!-- Coach inbox (shown for coach) -->
   <div id="coach-inbox" style="display:none;"></div>
+</div>
+
+
+<!-- INTAKE PAGE -->
+<div id="page-intake" class="page">
+  <div style="max-width:680px;margin:0 auto;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:4px;margin-bottom:4px;">GET YOUR PERSONALIZED PLAN</div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:24px;">Fill this out once — Coach E reviews everything and builds your custom program.</div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Your Goals</div>
+      <div class="form-group">
+        <label class="form-label">Primary Goal</label>
+        <select id="intake-goal">
+          <option value="">Select your main goal...</option>
+          <option value="fat_loss">Lose Fat / Get Leaner</option>
+          <option value="muscle_build">Build Muscle / Get Bigger</option>
+          <option value="lean_bulk">Lean Bulk (Muscle + minimal fat)</option>
+          <option value="general_fitness">General Fitness / Health</option>
+          <option value="athletic">Athletic Performance</option>
+          <option value="rehab">Rehab / Recovery from Injury</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Secondary Goal (optional)</label>
+        <input id="intake-goal2" type="text" placeholder="e.g. improve cardio, reduce back pain, feel more energetic...">
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">About You</div>
+      <div class="form-row">
+        <div style="flex:1"><label class="form-label">Age</label><input id="intake-age" type="number" placeholder="e.g. 35"></div>
+        <div style="flex:1"><label class="form-label">Gender</label>
+          <select id="intake-gender">
+            <option value="">Select...</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other / Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:10px;">
+        <div style="flex:1"><label class="form-label">Weight (lbs)</label><input id="intake-weight" type="number" placeholder="e.g. 175"></div>
+        <div style="flex:1"><label class="form-label">Height</label><input id="intake-height" type="text" placeholder="e.g. 5'10"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Fitness Experience</div>
+      <div class="form-group">
+        <label class="form-label">Training Experience Level</label>
+        <select id="intake-level">
+          <option value="">Select...</option>
+          <option value="beginner">Beginner (0-1 years, or returning after long break)</option>
+          <option value="intermediate">Intermediate (1-3 years consistent training)</option>
+          <option value="advanced">Advanced (3+ years consistent training)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">What does your current activity look like?</label>
+        <textarea id="intake-current" rows="2" placeholder="e.g. I walk 3x/week, I used to lift but stopped 2 years ago, completely sedentary..."></textarea>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Medical & Injuries</div>
+      <div class="form-group">
+        <label class="form-label">Any injuries, chronic pain, or medical conditions we should know about?</label>
+        <textarea id="intake-medical" rows="3" placeholder="e.g. lower back pain, bad knees, shoulder impingement, diabetes, hypertension... or 'none'"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Any exercises or movements you cannot or should not do?</label>
+        <textarea id="intake-avoid" rows="2" placeholder="e.g. no running due to knee surgery, can't overhead press, avoid heavy squats..."></textarea>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Equipment & Schedule</div>
+      <div class="form-group">
+        <label class="form-label">Equipment Available</label>
+        <select id="intake-equipment">
+          <option value="">Select...</option>
+          <option value="full_gym">Full Commercial Gym</option>
+          <option value="home_full">Home Gym (barbell, rack, full weights)</option>
+          <option value="home_partial">Home Gym (dumbbells, bands, some equipment)</option>
+          <option value="bands_only">Resistance Bands Only</option>
+          <option value="bodyweight">Bodyweight Only (no equipment)</option>
+          <option value="mixed">Mix (some days gym, some days home)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Any specific equipment details?</label>
+        <input id="intake-equipment-detail" type="text" placeholder="e.g. I have a pull-up bar and 20/30/40lb dumbbells at home...">
+      </div>
+      <div class="form-row" style="margin-top:10px;">
+        <div style="flex:1">
+          <label class="form-label">Days Per Week Available</label>
+          <select id="intake-days">
+            <option value="2">2 days</option>
+            <option value="3">3 days</option>
+            <option value="4" selected>4 days</option>
+            <option value="5">5 days</option>
+            <option value="6">6 days</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="form-label">Session Length</label>
+          <select id="intake-duration">
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60" selected>60 minutes</option>
+            <option value="75">75 minutes</option>
+            <option value="90">90+ minutes</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Cardio Preferences</div>
+      <div class="form-group">
+        <label class="form-label">How do you feel about cardio?</label>
+        <select id="intake-cardio-pref">
+          <option value="enjoy">I enjoy cardio</option>
+          <option value="neutral">Neutral — I'll do what's needed</option>
+          <option value="dislike">I dislike cardio but will do it</option>
+          <option value="hate">I really hate cardio</option>
+          <option value="cant">I have limitations that restrict cardio</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Preferred cardio types (if any)</label>
+        <input id="intake-cardio-type" type="text" placeholder="e.g. walking, cycling, swimming, rowing, HIIT, none...">
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="panel-title">Nutrition & Lifestyle</div>
+      <div class="form-group">
+        <label class="form-label">Any dietary restrictions or preferences?</label>
+        <input id="intake-diet" type="text" placeholder="e.g. vegetarian, gluten-free, no dairy, intermittent fasting...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">How would you describe your current eating habits?</label>
+        <select id="intake-eating">
+          <option value="poor">Poor — lots of processed food, irregular meals</option>
+          <option value="average">Average — could be better</option>
+          <option value="good">Good — mostly whole foods, fairly consistent</option>
+          <option value="excellent">Excellent — I track and eat very clean</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Anything else Coach E should know?</label>
+        <textarea id="intake-other" rows="3" placeholder="Stress levels, sleep quality, work schedule, previous programs that worked or didn't work..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem;letter-spacing:2px;" onclick="submitIntake()">SUBMIT — BUILD MY PLAN →</button>
+    <div style="font-size:0.72rem;color:var(--muted);text-align:center;margin-top:10px;">Coach E will review your intake and build your personalized program. You'll be notified when it's ready.</div>
+  </div>
 </div>
 
 </main>
@@ -746,12 +912,13 @@ function showPage(id) {
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
   if(id==='resources'){if(!state.resources)state.resources=[];renderResources();}
-  if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();renderCoachingPage();}
+  if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();renderCoachingPage();renderPendingIntakes();}
   if(id==='transformations'){if(!state.transformations)state.transformations=[];renderTransformations();}
   if(id==='settings') loadSettings();
   if(id==='myplan') renderMyPlan();
   if(id==='community') renderCommunity();
   if(id==='messaging') renderMessaging();
+  if(id==='intake') {} // intake page is self-contained
 }
 
 // ── FOOD LOG ──────────────────────────────────────────────────────────────────
@@ -1723,6 +1890,7 @@ async function sendCoachReply(msgId, clientEmail) {
   });
   renderCoachInbox();
   checkUnreadMessages();
+  checkIntakeStatus();
   toast('Reply sent ✓');
 }
 
@@ -1908,6 +2076,173 @@ async function saveMetricsToSupabase(weight, bf, waist) {
 }
 
 
+
+// ── INTAKE FORM ───────────────────────────────────────────────────────────────
+async function checkIntakeStatus() {
+  const session = getSession();
+  if (coachUnlocked) return; // Coach doesn't need intake
+
+  // Check if intake already submitted
+  const existing = await sbGetAuth('workout_plans', 
+    `client_email=eq.${encodeURIComponent(session.email)}`);
+  
+  const intakeSubmitted = localStorage.getItem('e2_intake_submitted_' + session.email);
+  
+  if (!intakeSubmitted && !existing.length) {
+    showIntakeBanner();
+  } else if (existing.length && existing[0].status === 'approved') {
+    showPlanReadyBanner();
+  }
+}
+
+function showIntakeBanner() {
+  const dashboard = document.getElementById('page-dashboard');
+  const existing = document.getElementById('intake-banner');
+  if (existing) return;
+  
+  const banner = document.createElement('div');
+  banner.id = 'intake-banner';
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,rgba(255,69,69,0.15),rgba(255,69,69,0.05));border:1px solid var(--danger);border-radius:8px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;color:var(--danger);margin-bottom:4px;">👋 WELCOME TO E2FITNESS!</div>
+        <div style="font-size:0.82rem;color:var(--muted);">Get your personalized training, cardio & nutrition plan built by Coach E.</div>
+      </div>
+      <button onclick="showPage('intake')" style="background:var(--danger);color:#fff;border:none;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.85rem;padding:12px 24px;border-radius:4px;cursor:pointer;letter-spacing:1px;white-space:nowrap;">GET MY PLAN →</button>
+    </div>`;
+  dashboard.insertBefore(banner, dashboard.firstChild);
+}
+
+function showPlanReadyBanner() {
+  const dashboard = document.getElementById('page-dashboard');
+  const existing = document.getElementById('intake-banner');
+  if (existing) existing.remove();
+  
+  const existingReady = document.getElementById('plan-ready-banner');
+  if (existingReady) return;
+  
+  const banner = document.createElement('div');
+  banner.id = 'plan-ready-banner';
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,rgba(71,255,138,0.1),rgba(71,255,138,0.03));border:1px solid var(--success);border-radius:8px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;color:var(--success);margin-bottom:4px;">✅ YOUR PLAN IS READY!</div>
+        <div style="font-size:0.82rem;color:var(--muted);">Coach E has reviewed and approved your personalized program.</div>
+      </div>
+      <button onclick="showPage('myplan')" style="background:var(--success);color:#000;border:none;font-family:'DM Sans',sans-serif;font-weight:700;font-size:0.85rem;padding:12px 24px;border-radius:4px;cursor:pointer;letter-spacing:1px;white-space:nowrap;">VIEW MY PLAN →</button>
+    </div>`;
+  dashboard.insertBefore(banner, dashboard.firstChild);
+}
+
+async function submitIntake() {
+  const session = getSession();
+  
+  // Validate required fields
+  const goal = document.getElementById('intake-goal').value;
+  const level = document.getElementById('intake-level').value;
+  const equipment = document.getElementById('intake-equipment').value;
+  
+  if (!goal) return toast('Please select your primary goal');
+  if (!level) return toast('Please select your experience level');
+  if (!equipment) return toast('Please select your available equipment');
+
+  const intakeData = {
+    goal: goal,
+    goal2: document.getElementById('intake-goal2').value,
+    age: document.getElementById('intake-age').value,
+    gender: document.getElementById('intake-gender').value,
+    weight: document.getElementById('intake-weight').value,
+    height: document.getElementById('intake-height').value,
+    level: level,
+    current_activity: document.getElementById('intake-current').value,
+    medical: document.getElementById('intake-medical').value,
+    avoid: document.getElementById('intake-avoid').value,
+    equipment: equipment,
+    equipment_detail: document.getElementById('intake-equipment-detail').value,
+    days: document.getElementById('intake-days').value,
+    duration: document.getElementById('intake-duration').value,
+    cardio_pref: document.getElementById('intake-cardio-pref').value,
+    cardio_type: document.getElementById('intake-cardio-type').value,
+    diet: document.getElementById('intake-diet').value,
+    eating: document.getElementById('intake-eating').value,
+    other: document.getElementById('intake-other').value,
+    email: session.email,
+    submitted_at: new Date().toISOString()
+  };
+
+  // Save intake to Supabase as a pending plan
+  const planData = {
+    name: 'Personalized Plan — Pending AI Generation',
+    intake: intakeData,
+    days: []
+  };
+
+  const result = await sbInsertAuth('workout_plans', {
+    client_email: session.email,
+    plan_data: planData,
+    status: 'intake_submitted',
+    coach_notes: ''
+  });
+
+  if (result) {
+    localStorage.setItem('e2_intake_submitted_' + session.email, 'true');
+    toast('Intake submitted! Coach E will build your plan shortly ✓');
+    setTimeout(() => {
+      showPage('dashboard');
+      // Remove intake banner and show pending message
+      const banner = document.getElementById('intake-banner');
+      if (banner) {
+        banner.innerHTML = `
+          <div style="background:rgba(232,255,71,0.05);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+            <div style="font-size:0.82rem;color:var(--muted);">⏳ Your intake has been submitted. Coach E is building your personalized plan — check back soon!</div>
+          </div>`;
+      }
+    }, 1500);
+  } else {
+    toast('Could not submit — please try again', true);
+  }
+}
+
+// ── COACH INTAKE REVIEW ───────────────────────────────────────────────────────
+async function renderPendingIntakes() {
+  const plans = await sbGet('workout_plans');
+  const pending = plans.filter(p => p.status === 'intake_submitted');
+  
+  const container = document.getElementById('pending-intakes');
+  if (!container) return;
+  
+  if (!pending.length) {
+    container.innerHTML = '<div class="empty-state">No pending intakes</div>';
+    return;
+  }
+
+  container.innerHTML = pending.map(p => {
+    const intake = p.plan_data.intake || {};
+    return `
+      <div style="background:var(--surface2);border:1px solid var(--danger);border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+          <div style="font-weight:600;">${p.client_email}</div>
+          <span style="font-size:0.65rem;background:rgba(255,69,69,0.15);color:var(--danger);padding:2px 8px;border-radius:2px;letter-spacing:1px;">NEEDS PLAN</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.78rem;margin-bottom:12px;">
+          <div><span style="color:var(--muted);">Goal:</span> ${intake.goal?.replace('_',' ') || '—'}</div>
+          <div><span style="color:var(--muted);">Level:</span> ${intake.level || '—'}</div>
+          <div><span style="color:var(--muted);">Equipment:</span> ${intake.equipment?.replace('_',' ') || '—'}</div>
+          <div><span style="color:var(--muted);">Days/week:</span> ${intake.days || '—'}</div>
+          <div><span style="color:var(--muted);">Age:</span> ${intake.age || '—'}</div>
+          <div><span style="color:var(--muted);">Session:</span> ${intake.duration || '—'} min</div>
+        </div>
+        ${intake.medical ? `<div style="font-size:0.75rem;color:var(--danger);margin-bottom:8px;">⚠️ Medical: ${intake.medical}</div>` : ''}
+        ${intake.avoid ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Avoid: ${intake.avoid}</div>` : ''}
+        ${intake.other ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Notes: ${intake.other}</div>` : ''}
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="openPlanBuilder('${p.client_email}')">
+          📋 Build Plan for This Client
+        </button>
+      </div>`;
+  }).join('');
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init(){
   if(!checkAuth())return;
@@ -1938,6 +2273,7 @@ function init(){
 
   renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
   checkUnreadMessages();
+  checkIntakeStatus();
   // Auto-sync workout and nutrition at end of day on load
   setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000);
   setInterval(()=>{ checkUnreadMessages(); }, 60000); // check for new messages every minute // every 5 min
