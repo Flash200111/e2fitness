@@ -424,6 +424,11 @@
     <div class="panel-title">⚠️ Pending Intakes — Need Plans Built</div>
     <div id="pending-intakes"><div class="empty-state">Loading...</div></div>
   </div>
+  <!-- Plans Pending Review -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">📋 Plans Pending Your Review</div>
+    <div id="pending-review-plans"><div class="empty-state">Loading...</div></div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
     <div class="panel"><div class="panel-title">Clients</div><div id="client-list"><div class="empty-state">No clients yet</div></div></div>
     <div class="panel"><div id="client-detail"><div class="empty-state" style="padding:48px">Select a client to view their profile</div></div></div>
@@ -995,7 +1000,7 @@ async function removeFoodEntry(id){
 }
 
 // ── WORKOUT LOG ───────────────────────────────────────────────────────────────
-function addWorkoutEntry(){
+async function addWorkoutEntry(){
   const name=document.getElementById('ex-name').value.trim();
   const sets=document.getElementById('ex-sets').value;
   const reps=document.getElementById('ex-reps').value.trim();
@@ -1004,17 +1009,69 @@ function addWorkoutEntry(){
   const notes=document.getElementById('ex-notes').value.trim();
   const type=document.getElementById('ex-type').value;
   if(!name)return toast('Enter exercise name');
-  state.today.workout.push({name,sets,reps,weight,rpe,notes,type,id:Date.now()});
+  const entry={name,sets,reps,weight,rpe,notes,type,id:Date.now()};
+  
+  // Save to Supabase
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  await sbInsertAuth('client_workout_logs',{
+    user_email:session.email,
+    log_date:today,
+    exercises:[entry],
+    notes:''
+  });
+  
+  state.today.workout.push(entry);
   saveState();renderWorkoutLog();refreshDashboard();
   ['ex-name','ex-sets','ex-reps','ex-weight','ex-rpe','ex-notes'].forEach(id=>document.getElementById(id).value='');
   toast('Exercise logged ✓');
 }
-function renderWorkoutLog(){
+async function renderWorkoutLog(){
   const list=document.getElementById('workout-log-list');
-  if(!state.today.workout.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
-  list.innerHTML=state.today.workout.map(e=>`<div class="log-item"><div><div class="log-item-name">${e.name} <span style="font-size:0.7rem;color:var(--muted)">${e.type}</span></div><div class="log-item-detail">${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'} ${e.rpe?'· RPE '+e.rpe:''}</div>${e.notes?`<div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${e.notes}</div>`:''}</div><button class="log-item-del" onclick="removeWorkout(${e.id})">✕</button></div>`).join('');
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  
+  try {
+    const logs=await sbGetAuth('client_workout_logs',
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+    
+    const allExercises=[];
+    for(const log of logs){
+      if(log.exercises && Array.isArray(log.exercises)){
+        allExercises.push(...log.exercises.map(e=>({...e,_log_id:log.id})));
+      }
+    }
+    const seen=new Set();
+    const deduped=allExercises.filter(e=>{
+      if(seen.has(e.id))return false;
+      seen.add(e.id);return true;
+    });
+    const localOnly=state.today.workout.filter(e=>!deduped.find(se=>se.id===e.id));
+    const combined=[...deduped,...localOnly];
+    state.today.workout=combined;
+    saveState();
+    
+    if(!combined.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
+    list.innerHTML=combined.map(e=>`<div class="log-item"><div><div class="log-item-name">${e.name} <span style="font-size:0.7rem;color:var(--muted)">${e.type||''}</span></div><div class="log-item-detail">${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'} ${e.rpe?'· RPE '+e.rpe:''}</div>${e.notes?`<div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${e.notes}</div>`:''}</div><button class="log-item-del" onclick="removeWorkout(${e.id})">✕</button></div>`).join('');
+    refreshDashboard();
+  } catch(err) {
+    if(!state.today.workout.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
+    list.innerHTML=state.today.workout.map(e=>`<div class="log-item"><div><div class="log-item-name">${e.name}</div><div class="log-item-detail">${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'}</div></div><button class="log-item-del" onclick="removeWorkout(${e.id})">✕</button></div>`).join('');
+  }
 }
-function removeWorkout(id){state.today.workout=state.today.workout.filter(e=>e.id!==id);saveState();renderWorkoutLog();refreshDashboard();}
+async function removeWorkout(id){
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_workout_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  for(const log of logs){
+    const items=log.exercises||[];
+    if(items.find(e=>e.id===id)){
+      await sbDeleteAuth('client_workout_logs',log.id);
+    }
+  }
+  state.today.workout=state.today.workout.filter(e=>e.id!==id);
+  saveState();renderWorkoutLog();refreshDashboard();
+}
 function addCardioEntry(){
   const type=document.getElementById('cardio-type').value.trim();
   const mins=document.getElementById('cardio-mins').value;
@@ -2310,13 +2367,63 @@ async function renderPendingIntakes() {
         ${intake.medical ? `<div style="font-size:0.75rem;color:var(--danger);margin-bottom:8px;">⚠️ Medical: ${intake.medical}</div>` : ''}
         ${intake.avoid ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Avoid: ${intake.avoid}</div>` : ''}
         ${intake.other ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Notes: ${intake.other}</div>` : ''}
-        <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="openPlanBuilder('${p.client_email}')">
-          📋 Build Plan for This Client
+        <div style="margin-bottom:8px;">
+          <label class="form-label">Plan Style</label>
+          <select id="plan-type-${p.id}" style="font-size:0.78rem;">
+            <option value="push_pull_legs">Push / Pull / Legs</option>
+            <option value="upper_lower">Upper / Lower Split</option>
+            <option value="full_body">Full Body</option>
+            <option value="bro_split">Bro Split (Body Part)</option>
+            <option value="agonist_antagonist">Agonist / Antagonist</option>
+            <option value="circuit">Circuit Training</option>
+            <option value="full_body_strength">Full Body Strength</option>
+            <option value="hiit_strength">HIIT + Strength Hybrid</option>
+            <option value="corrective_rehab">Corrective / Rehab Focus</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="generateAIPlan('${p.id}', '${p.client_email}', ${JSON.stringify(intake).replace(/'/g,"\'")}, document.getElementById('plan-type-${p.id}').value)">
+          ⚡ Generate AI Plan
+        </button>
+        <button class="btn" style="width:100%;margin-top:6px;" onclick="openPlanBuilder('${p.client_email}')">
+          📋 Build Manually Instead
         </button>
       </div>`;
   }).join('');
 }
 
+
+
+
+// ── LOAD TODAY'S WORKOUT FROM SUPABASE ───────────────────────────────────────
+async function loadTodayWorkoutFromSupabase() {
+  const session = getSession();
+  if (!session) return;
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    const logs = await sbGetAuth('client_workout_logs',
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+    
+    if (logs.length) {
+      const allExercises = [];
+      for (const log of logs) {
+        if (log.exercises && Array.isArray(log.exercises)) {
+          allExercises.push(...log.exercises.map(e => ({...e, _log_id: log.id})));
+        }
+      }
+      const seen = new Set();
+      const deduped = allExercises.filter(e => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
+      state.today.workout = deduped;
+      saveState();
+    }
+  } catch(e) {
+    console.log('Could not load workout from Supabase:', e);
+  }
+}
 
 
 // ── LOAD TODAY'S FOOD FROM SUPABASE ──────────────────────────────────────────
@@ -2353,6 +2460,217 @@ async function loadTodayFoodFromSupabase() {
 }
 
 
+
+// ── AI PLAN GENERATION ────────────────────────────────────────────────────────
+const PLAN_TYPES = [
+  {value:'push_pull_legs', label:'Push / Pull / Legs'},
+  {value:'upper_lower', label:'Upper / Lower Split'},
+  {value:'full_body', label:'Full Body'},
+  {value:'bro_split', label:'Bro Split (Body Part)'},
+  {value:'agonist_antagonist', label:'Agonist / Antagonist'},
+  {value:'circuit', label:'Circuit Training'},
+  {value:'full_body_strength', label:'Full Body Strength'},
+  {value:'hiit_strength', label:'HIIT + Strength Hybrid'},
+  {value:'corrective_rehab', label:'Corrective / Rehab Focus'},
+];
+
+async function generateAIPlan(planId, clientEmail, intakeData, planType) {
+  const btn = document.getElementById(`gen-btn-${planId}`);
+  if(btn) { btn.disabled=true; btn.textContent='Generating...'; }
+  
+  const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
+  
+  const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake:
+
+CLIENT PROFILE:
+- Goal: ${intakeData.goal?.replace('_',' ')}
+- Secondary Goal: ${intakeData.goal2 || 'none'}
+- Age: ${intakeData.age}, Gender: ${intakeData.gender}
+- Weight: ${intakeData.weight} lbs, Height: ${intakeData.height}
+- Experience Level: ${intakeData.level}
+- Current Activity: ${intakeData.current_activity || 'not specified'}
+- Medical/Injuries: ${intakeData.medical || 'none'}
+- Movements to Avoid: ${intakeData.avoid || 'none'}
+- Equipment: ${intakeData.equipment?.replace('_',' ')} - ${intakeData.equipment_detail || ''}
+- Days Per Week: ${intakeData.days}
+- Session Length: ${intakeData.duration} minutes
+- Cardio Preference: ${intakeData.cardio_pref}, Type: ${intakeData.cardio_type || 'any'}
+- Diet: ${intakeData.diet || 'no restrictions'}
+- Eating Habits: ${intakeData.eating}
+- Additional Notes: ${intakeData.other || 'none'}
+
+PLAN STYLE: ${planTypeLabel}
+
+REQUIREMENTS:
+1. Create exactly ${intakeData.days} training days
+2. Each day should fit within ${intakeData.duration} minutes
+3. Include sets, reps, and rest periods for every exercise
+4. Mark any supersets with "SUPERSET:" prefix and tri-sets with "TRI-SET:" prefix
+5. Include 1-2 cardio sessions appropriate for their goal and preference
+6. Add coaching notes for key exercises
+7. Include a basic nutrition guidance section at the end with general principles (no specific calories since we don't have their TDEE - just principles based on their goal)
+8. Be specific about exercise selection based on their equipment and any injuries
+
+Respond ONLY with this exact JSON structure, no other text:
+{
+  "name": "plan name based on their goal",
+  "plan_type": "${planType}",
+  "overview": "2-3 sentence overview of the program philosophy",
+  "days": [
+    {
+      "name": "Day 1 — [focus]",
+      "focus": "muscle groups or type",
+      "duration_mins": 60,
+      "exercises": [
+        {
+          "name": "Exercise Name",
+          "sets": "3",
+          "reps": "8-10",
+          "rest": "90s",
+          "notes": "coaching cue",
+          "superset_group": null
+        }
+      ]
+    }
+  ],
+  "cardio": [
+    {
+      "day": "Day X or post-workout",
+      "type": "cardio type",
+      "duration": "20-30 mins",
+      "intensity": "moderate",
+      "notes": "guidance"
+    }
+  ],
+  "nutrition_guidance": {
+    "protein": "general protein guidance",
+    "carbs": "general carb guidance",
+    "fats": "general fat guidance",
+    "meal_timing": "pre and post workout guidance",
+    "hydration": "hydration guidance",
+    "goal_specific": "specific advice for their goal"
+  },
+  "coach_notes": "overall notes for the coach to review"
+}`;
+
+  try {
+    const response = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{role: 'user', content: prompt}]
+      })
+    });
+
+    const data = await response.json();
+    if (!data || !data.content || !Array.isArray(data.content)) {
+      throw new Error('Invalid API response');
+    }
+
+    const text = data.content.map(c => c.text || '').join('');
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const planData = JSON.parse(cleaned);
+
+    // Save generated plan back to Supabase
+    await sbUpdate('workout_plans', planId, {
+      plan_data: planData,
+      status: 'pending_review',
+      coach_notes: planData.coach_notes || ''
+    });
+
+    toast('Plan generated! Review it below ✓');
+    renderPendingIntakes();
+    renderPendingPlans();
+
+  } catch(err) {
+    toast('Generation failed: ' + err.message, true);
+    if(btn) { btn.disabled=false; btn.textContent='Generate Plan'; }
+  }
+}
+
+async function renderPendingPlans() {
+  const plans = await sbGet('workout_plans');
+  const pending = plans.filter(p => p.status === 'pending_review');
+  const container = document.getElementById('pending-review-plans');
+  if (!container) return;
+
+  if (!pending.length) {
+    container.innerHTML = '<div class="empty-state">No plans pending review</div>';
+    return;
+  }
+
+  container.innerHTML = pending.map(p => {
+    const pd = p.plan_data || {};
+    const days = pd.days || [];
+    return `
+      <div style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:16px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;">${pd.name || 'Generated Plan'}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">${p.client_email} · ${pd.plan_type?.replace('_',' ') || ''}</div>
+          </div>
+          <span style="font-size:0.65rem;background:rgba(232,255,71,0.1);color:var(--accent);padding:2px 8px;border-radius:2px;letter-spacing:1px;">PENDING REVIEW</span>
+        </div>
+        ${pd.overview ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;font-style:italic;">${pd.overview}</div>` : ''}
+        
+        <div style="margin-bottom:12px;">
+          ${days.map(day => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;">
+              <div style="font-size:0.8rem;font-weight:600;color:var(--accent);margin-bottom:8px;">${day.name}</div>
+              ${(day.exercises||[]).map(ex => `
+                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
+                  <span>${ex.superset_group ? '🔗 ' : ''}${ex.name}</span>
+                  <span style="color:var(--accent);font-family:'DM Mono',monospace;">${ex.sets}×${ex.reps} · ${ex.rest||''}</span>
+                </div>
+              `).join('')}
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <select id="regen-type-${p.id}" style="flex:1;font-size:0.78rem;">
+            ${PLAN_TYPES.map(pt => `<option value="${pt.value}" ${pt.value===pd.plan_type?'selected':''}>${pt.label}</option>`).join('')}
+          </select>
+          <button class="btn" style="font-size:0.75rem;" onclick="regenPlan('${p.id}', '${p.client_email}')">🔄 Regenerate</button>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Coach Notes / Edits</label>
+          <textarea id="coach-notes-${p.id}" rows="2" placeholder="Add notes or modifications before approving...">${p.coach_notes||''}</textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" style="flex:1;" onclick="approveGeneratedPlan('${p.id}')">✅ Approve & Send to Client</button>
+          <button class="btn btn-danger" onclick="rejectPlan('${p.id}')">✕ Reject</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function regenPlan(planId, clientEmail) {
+  const planType = document.getElementById(`regen-type-${planId}`).value;
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+  const intake = plan.plan_data?.intake || {};
+  await generateAIPlan(planId, clientEmail, intake, planType);
+}
+
+async function approveGeneratedPlan(planId) {
+  const notes = document.getElementById(`coach-notes-${planId}`).value.trim();
+  await sbUpdate('workout_plans', planId, {
+    status: 'approved',
+    coach_notes: notes,
+    approved_at: new Date().toISOString()
+  });
+  toast('Plan approved — client can now see it ✓');
+  renderPendingPlans();
+  renderPendingIntakes();
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
   if(!checkAuth())return;
@@ -2360,8 +2678,9 @@ async function init(){
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('metric-date').value=new Date().toISOString().split('T')[0];
   
-  // Load today's food from Supabase on startup to sync across devices
+  // Load today's food and workout from Supabase on startup to sync across devices
   await loadTodayFoodFromSupabase();
+  await loadTodayWorkoutFromSupabase();
 
   // Show user info in header
   const userDisplay=document.getElementById('user-display');
