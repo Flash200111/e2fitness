@@ -2318,12 +2318,50 @@ async function renderPendingIntakes() {
 }
 
 
+
+// ── LOAD TODAY'S FOOD FROM SUPABASE ──────────────────────────────────────────
+async function loadTodayFoodFromSupabase() {
+  const session = getSession();
+  if (!session) return;
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    const logs = await sbGetAuth('client_nutrition_logs', 
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+    
+    if (logs.length) {
+      // Merge all food items from all logs today
+      const allFood = [];
+      for (const log of logs) {
+        if (log.food_items && Array.isArray(log.food_items)) {
+          allFood.push(...log.food_items.map(f => ({...f, _log_id: log.id})));
+        }
+      }
+      // Deduplicate by id
+      const seen = new Set();
+      const deduped = allFood.filter(f => {
+        if (seen.has(f.id)) return false;
+        seen.add(f.id);
+        return true;
+      });
+      state.today.food = deduped;
+      saveState();
+    }
+  } catch(e) {
+    console.log('Could not load food from Supabase:', e);
+  }
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
-function init(){
+async function init(){
   if(!checkAuth())return;
   loadState();
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('metric-date').value=new Date().toISOString().split('T')[0];
+  
+  // Load today's food from Supabase on startup to sync across devices
+  await loadTodayFoodFromSupabase();
 
   // Show user info in header
   const userDisplay=document.getElementById('user-display');
