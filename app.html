@@ -2390,7 +2390,7 @@ async function renderPendingIntakes() {
             <option value="corrective_rehab">Corrective / Rehab Focus</option>
           </select>
         </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="generateAIPlan('${p.id}', '${p.client_email}', ${JSON.stringify(intake).replace(/'/g,"\'")}, document.getElementById('plan-type-${p.id}').value)">
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="startAIGeneration('${p.id}', '${p.client_email}')">
           ⚡ Generate AI Plan
         </button>
         <button class="btn" style="width:100%;margin-top:6px;" onclick="openPlanBuilder('${p.client_email}')">
@@ -2482,6 +2482,17 @@ const PLAN_TYPES = [
   {value:'hiit_strength', label:'HIIT + Strength Hybrid'},
   {value:'corrective_rehab', label:'Corrective / Rehab Focus'},
 ];
+
+
+async function startAIGeneration(planId, clientEmail) {
+  const planType = document.getElementById('plan-type-' + planId)?.value || 'full_body';
+  // Load intake from Supabase
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+  const intake = plan.plan_data?.intake || {};
+  await generateAIPlan(planId, clientEmail, intake, planType);
+}
 
 async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   const btn = document.getElementById(`gen-btn-${planId}`);
