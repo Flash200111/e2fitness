@@ -2076,9 +2076,10 @@ async function approvePlan(planId) {
 }
 
 async function rejectPlan(planId) {
-  await sbUpdate('workout_plans', planId, { status: 'rejected' });
-  toast('Plan rejected');
-  renderCoachingPage();
+  await sbUpdate('workout_plans', planId, { status: 'intake_submitted' });
+  toast('Plan rejected — regenerate with a different style');
+  renderPendingIntakes();
+  renderPendingPlans();
 }
 
 // ── ASSIGN PLAN TO CLIENT (COACH) ─────────────────────────────────────────────
@@ -2500,36 +2501,41 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   
   const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
   
-  const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake:
+  const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake.
+
+⚠️ CRITICAL SAFETY REQUIREMENTS - YOU MUST FOLLOW THESE OR THE PLAN IS UNSAFE:
+- Medical conditions: ${intakeData.medical || 'none'} — design EVERY exercise around these conditions
+- Movements to NEVER include: ${intakeData.avoid || 'none'} — DO NOT include these or similar movements
+- If client has knee issues, avoid ANY loaded squats, lunges with heavy weight, leg press, or high-impact movements
+- If client has back issues, avoid deadlifts, good mornings, or any heavy spinal loading
+- Equipment available: ${intakeData.equipment?.replace('_',' ')} — ONLY use exercises possible with this equipment
+- Equipment details: ${intakeData.equipment_detail || 'none specified'}
 
 CLIENT PROFILE:
 - Goal: ${intakeData.goal?.replace('_',' ')}
 - Secondary Goal: ${intakeData.goal2 || 'none'}
-- Age: ${intakeData.age}, Gender: ${intakeData.gender}
-- Weight: ${intakeData.weight} lbs, Height: ${intakeData.height}
-- Experience Level: ${intakeData.level}
+- Age: ${intakeData.age || 'not specified'}, Gender: ${intakeData.gender || 'not specified'}
+- Weight: ${intakeData.weight || 'not specified'} lbs, Height: ${intakeData.height || 'not specified'}
+- Experience Level: ${intakeData.level || 'beginner'}
 - Current Activity: ${intakeData.current_activity || 'not specified'}
-- Medical/Injuries: ${intakeData.medical || 'none'}
-- Movements to Avoid: ${intakeData.avoid || 'none'}
-- Equipment: ${intakeData.equipment?.replace('_',' ')} - ${intakeData.equipment_detail || ''}
-- Days Per Week: ${intakeData.days}
-- Session Length: ${intakeData.duration} minutes
-- Cardio Preference: ${intakeData.cardio_pref}, Type: ${intakeData.cardio_type || 'any'}
-- Diet: ${intakeData.diet || 'no restrictions'}
-- Eating Habits: ${intakeData.eating}
+- Days Per Week: ${intakeData.days || 3}
+- Session Length: ${intakeData.duration || 60} minutes
+- Cardio Preference: ${intakeData.cardio_pref || 'neutral'}, Type: ${intakeData.cardio_type || 'any'}
+- Eating Habits: ${intakeData.eating || 'average'}
 - Additional Notes: ${intakeData.other || 'none'}
 
 PLAN STYLE: ${planTypeLabel}
 
 REQUIREMENTS:
-1. Create exactly ${intakeData.days} training days
-2. Each day should fit within ${intakeData.duration} minutes
+1. Create exactly ${intakeData.days || 3} training days
+2. Each day must fit within ${intakeData.duration || 60} minutes
 3. Include sets, reps, and rest periods for every exercise
-4. Mark any supersets with "SUPERSET:" prefix and tri-sets with "TRI-SET:" prefix
-5. Include 1-2 cardio sessions appropriate for their goal and preference
-6. Add coaching notes for key exercises
-7. Include a basic nutrition guidance section at the end with general principles (no specific calories since we don't have their TDEE - just principles based on their goal)
-8. Be specific about exercise selection based on their equipment and any injuries
+4. For supersets set superset_group to a letter like "A" for both exercises in the superset
+5. For tri-sets set superset_group to "A" for all three exercises in the group
+6. Individual exercises should have superset_group as null
+7. Include 1-2 cardio sessions appropriate for their goal
+8. Include basic nutrition guidance (no specific calories)
+9. DOUBLE CHECK: ensure NO exercises from the avoid list are included
 
 Respond ONLY with this exact JSON structure, no other text:
 {
@@ -2637,13 +2643,20 @@ async function renderPendingPlans() {
         ${pd.overview ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;font-style:italic;">${pd.overview}</div>` : ''}
         
         <div style="margin-bottom:12px;">
-          ${days.map(day => `
+          ${days.map((day, di) => `
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;">
-              <div style="font-size:0.8rem;font-weight:600;color:var(--accent);margin-bottom:8px;">${day.name}</div>
-              ${(day.exercises||[]).map(ex => `
-                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
-                  <span>${ex.superset_group ? '🔗 ' : ''}${ex.name}</span>
-                  <span style="color:var(--accent);font-family:'DM Mono',monospace;">${ex.sets}×${ex.reps} · ${ex.rest||''}</span>
+              <div style="font-size:0.8rem;font-weight:600;color:var(--accent);margin-bottom:10px;">${day.name}</div>
+              <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
+                <span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span><span>Type</span><span></span>
+              </div>
+              ${(day.exercises||[]).map((ex, ei) => `
+                <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.78rem;align-items:center;" id="ex-row-${p.id}-${di}-${ei}">
+                  <span style="${ex.superset_group ? 'color:var(--accent2);' : ''}">${ex.superset_group ? ex.superset_group+'. ' : ''}${ex.name}</span>
+                  <span style="font-family:'DM Mono',monospace;color:var(--accent);">${ex.sets}</span>
+                  <span style="font-family:'DM Mono',monospace;">${ex.reps}</span>
+                  <span style="font-family:'DM Mono',monospace;color:var(--muted);">${ex.rest||'—'}</span>
+                  <span style="font-size:0.65rem;color:${ex.superset_group ? 'var(--accent2)' : 'var(--muted)'};">${ex.superset_group ? (ei > 0 && (day.exercises[ei-1]?.superset_group === ex.superset_group) ? 'Superset' : 'Superset') : 'Individual'}</span>
+                  <button onclick="editPlanExercise('${p.id}',${di},${ei})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;">Edit</button>
                 </div>
               `).join('')}
             </div>
@@ -2926,6 +2939,77 @@ async function renderCardioRecommendations() {
 }
 
 
+
+// ── EXERCISE EDITOR ───────────────────────────────────────────────────────────
+let editingPlanId = null;
+let editingDayIdx = null;
+let editingExIdx = null;
+let editingPlanData = null;
+
+async function editPlanExercise(planId, dayIdx, exIdx) {
+  // Load plan from Supabase
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+  
+  editingPlanId = planId;
+  editingDayIdx = dayIdx;
+  editingExIdx = exIdx;
+  editingPlanData = plan;
+  
+  const ex = plan.plan_data.days[dayIdx].exercises[exIdx];
+  
+  document.getElementById('edit-ex-name').value = ex.name || '';
+  document.getElementById('edit-ex-sets').value = ex.sets || '';
+  document.getElementById('edit-ex-reps').value = ex.reps || '';
+  document.getElementById('edit-ex-rest').value = ex.rest || '';
+  document.getElementById('edit-ex-notes').value = ex.notes || '';
+  document.getElementById('edit-ex-group').value = ex.superset_group || '';
+  document.getElementById('edit-ex-type').value = ex.superset_group ? 'superset' : 'individual';
+  
+  document.getElementById('exerciseEditModal').classList.add('open');
+}
+
+async function saveExerciseEdit() {
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(editingPlanId));
+  if (!plan) return toast('Plan not found');
+  
+  const planData = plan.plan_data;
+  const ex = planData.days[editingDayIdx].exercises[editingExIdx];
+  
+  const exType = document.getElementById('edit-ex-type').value;
+  const group = document.getElementById('edit-ex-group').value.trim().toUpperCase();
+  
+  ex.name = document.getElementById('edit-ex-name').value.trim();
+  ex.sets = document.getElementById('edit-ex-sets').value.trim();
+  ex.reps = document.getElementById('edit-ex-reps').value.trim();
+  ex.rest = document.getElementById('edit-ex-rest').value.trim();
+  ex.notes = document.getElementById('edit-ex-notes').value.trim();
+  ex.superset_group = exType === 'individual' ? null : (group || 'A');
+  
+  await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
+  closeModal('exerciseEditModal');
+  renderPendingPlans();
+  toast('Exercise updated ✓');
+}
+
+async function deleteExerciseFromPlan() {
+  if (!confirm('Remove this exercise from the plan?')) return;
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(editingPlanId));
+  if (!plan) return;
+  
+  const planData = plan.plan_data;
+  planData.days[editingDayIdx].exercises.splice(editingExIdx, 1);
+  
+  await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
+  closeModal('exerciseEditModal');
+  renderPendingPlans();
+  toast('Exercise removed');
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
   if(!checkAuth())return;
@@ -3023,6 +3107,41 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
       </div>
     </div>
     <button class="btn btn-primary" style="width:100%;" onclick="savePlanToClient()">✓ Send Plan to Client</button>
+  </div>
+</div>
+
+
+<!-- EXERCISE EDIT MODAL -->
+<div class="modal-overlay" id="exerciseEditModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" onclick="closeModal('exerciseEditModal')">✕</button>
+    <div class="modal-title">Edit Exercise</div>
+    <div class="form-group"><label class="form-label">Exercise Name</label><input id="edit-ex-name" type="text" placeholder="Exercise name"></div>
+    <div class="form-row">
+      <div style="flex:1"><label class="form-label">Sets</label><input id="edit-ex-sets" type="text" placeholder="e.g. 3"></div>
+      <div style="flex:1"><label class="form-label">Reps</label><input id="edit-ex-reps" type="text" placeholder="e.g. 8-12"></div>
+      <div style="flex:1"><label class="form-label">Rest</label><input id="edit-ex-rest" type="text" placeholder="e.g. 90s"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Coaching Notes</label><input id="edit-ex-notes" type="text" placeholder="Technique cue or note"></div>
+    <div class="form-row">
+      <div style="flex:1">
+        <label class="form-label">Exercise Type</label>
+        <select id="edit-ex-type" onchange="document.getElementById('edit-ex-group').style.display=this.value==='individual'?'none':'block'">
+          <option value="individual">Individual</option>
+          <option value="superset">Superset</option>
+          <option value="triset">Tri-Set</option>
+          <option value="circuit">Circuit</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label class="form-label">Group Letter (A, B, C...)</label>
+        <input id="edit-ex-group" type="text" placeholder="e.g. A" maxlength="1" style="text-transform:uppercase;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveExerciseEdit()">Save Changes</button>
+      <button class="btn btn-danger" onclick="deleteExerciseFromPlan()">Remove</button>
+    </div>
   </div>
 </div>
 
