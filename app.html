@@ -2503,13 +2503,19 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   
   const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake.
 
-⚠️ CRITICAL SAFETY REQUIREMENTS - YOU MUST FOLLOW THESE OR THE PLAN IS UNSAFE:
-- Medical conditions: ${intakeData.medical || 'none'} — design EVERY exercise around these conditions
-- Movements to NEVER include: ${intakeData.avoid || 'none'} — DO NOT include these or similar movements
-- If client has knee issues, avoid ANY loaded squats, lunges with heavy weight, leg press, or high-impact movements
-- If client has back issues, avoid deadlifts, good mornings, or any heavy spinal loading
-- Equipment available: ${intakeData.equipment?.replace('_',' ')} — ONLY use exercises possible with this equipment
-- Equipment details: ${intakeData.equipment_detail || 'none specified'}
+⚠️⚠️⚠️ CRITICAL SAFETY REQUIREMENTS — READ FIRST, NON-NEGOTIABLE ⚠️⚠️⚠️
+THE CLIENT HAS THE FOLLOWING MEDICAL CONDITIONS / INJURIES: "${intakeData.medical || 'none reported'}"
+THE CLIENT MUST NEVER DO THE FOLLOWING MOVEMENTS: "${intakeData.avoid || 'none specified'}"
+THE CLIENT'S ONLY AVAILABLE EQUIPMENT IS: "${intakeData.equipment?.replace(/_/g,' ') || 'not specified'}" (details: ${intakeData.equipment_detail || 'none'})
+
+These three lines override every other instruction in this prompt. Before writing each exercise, silently check it against all three lines above. If an exercise conflicts with ANY of them — including close variations, regressions, or "lighter" versions of a banned movement — DO NOT include it. There is no acceptable substitute that still resembles the banned movement; pick a completely different exercise pattern instead.
+
+SPECIFIC RULES (apply on top of the client's own stated restrictions above):
+- If the client has ANY knee issue, knee surgery, or knee replacement mentioned: NEVER include Barbell Back Squat, Front Squat, Bulgarian Split Squats, Walking Lunges, Leg Press, Hack Squat, or any loaded/weighted squat or lunge variation.
+- If the client has ANY back issue (lower back pain, disc, sciatica, spinal surgery): NEVER include Barbell Deadlift, Romanian Deadlift, Good Morning, Bent-Over Row, or any axially-loaded spinal flexion/loading movement, REGARDLESS of weight.
+- If equipment is "bodyweight" or "bands only": NEVER include any exercise that requires a barbell, dumbbell, machine, or cable — bodyweight/band variations only.
+- If equipment is "home partial" / "home gym (dumbbells, bands, some equipment)": NEVER include barbell-only movements (Barbell Squat, Barbell Deadlift, Barbell Bench Press) unless the equipment details explicitly mention a barbell.
+- When in doubt, choose the SAFER, more conservative exercise. It is always better to under-program than to include a contraindicated movement.
 
 CLIENT PROFILE:
 - Goal: ${intakeData.goal?.replace('_',' ')}
@@ -2530,12 +2536,12 @@ REQUIREMENTS:
 1. Create exactly ${intakeData.days || 3} training days
 2. Each day must fit within ${intakeData.duration || 60} minutes
 3. Include sets, reps, and rest periods for every exercise
-4. For supersets set superset_group to a letter like "A" for both exercises in the superset
-5. For tri-sets set superset_group to "A" for all three exercises in the group
-6. Individual exercises should have superset_group as null
+4. For supersets set superset_group to a letter like "A" for both exercises in the superset, and set "type" to "superset" for both
+5. For tri-sets set superset_group to "A" for all three exercises in the group, and set "type" to "triset" for all three
+6. Individual exercises should have superset_group as null and "type" as "individual"
 7. Include 1-2 cardio sessions appropriate for their goal
 8. Include basic nutrition guidance (no specific calories)
-9. DOUBLE CHECK: ensure NO exercises from the avoid list are included
+9. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, and equipment lines at the top of this prompt. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions or the specific rules above. If you find a violation, replace that exercise before responding — do not explain, just fix it.
 
 Respond ONLY with this exact JSON structure, no other text:
 {
@@ -2554,7 +2560,8 @@ Respond ONLY with this exact JSON structure, no other text:
           "reps": "8-10",
           "rest": "90s",
           "notes": "coaching cue",
-          "superset_group": null
+          "superset_group": null,
+          "type": "individual"
         }
       ]
     }
@@ -2655,7 +2662,7 @@ async function renderPendingPlans() {
                   <span style="font-family:'DM Mono',monospace;color:var(--accent);">${ex.sets}</span>
                   <span style="font-family:'DM Mono',monospace;">${ex.reps}</span>
                   <span style="font-family:'DM Mono',monospace;color:var(--muted);">${ex.rest||'—'}</span>
-                  <span style="font-size:0.65rem;color:${ex.superset_group ? 'var(--accent2)' : 'var(--muted)'};">${ex.superset_group ? (ei > 0 && (day.exercises[ei-1]?.superset_group === ex.superset_group) ? 'Superset' : 'Superset') : 'Individual'}</span>
+                  <span style="font-size:0.65rem;color:${ex.superset_group ? 'var(--accent2)' : 'var(--muted)'};">${ex.superset_group ? ({superset:'Superset',triset:'Tri-Set',circuit:'Circuit'}[ex.type] || 'Superset') : 'Individual'}</span>
                   <button onclick="editPlanExercise('${p.id}',${di},${ei})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;">Edit</button>
                 </div>
               `).join('')}
@@ -2803,6 +2810,12 @@ async function triggerPlanUpdate(planId, clientEmail) {
 
   const prompt = `You are an expert certified personal trainer. A client has been on their current program for 6+ weeks. Analyze their progress and generate an updated plan.
 
+⚠️⚠️⚠️ CRITICAL SAFETY REQUIREMENTS — NON-NEGOTIABLE ⚠️⚠️⚠️
+MEDICAL CONDITIONS / INJURIES: "${intake.medical || 'none reported'}"
+MOVEMENTS TO NEVER INCLUDE: "${intake.avoid || 'none specified'}"
+EQUIPMENT AVAILABLE: "${intake.equipment?.replace(/_/g,' ') || 'not specified'}" (details: ${intake.equipment_detail || 'none'})
+Apply the same specific rules as a fresh plan: no loaded squats/lunges/leg press for knee issues, no deadlift/RDL/good morning/bent-over row for back issues, and only use exercises possible with the equipment listed above. Double-check every exercise against these before responding.
+
 CURRENT PLAN: ${currentPlanData.name || 'Unknown'}
 PLAN TYPE: ${currentPlanData.plan_type || 'Unknown'}
 UPDATE STYLE REQUESTED: ${updateType === 'same' ? 'Progress same style with increased intensity' : updateType.replace('_', ' ')}
@@ -2843,7 +2856,8 @@ Respond ONLY with this exact JSON (no other text):
           "reps": "8-10",
           "rest": "90s",
           "notes": "cue",
-          "superset_group": null
+          "superset_group": null,
+          "type": "individual"
         }
       ]
     }
@@ -2965,7 +2979,8 @@ async function editPlanExercise(planId, dayIdx, exIdx) {
   document.getElementById('edit-ex-rest').value = ex.rest || '';
   document.getElementById('edit-ex-notes').value = ex.notes || '';
   document.getElementById('edit-ex-group').value = ex.superset_group || '';
-  document.getElementById('edit-ex-type').value = ex.superset_group ? 'superset' : 'individual';
+  document.getElementById('edit-ex-type').value = ex.type || (ex.superset_group ? 'superset' : 'individual');
+  document.getElementById('edit-ex-group').style.display = (ex.type||(ex.superset_group?'superset':'individual'))==='individual'?'none':'block';
   
   document.getElementById('exerciseEditModal').classList.add('open');
 }
@@ -2986,6 +3001,7 @@ async function saveExerciseEdit() {
   ex.reps = document.getElementById('edit-ex-reps').value.trim();
   ex.rest = document.getElementById('edit-ex-rest').value.trim();
   ex.notes = document.getElementById('edit-ex-notes').value.trim();
+  ex.type = exType;
   ex.superset_group = exType === 'individual' ? null : (group || 'A');
   
   await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
