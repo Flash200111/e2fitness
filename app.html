@@ -2592,7 +2592,7 @@ Respond ONLY with this exact JSON structure, no other text:
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [{role: 'user', content: prompt}]
       })
     });
@@ -2605,7 +2605,12 @@ Respond ONLY with this exact JSON structure, no other text:
 
     const text = data.content.map(c => c.text || '').join('');
     const cleaned = text.replace(/```json|```/g, '').trim();
-    const planData = JSON.parse(cleaned);
+    let planData;
+    try {
+      planData = JSON.parse(cleaned);
+    } catch(parseErr) {
+      throw new Error('AI response was incomplete/truncated (try again, or it may need a shorter plan)');
+    }
 
     // Save generated plan back to Supabase
     await sbUpdate('workout_plans', planId, {
@@ -2888,7 +2893,7 @@ Respond ONLY with this exact JSON (no other text):
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [{role: 'user', content: prompt}]
       })
     });
