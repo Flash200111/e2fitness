@@ -546,14 +546,33 @@
       <div class="panel-title">Your Goals</div>
       <div class="form-group">
         <label class="form-label">Primary Goal</label>
-        <select id="intake-goal">
+        <select id="intake-goal" onchange="document.getElementById('intake-sport-wrap').style.display=this.value==='sport_specific'?'block':'none';">
           <option value="">Select your main goal...</option>
           <option value="fat_loss">Lose Fat / Get Leaner</option>
           <option value="muscle_build">Build Muscle / Get Bigger</option>
           <option value="lean_bulk">Lean Bulk (Muscle + minimal fat)</option>
           <option value="general_fitness">General Fitness / Health</option>
           <option value="athletic">Athletic Performance</option>
+          <option value="sport_specific">Sport-Specific Training</option>
           <option value="rehab">Rehab / Recovery from Injury</option>
+        </select>
+      </div>
+      <div class="form-group" id="intake-sport-wrap" style="display:none;">
+        <label class="form-label">Which Sport?</label>
+        <select id="intake-sport">
+          <option value="">Select a sport...</option>
+          <option value="Football">Football</option>
+          <option value="Basketball">Basketball</option>
+          <option value="Baseball">Baseball</option>
+          <option value="Soccer">Soccer</option>
+          <option value="Hockey">Hockey</option>
+          <option value="Tennis">Tennis</option>
+          <option value="Golf">Golf</option>
+          <option value="Track & Field">Track &amp; Field</option>
+          <option value="Wrestling">Wrestling</option>
+          <option value="Lacrosse">Lacrosse</option>
+          <option value="Volleyball">Volleyball</option>
+          <option value="Swimming">Swimming</option>
         </select>
       </div>
       <div class="form-group">
@@ -2290,6 +2309,7 @@ async function submitIntake() {
 
   const intakeData = {
     goal: goal,
+    sport: goal === 'sport_specific' ? document.getElementById('intake-sport').value : '',
     goal2: document.getElementById('intake-goal2').value,
     age: document.getElementById('intake-age').value,
     gender: document.getElementById('intake-gender').value,
@@ -2367,7 +2387,7 @@ async function renderPendingIntakes() {
           <span style="font-size:0.65rem;background:rgba(255,69,69,0.15);color:var(--danger);padding:2px 8px;border-radius:2px;letter-spacing:1px;">NEEDS PLAN</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.78rem;margin-bottom:12px;">
-          <div><span style="color:var(--muted);">Goal:</span> ${intake.goal?.replace('_',' ') || '—'}</div>
+          <div><span style="color:var(--muted);">Goal:</span> ${intake.goal?.replace('_',' ') || '—'}${intake.goal==='sport_specific' && intake.sport ? ` (${intake.sport})` : ''}</div>
           <div><span style="color:var(--muted);">Level:</span> ${intake.level || '—'}</div>
           <div><span style="color:var(--muted);">Equipment:</span> ${intake.equipment?.replace('_',' ') || '—'}</div>
           <div><span style="color:var(--muted);">Days/week:</span> ${intake.days || '—'}</div>
@@ -2380,13 +2400,13 @@ async function renderPendingIntakes() {
         <div style="margin-bottom:8px;">
           <label class="form-label">Plan Style</label>
           <select id="plan-type-${p.id}" style="font-size:0.78rem;" onchange="document.getElementById('sport-select-${p.id}').style.display=this.value==='sport_specific'?'block':'none';">
-            ${PLAN_TYPES.map(pt => `<option value="${pt.value}">${pt.label}</option>`).join('')}
+            ${PLAN_TYPES.map(pt => `<option value="${pt.value}" ${intake.goal==='sport_specific' && pt.value==='sport_specific'?'selected':''}>${pt.label}</option>`).join('')}
           </select>
         </div>
-        <div id="sport-select-${p.id}" style="margin-bottom:8px;display:none;">
+        <div id="sport-select-${p.id}" style="margin-bottom:8px;display:${intake.goal==='sport_specific'?'block':'none'};">
           <label class="form-label">Sport</label>
           <select id="sport-type-${p.id}" style="font-size:0.78rem;">
-            ${SPORTS.map(s => `<option value="${s}">${s}</option>`).join('')}
+            ${SPORTS.map(s => `<option value="${s}" ${intake.sport===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="startAIGeneration('${p.id}', '${p.client_email}')">
@@ -2689,7 +2709,7 @@ async function renderPendingPlans() {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:0.75rem;">
           <div style="font-size:0.65rem;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Client Intake (reference)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
-            <div><span style="color:var(--muted);">Goal:</span> ${pd.intake?.goal?.replace('_',' ') || '—'}</div>
+            <div><span style="color:var(--muted);">Goal:</span> ${pd.intake?.goal?.replace('_',' ') || '—'}${pd.intake?.goal==='sport_specific' && pd.intake?.sport ? ` (${pd.intake.sport})` : ''}</div>
             <div><span style="color:var(--muted);">Equipment:</span> ${pd.intake?.equipment?.replace('_',' ') || '—'}</div>
             <div><span style="color:var(--muted);">Level:</span> ${pd.intake?.level || '—'}</div>
             <div><span style="color:var(--muted);">Days/week:</span> ${pd.intake?.days || '—'}</div>
