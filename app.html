@@ -2379,16 +2379,14 @@ async function renderPendingIntakes() {
         ${intake.other ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Notes: ${intake.other}</div>` : ''}
         <div style="margin-bottom:8px;">
           <label class="form-label">Plan Style</label>
-          <select id="plan-type-${p.id}" style="font-size:0.78rem;">
-            <option value="push_pull_legs">Push / Pull / Legs</option>
-            <option value="upper_lower">Upper / Lower Split</option>
-            <option value="full_body">Full Body</option>
-            <option value="bro_split">Bro Split (Body Part)</option>
-            <option value="agonist_antagonist">Agonist / Antagonist</option>
-            <option value="circuit">Circuit Training</option>
-            <option value="full_body_strength">Full Body Strength</option>
-            <option value="hiit_strength">HIIT + Strength Hybrid</option>
-            <option value="corrective_rehab">Corrective / Rehab Focus</option>
+          <select id="plan-type-${p.id}" style="font-size:0.78rem;" onchange="document.getElementById('sport-select-${p.id}').style.display=this.value==='sport_specific'?'block':'none';">
+            ${PLAN_TYPES.map(pt => `<option value="${pt.value}">${pt.label}</option>`).join('')}
+          </select>
+        </div>
+        <div id="sport-select-${p.id}" style="margin-bottom:8px;display:none;">
+          <label class="form-label">Sport</label>
+          <select id="sport-type-${p.id}" style="font-size:0.78rem;">
+            ${SPORTS.map(s => `<option value="${s}">${s}</option>`).join('')}
           </select>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="startAIGeneration('${p.id}', '${p.client_email}')">
@@ -2482,7 +2480,10 @@ const PLAN_TYPES = [
   {value:'full_body_strength', label:'Full Body Strength'},
   {value:'hiit_strength', label:'HIIT + Strength Hybrid'},
   {value:'corrective_rehab', label:'Corrective / Rehab Focus'},
+  {value:'sport_specific', label:'Sport-Specific'},
 ];
+
+const SPORTS = ['Football','Basketball','Baseball','Soccer','Hockey','Tennis','Golf','Track & Field','Wrestling','Lacrosse','Volleyball','Swimming'];
 
 
 async function startAIGeneration(planId, clientEmail) {
@@ -2492,6 +2493,9 @@ async function startAIGeneration(planId, clientEmail) {
   const plan = plans.find(p => String(p.id) === String(planId));
   if (!plan) return toast('Plan not found');
   const intake = plan.plan_data?.intake || {};
+  if (planType === 'sport_specific') {
+    intake.sport = document.getElementById('sport-type-' + planId)?.value || '';
+  }
   await generateAIPlan(planId, clientEmail, intake, planType);
 }
 
@@ -2531,7 +2535,8 @@ CLIENT PROFILE:
 - Eating Habits: ${intakeData.eating || 'average'}
 - Additional Notes: ${intakeData.other || 'none'}
 
-PLAN STYLE: ${planTypeLabel}
+PLAN STYLE: ${planTypeLabel}${planType === 'sport_specific' && intakeData.sport ? `
+SPORT: ${intakeData.sport} — design this program around the strength, power, speed, agility, and conditioning demands specific to ${intakeData.sport}. Include sport-relevant movement patterns (e.g. rotational power, lateral movement, sprinting mechanics, sport-specific energy systems) while still respecting all safety restrictions above.` : ''}
 
 REQUIREMENTS:
 1. Create exactly ${intakeData.days || 3} training days
@@ -2614,6 +2619,33 @@ Respond ONLY with this exact JSON structure, no other text:
     }
     planData.intake = intakeData; // preserve intake data for regeneration
 
+    // HARD SAFETY NET: scan every exercise name for banned-movement keywords
+    // derived from the client's avoid list and medical conditions, regardless
+    // of what the AI prompt said. If found, reject the plan entirely.
+    const avoidLower = (intakeData.avoid || '').toLowerCase();
+    const medicalLower = (intakeData.medical || '').toLowerCase();
+    const bannedKeywords = new Set();
+    const addIf = (sourceText, patterns, keywords) => {
+      if (patterns.some(p => sourceText.includes(p))) keywords.forEach(k => bannedKeywords.add(k));
+    };
+    addIf(avoidLower, ['squat'], ['squat']);
+    addIf(avoidLower, ['dead lift','deadlift'], ['deadlift']);
+    addIf(avoidLower, ['lunge'], ['lunge']);
+    addIf(avoidLower, ['leg press'], ['leg press']);
+    addIf(avoidLower, ['bench press'], ['bench press']);
+    addIf(avoidLower, ['overhead press','shoulder press'], ['overhead press','shoulder press']);
+    addIf(medicalLower, ['knee'], ['squat','lunge','leg press','hack squat']);
+    addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
+
+    const violations = [];
+    (planData.days || []).forEach(day => (day.exercises || []).forEach(ex => {
+      const nameLower = (ex.name || '').toLowerCase();
+      bannedKeywords.forEach(k => { if (nameLower.includes(k)) violations.push(ex.name); });
+    }));
+    if (violations.length) {
+      throw new Error('AI included contraindicated exercise(s): ' + [...new Set(violations)].join(', ') + '. Click Generate/Regenerate to try again.');
+    }
+
     // Save generated plan back to Supabase
     await sbUpdate('workout_plans', planId, {
       plan_data: planData,
@@ -2653,6 +2685,18 @@ async function renderPendingPlans() {
             <div style="font-size:0.72rem;color:var(--muted);">${p.client_email} · ${pd.plan_type?.replace('_',' ') || ''}</div>
           </div>
           <span style="font-size:0.65rem;background:rgba(232,255,71,0.1);color:var(--accent);padding:2px 8px;border-radius:2px;letter-spacing:1px;">PENDING REVIEW</span>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:0.75rem;">
+          <div style="font-size:0.65rem;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Client Intake (reference)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+            <div><span style="color:var(--muted);">Goal:</span> ${pd.intake?.goal?.replace('_',' ') || '—'}</div>
+            <div><span style="color:var(--muted);">Equipment:</span> ${pd.intake?.equipment?.replace('_',' ') || '—'}</div>
+            <div><span style="color:var(--muted);">Level:</span> ${pd.intake?.level || '—'}</div>
+            <div><span style="color:var(--muted);">Days/week:</span> ${pd.intake?.days || '—'}</div>
+          </div>
+          ${pd.intake?.medical ? `<div style="color:var(--danger);margin-bottom:4px;">⚠️ Medical: ${pd.intake.medical}</div>` : ''}
+          ${pd.intake?.avoid ? `<div style="color:var(--muted);margin-bottom:4px;">Avoid: ${pd.intake.avoid}</div>` : ''}
+          ${pd.intake?.other ? `<div style="color:var(--muted);">Notes: ${pd.intake.other}</div>` : ''}
         </div>
         ${pd.overview ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;font-style:italic;">${pd.overview}</div>` : ''}
         
