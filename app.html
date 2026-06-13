@@ -2497,7 +2497,8 @@ async function startAIGeneration(planId, clientEmail) {
 
 async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   const btn = document.getElementById(`gen-btn-${planId}`);
-  if(btn) { btn.disabled=true; btn.textContent='Generating...'; }
+  const btnOrigText = btn ? btn.textContent : 'Generate Plan';
+  if(btn) { btn.disabled=true; btn.textContent='⏳ Generating...'; }
   
   const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
   
@@ -2611,6 +2612,7 @@ Respond ONLY with this exact JSON structure, no other text:
     } catch(e) {
       throw new Error('AI response was incomplete/truncated — try again');
     }
+    planData.intake = intakeData; // preserve intake data for regeneration
 
     // Save generated plan back to Supabase
     await sbUpdate('workout_plans', planId, {
@@ -2625,7 +2627,7 @@ Respond ONLY with this exact JSON structure, no other text:
 
   } catch(err) {
     toast('Generation failed: ' + err.message, true);
-    if(btn) { btn.disabled=false; btn.textContent='Generate Plan'; }
+    if(btn) { btn.disabled=false; btn.textContent=btnOrigText; }
   }
 }
 
@@ -2679,7 +2681,7 @@ async function renderPendingPlans() {
           <select id="regen-type-${p.id}" style="flex:1;font-size:0.78rem;">
             ${PLAN_TYPES.map(pt => `<option value="${pt.value}" ${pt.value===pd.plan_type?'selected':''}>${pt.label}</option>`).join('')}
           </select>
-          <button class="btn" style="font-size:0.75rem;" onclick="regenPlan('${p.id}', '${p.client_email}')">🔄 Regenerate</button>
+          <button id="gen-btn-${p.id}" class="btn" style="font-size:0.75rem;" onclick="regenPlan('${p.id}', '${p.client_email}')">🔄 Regenerate</button>
         </div>
 
         <div style="margin-bottom:10px;">
