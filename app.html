@@ -2495,7 +2495,69 @@ async function startAIGeneration(planId, clientEmail) {
   await generateAIPlan(planId, clientEmail, intake, planType);
 }
 
-async function generateAIPlan(planId, clientEmail, intakeData, planType) {
+// Attempts to salvage a truncated/malformed JSON object by closing
+// unterminated strings and unbalanced brackets/braces, then trimming
+// any trailing incomplete element.
+function repairTruncatedJSON(str) {
+  let result = str;
+  // If there's an odd number of unescaped quotes, an unterminated string
+  // is open at the end — close it.
+  let inString = false, escape = false, depth = [];
+  let lastSafeIndex = -1;
+  for (let i = 0; i < result.length; i++) {
+    const ch = result[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') depth.push(ch);
+    else if (ch === '}' || ch === ']') depth.pop();
+    if (!inString && (ch === ',' || ch === '}' || ch === ']')) lastSafeIndex = i;
+  }
+  if (inString) {
+    // Close the unterminated string, then trim back to last safe point
+    result = result.slice(0, lastSafeIndex + 1);
+    // Recompute depth after trimming
+    depth = [];
+    inString = false; escape = false;
+    for (let i = 0; i < result.length; i++) {
+      const ch = result[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{' || ch === '[') depth.push(ch);
+      else if (ch === '}' || ch === ']') depth.pop();
+    }
+  } else if (lastSafeIndex >= 0 && lastSafeIndex < result.length - 1) {
+    // Trailing content after the last safe point may be a dangling
+    // incomplete element — trim it off if it looks incomplete.
+    const rest = result.slice(lastSafeIndex + 1).trim();
+    if (rest && !/^[}\]]+,?\s*$/.test(rest)) {
+      result = result.slice(0, lastSafeIndex + 1);
+      depth = [];
+      inString = false; escape = false;
+      for (let i = 0; i < result.length; i++) {
+        const ch = result[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{' || ch === '[') depth.push(ch);
+        else if (ch === '}' || ch === ']') depth.pop();
+      }
+    }
+  }
+  // Remove trailing comma before closing
+  result = result.replace(/,\s*$/, '');
+  // Close any remaining open brackets/braces in reverse order
+  for (let i = depth.length - 1; i >= 0; i--) {
+    result += depth[i] === '{' ? '}' : ']';
+  }
+  return result;
+}
+
+
   const btn = document.getElementById(`gen-btn-${planId}`);
   if(btn) { btn.disabled=true; btn.textContent='Generating...'; }
   
@@ -2593,7 +2655,7 @@ Respond ONLY with this exact JSON structure, no other text:
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 16000,
+        max_tokens: 64000,
         messages: [{role: 'user', content: prompt}]
       })
     });
@@ -2610,7 +2672,12 @@ Respond ONLY with this exact JSON structure, no other text:
     try {
       planData = JSON.parse(cleaned);
     } catch(parseErr) {
-      throw new Error('AI response was incomplete/truncated (try again, or it may need a shorter plan)');
+      try {
+        planData = JSON.parse(repairTruncatedJSON(cleaned));
+        toast('Plan generated, but response was cut short — some days/exercises may be missing. Review carefully.', true);
+      } catch(repairErr) {
+        throw new Error('AI response was incomplete/truncated and could not be repaired (try again)');
+      }
     }
 
     // Save generated plan back to Supabase
@@ -2894,7 +2961,7 @@ Respond ONLY with this exact JSON (no other text):
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 16000,
+        max_tokens: 64000,
         messages: [{role: 'user', content: prompt}]
       })
     });
@@ -2903,7 +2970,18 @@ Respond ONLY with this exact JSON (no other text):
     if (!data || !data.content || !Array.isArray(data.content)) throw new Error('Invalid response');
 
     const text = data.content.map(c => c.text || '').join('');
-    const planData = JSON.parse(text.replace(/```json|```/g, '').trim());
+    const cleanedUpdate = text.replace(/```json|```/g, '').trim();
+    let planData;
+    try {
+      planData = JSON.parse(cleanedUpdate);
+    } catch(parseErr) {
+      try {
+        planData = JSON.parse(repairTruncatedJSON(cleanedUpdate));
+        toast('Plan generated, but response was cut short — some days/exercises may be missing. Review carefully.', true);
+      } catch(repairErr) {
+        throw new Error('AI response was incomplete/truncated and could not be repaired (try again)');
+      }
+    }
     planData.intake = intake; // preserve intake data
 
     // Archive old plan and create new pending review plan
