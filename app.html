@@ -2495,6 +2495,7 @@ async function startAIGeneration(planId, clientEmail) {
   await generateAIPlan(planId, clientEmail, intake, planType);
 }
 
+async function generateAIPlan(planId, clientEmail, intakeData, planType) {
 // Attempts to salvage a truncated/malformed JSON object by closing
 // unterminated strings and unbalanced brackets/braces, then trimming
 // any trailing incomplete element.
