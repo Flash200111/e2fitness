@@ -1077,7 +1077,12 @@ async function renderWorkoutLog(){
     saveState();
     
     if(!combined.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
-    list.innerHTML=combined.map(e=>`<div class="log-item"><div><div class="log-item-name">${e.name} <span style="font-size:0.7rem;color:var(--muted)">${e.type||''}</span></div><div class="log-item-detail">${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'} ${e.rpe?'· RPE '+e.rpe:''}</div>${e.notes?`<div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${e.notes}</div>`:''}</div><button class="log-item-del" onclick="removeWorkout(${e.id})">✕</button></div>`).join('');
+    list.innerHTML=combined.map(e=>{
+      const detail = Array.isArray(e.sets)
+        ? e.sets.map(s=>`Set ${s.set}: ${s.weight||'—'}${s.weight?' lbs':''} × ${s.reps||'—'}`).join(' · ')
+        : `${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'} ${e.rpe?'· RPE '+e.rpe:''}`;
+      return `<div class="log-item"><div><div class="log-item-name">${e.name} <span style="font-size:0.7rem;color:var(--muted)">${e.type||''}</span></div><div class="log-item-detail">${detail}</div>${e.notes?`<div style="font-size:0.75rem;color:var(--muted);margin-top:2px">📝 ${e.notes}</div>`:''}</div><button class="log-item-del" onclick="removeWorkout(${e.id})">✕</button></div>`;
+    }).join('');
     refreshDashboard();
   } catch(err) {
     if(!state.today.workout.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
@@ -1790,31 +1795,78 @@ async function renderMyPlan() {
         ${days.map((day, di) => `
           <div style="margin-bottom:20px;">
             <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.name}</div>
-            ${(day.exercises || []).map(ex => `
+            ${(day.exercises || []).map((ex, exi) => {
+              const exId = `d${di}e${exi}`;
+              const numSets = parseInt(ex.sets) || 1;
+              return `
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;cursor:pointer;" onclick="toggleSetLogger('${exId}')">
                   <div style="font-weight:600;font-size:0.9rem;">${ex.name}</div>
                   <div style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--accent);">${ex.sets} × ${ex.reps}</div>
                 </div>
                 ${ex.rest ? `<div style="font-size:0.72rem;color:var(--muted);">Rest: ${ex.rest}</div>` : ''}
                 ${ex.notes ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:4px;font-style:italic;">${ex.notes}</div>` : ''}
                 <div style="margin-top:10px;">
-                  <button class="btn btn-primary" style="font-size:0.72rem;padding:5px 12px;" onclick="logPlanExercise('${ex.name.replace(/'/g,"\'")}', '${ex.sets}', '${ex.reps}')">Log This ✓</button>
+                  <button class="btn btn-primary" style="font-size:0.72rem;padding:5px 12px;" onclick="toggleSetLogger('${exId}')">Log Sets ✓</button>
+                </div>
+                <div id="setlog-${exId}" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
+                  <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center;font-size:0.7rem;color:var(--muted);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase;">
+                    <div>Set</div><div>Weight</div><div>Reps</div>
+                  </div>
+                  ${Array.from({length: numSets}, (_, si) => `
+                    <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px;">
+                      <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--text);width:20px;">${si+1}</div>
+                      <input type="number" inputmode="decimal" placeholder="lbs" id="set-${exId}-${si}-weight" style="font-size:0.8rem;padding:6px 8px;">
+                      <input type="number" inputmode="numeric" placeholder="${ex.reps}" id="set-${exId}-${si}-reps" style="font-size:0.8rem;padding:6px 8px;">
+                    </div>
+                  `).join('')}
+                  <div style="margin-top:8px;">
+                    <label class="form-label" style="font-size:0.65rem;">Notes (optional — felt tired, shoulder pain, etc.)</label>
+                    <input type="text" id="set-${exId}-notes" placeholder="How did this exercise feel?" style="font-size:0.8rem;padding:6px 8px;width:100%;">
+                  </div>
+                  <button class="btn btn-primary" style="font-size:0.72rem;padding:6px 12px;width:100%;margin-top:8px;" onclick="saveSetLog('${exId}', ${numSets}, '${ex.name.replace(/'/g,"\\'")}', '${ex.type||'individual'}')">💾 Save Sets</button>
                 </div>
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>
         `).join('')}
       </div>`;
   }).join('');
 }
 
-function logPlanExercise(name, sets, reps) {
-  document.getElementById('ex-name').value = name;
-  document.getElementById('ex-sets').value = sets;
-  document.getElementById('ex-reps').value = reps;
-  showPage('log');
-  toast('Exercise loaded — fill in weight and RPE ✓');
+function toggleSetLogger(exId) {
+  const el = document.getElementById(`setlog-${exId}`);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveSetLog(exId, numSets, exerciseName, exType) {
+  const sets = [];
+  for (let si = 0; si < numSets; si++) {
+    const weight = document.getElementById(`set-${exId}-${si}-weight`)?.value.trim();
+    const reps = document.getElementById(`set-${exId}-${si}-reps`)?.value.trim();
+    if (weight || reps) {
+      sets.push({ set: si + 1, weight: weight || null, reps: reps || null });
+    }
+  }
+  const notes = document.getElementById(`set-${exId}-notes`)?.value.trim() || '';
+  if (!sets.length && !notes) return toast('Enter at least one set or a note before saving');
+
+  const session = getSession();
+  const today = new Date().toISOString().split('T')[0];
+  const entry = { name: exerciseName, type: exType, sets: sets, notes: notes, id: Date.now() };
+
+  await sbInsertAuth('client_workout_logs', {
+    user_email: session.email,
+    log_date: today,
+    exercises: [entry],
+    notes: ''
+  });
+
+  state.today.workout.push(entry);
+  saveState();
+  toast(`${exerciseName} — logged ✓`);
+  toggleSetLogger(exId);
 }
 
 // ── COMMUNITY ─────────────────────────────────────────────────────────────────
