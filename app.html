@@ -294,7 +294,7 @@
               <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
               <option>Snack</option><option>Pre-Workout</option><option>Post-Workout</option>
             </select>
-            <button class="btn btn-primary" onclick="logAiFood()">Log This Food ✓</button>
+            <button class="btn btn-primary" id="log-ai-food-btn" onclick="logAiFood()">Log This Food ✓</button>
           </div>
         </div>
       </div>
@@ -348,7 +348,10 @@
           <input id="cardio-type" type="text" placeholder="Activity (walking, cycling...)">
           <input id="cardio-mins" type="number" placeholder="Minutes" min="1">
         </div>
-        <input id="cardio-cal" type="number" placeholder="Calories burned (estimate)">
+        <div class="form-row">
+          <input id="cardio-cal" type="number" placeholder="Calories burned (estimate)" style="flex:1;">
+          <button class="btn" onclick="estimateCardioCalories()" style="flex:0 0 auto;font-size:0.75rem;">⚡ Estimate</button>
+        </div>
         <button class="btn" onclick="addCardioEntry()">Add Activity</button>
       </div>
       <div class="log-list" id="cardio-log-list"><div class="empty-state">No cardio logged</div></div>
@@ -1070,10 +1073,32 @@ async function renderFoodLog(){
   saveState();
   
   if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';return;}
-  list.innerHTML=combined.map(f=>`<div class="log-item"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div><div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+  // Detect exact duplicates (same name, cal, protein, carbs, fat, meal) for cleanup
+  const dupeIds = new Set();
+  const seen = new Map();
+  combined.forEach(f=>{
+    const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
+    if (seen.has(key)) dupeIds.add(f.id);
+    else seen.set(key, f.id);
+  });
+  const dupeBanner = dupeIds.size ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><span>⚠️ ${dupeIds.size} duplicate entr${dupeIds.size===1?'y':'ies'} detected</span><button class="btn btn-danger" style="font-size:0.7rem;padding:5px 12px;" onclick="removeDuplicateFood()">Remove Duplicates</button></div>` : '';
+  list.innerHTML=dupeBanner+combined.map(f=>`<div class="log-item" style="${dupeIds.has(f.id)?'opacity:0.5;':''}"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span>${dupeIds.has(f.id)?' <span style="font-size:0.65rem;color:var(--danger);">DUPLICATE</span>':''}</div><div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
   renderNutritionTotals(combined);
   refreshDashboard();
   updateExpenditureBreakdown();
+}
+async function removeDuplicateFood(){
+  const seen = new Set();
+  const toRemove = [];
+  state.today.food.forEach(f=>{
+    const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
+    if (seen.has(key)) toRemove.push(f.id);
+    else seen.add(key);
+  });
+  for (const id of toRemove) {
+    await removeFoodEntry(id);
+  }
+  toast(`Removed ${toRemove.length} duplicate${toRemove.length===1?'':'s'} ✓`);
 }
 async function removeFoodEntry(id){
   // Delete from Supabase
@@ -1168,6 +1193,48 @@ async function removeWorkout(id){
   state.today.workout=state.today.workout.filter(e=>e.id!==id);
   saveState();renderWorkoutLog();refreshDashboard();updateExpenditureBreakdown();
 }
+function estimateCardioCalories(){
+  const type=(document.getElementById('cardio-type').value||'').trim().toLowerCase();
+  const mins=parseFloat(document.getElementById('cardio-mins').value);
+  if(!type) return toast('Enter an activity name first');
+  if(!mins) return toast('Enter minutes first');
+
+  const profile = clientProfileCache || {};
+  const latestWeight = (state.metrics && state.metrics.length)
+    ? state.metrics[state.metrics.length-1].weight
+    : parseFloat(profile.weight) || 170;
+  const weightKg = latestWeight * 0.453592;
+
+  // MET values for common activities (approximate, moderate intensity)
+  const metTable = [
+    {keys:['walk'], met:3.5},
+    {keys:['hike','hiking'], met:6.0},
+    {keys:['run','jog'], met:9.8},
+    {keys:['sprint'], met:12.0},
+    {keys:['cycle','bike','cycling','biking'], met:7.5},
+    {keys:['swim'], met:6.0},
+    {keys:['row','rowing'], met:7.0},
+    {keys:['elliptical'], met:5.0},
+    {keys:['stairmaster','stair'], met:8.0},
+    {keys:['hiit'], met:8.0},
+    {keys:['jump rope', 'jumping rope'], met:11.0},
+    {keys:['yoga'], met:2.5},
+    {keys:['dance','dancing','zumba'], met:5.5},
+    {keys:['basketball'], met:6.5},
+    {keys:['soccer','football'], met:7.0},
+    {keys:['tennis'], met:7.3},
+  ];
+  let met = 5.0; // default moderate activity
+  for (const entry of metTable) {
+    if (entry.keys.some(k => type.includes(k))) { met = entry.met; break; }
+  }
+
+  // Calories = MET × weight(kg) × duration(hours)
+  const calories = Math.round(met * weightKg * (mins / 60));
+  document.getElementById('cardio-cal').value = calories;
+  toast(`Estimated ${calories} kcal (based on ${met} MET activity)`);
+}
+
 function addCardioEntry(){
   const type=document.getElementById('cardio-type').value.trim();
   const mins=document.getElementById('cardio-mins').value;
@@ -1788,12 +1855,15 @@ async function analyzeByDescription(){
 function showAiLoading(show){document.getElementById('ai-loading').style.display=show?'block':'none';if(show)document.getElementById('ai-result').style.display='none';}
 function fillAiResult(data){document.getElementById('ai-food-name').value=data.name||'';document.getElementById('ai-food-cal').value=data.calories||'';document.getElementById('ai-food-protein').value=data.protein||'';document.getElementById('ai-food-carbs').value=data.carbs||'';document.getElementById('ai-food-fat').value=data.fat||'';document.getElementById('ai-result').style.display='block';}
 async function logAiFood(){
+  const btn=document.getElementById('log-ai-food-btn');
+  if(btn && btn.disabled) return; // prevent double-submit
+  if(btn) btn.disabled=true;
   const name=document.getElementById('ai-food-name').value.trim(), cal=parseInt(document.getElementById('ai-food-cal').value)||0;
   const protein=parseInt(document.getElementById('ai-food-protein').value)||0, carbs=parseInt(document.getElementById('ai-food-carbs').value)||0;
   const fat=parseInt(document.getElementById('ai-food-fat').value)||0, meal=document.getElementById('ai-food-meal').value;
-  if(!name||!cal)return toast('Need at least a name and calories');
+  if(!name||!cal){if(btn)btn.disabled=false;return toast('Need at least a name and calories');}
   const entry={name,cal,protein,carbs,fat,meal,id:Date.now()};
-  
+
   // Save to Supabase
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
@@ -1806,11 +1876,12 @@ async function logAiFood(){
     total_carbs:carbs,
     total_fat:fat
   });
-  
+
   state.today.food.push(entry);
   saveState();renderFoodLog();refreshDashboard();
   ['ai-result','ai-photo-preview','ai-desc-area'].forEach(id=>document.getElementById(id).style.display='none');
   document.getElementById('ai-food-desc').value='';currentPhotoBase64=null;
+  if(btn) btn.disabled=false;
   toast('Food logged ✓');
 }
 
