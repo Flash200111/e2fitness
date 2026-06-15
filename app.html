@@ -170,6 +170,9 @@
     padding: 8px 12px;
     margin-bottom: 14px;
   }
+  .exp-stat { background: var(--surface2); border:1px solid var(--border); border-radius:6px; padding:10px 6px; text-align:center; }
+  .exp-val { font-family:'DM Mono',monospace; font-size:1.1rem; }
+  .exp-label { font-size:0.62rem; color: var(--muted); letter-spacing:0.5px; text-transform:uppercase; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -220,6 +223,19 @@
       <div class="stat-sub" id="dash-balance-sub">log food &amp; exercise to calculate</div>
     </div>
   </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">⚡ Daily Energy Expenditure</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+      <label class="form-label" style="margin:0;">Did you train today?</label>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" id="trained-yes-btn" onclick="setTrainedToday(true)" style="font-size:0.75rem;padding:6px 14px;">Yes</button>
+        <button class="btn" id="trained-no-btn" onclick="setTrainedToday(false)" style="font-size:0.75rem;padding:6px 14px;">No</button>
+      </div>
+    </div>
+    <div id="expenditure-breakdown"></div>
+  </div>
+
   <div class="dashboard-lower">
     <div class="panel">
       <div class="panel-title">Today's Summary</div>
@@ -299,6 +315,7 @@
         </select>
         <button class="btn btn-primary" onclick="addFoodEntry()">Add Entry</button>
       </div>
+      <div id="nutrition-totals" style="margin-bottom:10px;"></div>
       <div class="section-sub">Today's Food</div>
       <div class="log-list" id="food-log-list"><div class="empty-state">No entries yet</div></div>
     </div>
@@ -926,8 +943,9 @@ async function sbGet(table) {
       : `${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`;
     const r = await fetch(url, {headers});
     const d = await r.json();
+    if (!r.ok) console.warn('sbGet error for', table, ':', d);
     return (r.ok && Array.isArray(d)) ? d : [];
-  } catch(e) { return []; }
+  } catch(e) { console.warn('sbGet exception for', table, ':', e); return []; }
 }
 async function sbInsert(table, data) {
   try {
@@ -948,13 +966,14 @@ async function sbUpdate(table, id, data) {
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let state = {
   settings:{name:'',calTarget:2600,proteinTarget:190,phase:'bulk',tdee:2450},
-  today:{food:[],workout:[],cardio:[]},
+  today:{food:[],workout:[],cardio:[],trainedToday:null},
   goals:[],metrics:[],videos:[],resources:[],clients:[],transformations:[]
 };
+let clientProfileCache = null;
 function loadState() {
   try { const s=localStorage.getItem('e2fitness_state'); if(s) state={...state,...JSON.parse(s)}; } catch(e){}
   const today=new Date().toDateString(), saved=localStorage.getItem('e2fitness_date');
-  if(saved!==today){state.today={food:[],workout:[],cardio:[]};localStorage.setItem('e2fitness_date',today);}
+  if(saved!==today){state.today={food:[],workout:[],cardio:[],trainedToday:null};localStorage.setItem('e2fitness_date',today);}
 }
 function saveState(){localStorage.setItem('e2fitness_state',JSON.stringify(state));}
 
@@ -982,7 +1001,7 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); }
+  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1051,8 +1070,10 @@ async function renderFoodLog(){
   saveState();
   
   if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';return;}
-  list.innerHTML=combined.map(f=>`<div class="log-item"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div><div class="log-item-detail">${f.cal} kcal · ${f.protein||0}g P · ${f.carbs||0}g C · ${f.fat||0}g F</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+  list.innerHTML=combined.map(f=>`<div class="log-item"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div><div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+  renderNutritionTotals(combined);
   refreshDashboard();
+  updateExpenditureBreakdown();
 }
 async function removeFoodEntry(id){
   // Delete from Supabase
@@ -1092,7 +1113,7 @@ async function addWorkoutEntry(){
   });
   
   state.today.workout.push(entry);
-  saveState();renderWorkoutLog();refreshDashboard();
+  saveState();renderWorkoutLog();refreshDashboard();updateExpenditureBreakdown();
   ['ex-name','ex-sets','ex-reps','ex-weight','ex-rpe','ex-notes'].forEach(id=>document.getElementById(id).value='');
   toast('Exercise logged ✓');
 }
@@ -1145,7 +1166,7 @@ async function removeWorkout(id){
     }
   }
   state.today.workout=state.today.workout.filter(e=>e.id!==id);
-  saveState();renderWorkoutLog();refreshDashboard();
+  saveState();renderWorkoutLog();refreshDashboard();updateExpenditureBreakdown();
 }
 function addCardioEntry(){
   const type=document.getElementById('cardio-type').value.trim();
@@ -1153,16 +1174,155 @@ function addCardioEntry(){
   const cal=parseInt(document.getElementById('cardio-cal').value)||0;
   if(!type)return toast('Enter activity name');
   state.today.cardio.push({type,mins,cal,id:Date.now()});
-  saveState();renderCardioLog();refreshDashboard();
+  saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();
   ['cardio-type','cardio-mins','cardio-cal'].forEach(id=>document.getElementById(id).value='');
   toast('Activity logged ✓');
 }
+function renderNutritionTotals(combined){
+  const el=document.getElementById('nutrition-totals');
+  if(!el)return;
+  if(!combined.length){el.innerHTML='';return;}
+  const totals=combined.reduce((acc,f)=>{
+    acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+    return acc;
+  },{cal:0,protein:0,carbs:0,fat:0});
+  const calTarget=state.settings.calTarget||2600, protTarget=state.settings.proteinTarget||190;
+  el.innerHTML=`
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;">
+      <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Today's Totals</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${calTarget?` / ${calTarget}`:''}</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein${protTarget?` / ${protTarget}g`:''}</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.carbs}g</div><div style="font-size:0.65rem;color:var(--muted);">Carbs</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fat}g</div><div style="font-size:0.65rem;color:var(--muted);">Fat</div></div>
+      </div>
+    </div>`;
+}
+
 function renderCardioLog(){
   const list=document.getElementById('cardio-log-list');
   if(!state.today.cardio.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
   list.innerHTML=state.today.cardio.map(c=>`<div class="log-item"><div><div class="log-item-name">${c.type}</div><div class="log-item-detail">${c.mins||'—'} min · ${c.cal||'—'} kcal burned</div></div><button class="log-item-del" onclick="removeCardio(${c.id})">✕</button></div>`).join('');
 }
-function removeCardio(id){state.today.cardio=state.today.cardio.filter(c=>c.id!==id);saveState();renderCardioLog();refreshDashboard();}
+function removeCardio(id){state.today.cardio=state.today.cardio.filter(c=>c.id!==id);saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();}
+
+// ── ENERGY EXPENDITURE ──────────────────────────────────────────────────────
+async function loadClientProfile() {
+  if (clientProfileCache) return clientProfileCache;
+  const session = getSession();
+  if (!session?.email) return null;
+  const plans = await sbGetAuth('workout_plans',
+    `client_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc&limit=1`);
+  const intake = plans?.[0]?.plan_data?.intake || {};
+  clientProfileCache = intake;
+  return intake;
+}
+
+function parseHeightToInches(h) {
+  if (!h) return null;
+  const str = String(h).trim();
+  // e.g. 5'10" or 5'10 or 70 (already inches) or 178cm
+  const ftIn = str.match(/(\d+)\s*'\s*(\d+)?/);
+  if (ftIn) return parseInt(ftIn[1]) * 12 + (parseInt(ftIn[2]) || 0);
+  const cm = str.match(/(\d+)\s*cm/i);
+  if (cm) return parseInt(cm[1]) / 2.54;
+  const num = parseFloat(str);
+  return isNaN(num) ? null : num;
+}
+
+function calcBMR(profile, weightLbs) {
+  const age = parseInt(profile.age) || 35;
+  const heightIn = parseHeightToInches(profile.height) || 68;
+  const weightKg = (weightLbs || parseFloat(profile.weight) || 170) * 0.453592;
+  const heightCm = heightIn * 2.54;
+  const gender = (profile.gender || '').toLowerCase();
+  // Mifflin-St Jeor
+  let bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age);
+  bmr += (gender === 'female') ? -161 : 5; // default to male formula if unspecified
+  return Math.round(bmr);
+}
+
+function setTrainedToday(val) {
+  state.today.trainedToday = val;
+  saveState();
+  updateExpenditureBreakdown();
+}
+
+async function updateExpenditureBreakdown() {
+  const el = document.getElementById('expenditure-breakdown');
+  if (!el) return;
+
+  const yesBtn = document.getElementById('trained-yes-btn');
+  const noBtn = document.getElementById('trained-no-btn');
+  const trained = state.today.trainedToday;
+  if (yesBtn && noBtn) {
+    yesBtn.classList.toggle('btn-primary', trained === true);
+    noBtn.classList.toggle('btn-primary', trained === false);
+  }
+
+  if (trained === null || trained === undefined) {
+    el.innerHTML = '<div class="empty-state">Select Yes or No above to see your daily energy breakdown</div>';
+    return;
+  }
+
+  const profile = await loadClientProfile();
+  // Latest body weight from metrics if available, else intake weight
+  const latestWeight = (state.metrics && state.metrics.length)
+    ? state.metrics[state.metrics.length-1].weight
+    : parseFloat(profile?.weight) || null;
+
+  const bmr = calcBMR(profile || {}, latestWeight);
+
+  // TEF: thermic effect varies by macro — protein burns more energy to digest
+  // than carbs, which burns more than fat. Compute from each macro's calorie
+  // contribution rather than a flat percentage of total intake.
+  const totalCal = state.today.food.reduce((s,f)=>s+(f.cal||0),0);
+  const totalProteinG = state.today.food.reduce((s,f)=>s+(f.protein||0),0);
+  const totalCarbsG = state.today.food.reduce((s,f)=>s+(f.carbs||0),0);
+  const totalFatG = state.today.food.reduce((s,f)=>s+(f.fat||0),0);
+  const proteinCal = totalProteinG * 4;
+  const carbsCal = totalCarbsG * 4;
+  const fatCal = totalFatG * 9;
+  const tef = Math.round((proteinCal * 0.25) + (carbsCal * 0.08) + (fatCal * 0.03));
+
+  // NEAT / daily activity (non-exercise): rough estimate based on activity level
+  const activityLevel = (profile?.activity_level || '').toLowerCase();
+  let neat = Math.round(bmr * 0.20); // default light activity
+  if (activityLevel.includes('sedentary')) neat = Math.round(bmr * 0.12);
+  else if (activityLevel.includes('moderate')) neat = Math.round(bmr * 0.25);
+  else if (activityLevel.includes('active') || activityLevel.includes('high')) neat = Math.round(bmr * 0.35);
+
+  // Logged cardio calories burned
+  const cardioCal = state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
+
+  // Workout / EPOC: only if trained today and resistance training was logged
+  let workoutBurn = 0, epoc = 0;
+  if (trained && state.today.workout.length) {
+    // Rough estimate: ~5-7 kcal/min for resistance training, assume ~45-60 min session
+    workoutBurn = 250; // baseline resistance training session estimate
+    epoc = Math.round(workoutBurn * 0.10); // EPOC ~6-15% of session burn over 24h
+  }
+
+  const totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+  const balance = totalCal - totalExpenditure;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:12px;">
+      <div class="exp-stat"><div class="exp-val">${bmr}</div><div class="exp-label">BMR</div></div>
+      <div class="exp-stat"><div class="exp-val">${tef}</div><div class="exp-label">TEF</div></div>
+      <div class="exp-stat"><div class="exp-val">${neat}</div><div class="exp-label">Daily Activity (NEAT)</div></div>
+      <div class="exp-stat"><div class="exp-val">${cardioCal}</div><div class="exp-label">Cardio Burned</div></div>
+      <div class="exp-stat"><div class="exp-val">${workoutBurn}</div><div class="exp-label">Workout Burn</div></div>
+      <div class="exp-stat"><div class="exp-val">${epoc}</div><div class="exp-label">EPOC (afterburn)</div></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Total Expenditure</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;">${totalExpenditure} kcal</div></div>
+      <div><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Calories In</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;">${totalCal} kcal</div></div>
+      <div style="text-align:right;"><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Net ${balance>=0?'Surplus':'Deficit'}</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:${balance>=0?'var(--accent2)':'var(--success)'};">${balance>=0?'+':''}${balance} kcal</div></div>
+    </div>
+    <div style="font-size:0.68rem;color:var(--muted);margin-top:10px;font-style:italic;">Estimates based on your logged food, cardio, and profile. BMR uses the Mifflin-St Jeor equation; TEF is calculated per macronutrient (protein ~25%, carbs ~8%, fat ~3% of their calories, since protein has a notably higher thermic cost); NEAT reflects your typical daily activity level; EPOC accounts for elevated post-exercise calorie burn.</div>
+  `;
+}
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function refreshDashboard(){
@@ -1555,7 +1715,7 @@ function saveSettings(){
   state.settings.tdee=parseInt(document.getElementById('s-tdee').value)||2450;
   saveState();toast('Settings saved ✓');
 }
-function clearToday(){if(!confirm("Clear today's log?"))return;state.today={food:[],workout:[],cardio:[]};saveState();renderFoodLog();renderWorkoutLog();renderCardioLog();refreshDashboard();toast("Today's log cleared");}
+function clearToday(){if(!confirm("Clear today's log?"))return;state.today={food:[],workout:[],cardio:[],trainedToday:null};saveState();renderFoodLog();renderWorkoutLog();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();toast("Today's log cleared");}
 function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='e2fitness-data-'+new Date().toISOString().split('T')[0]+'.json';a.click();toast('Data exported ✓');}
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
@@ -1593,7 +1753,7 @@ async function analyzePhotoNow(){
   if(!checkAiLimit())return;
   showAiLoading(true);
   try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'Analyze this food image. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
+    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'You are a precise nutrition analyst. Look carefully at this food image and identify each distinct food item, estimate its portion size using visual cues (plate size, utensils, hand if visible, container size), and calculate realistic nutrition values based on standard USDA nutrition data for those specific foods and portions. Do not default to generic round numbers — base your estimate on what is actually visible (e.g. a small chicken breast ~4oz is roughly 185 kcal/35g protein, while a large one ~8oz is roughly 370 kcal/70g protein; a cup of white rice is roughly 205 kcal/45g carbs, while a half cup is roughly 100 kcal). Sum the totals across all visible items into one combined estimate. Reply ONLY with this JSON, no other text: {"name":"brief description of the meal","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data || !data.content || !Array.isArray(data.content)){
@@ -1612,7 +1772,7 @@ async function analyzeByDescription(){
   if(!checkAiLimit())return;
   showAiLoading(true);
   try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:'Estimate nutrition for: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"string","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
+    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:'You are a precise nutrition analyst. Estimate nutrition for the following food description using standard USDA nutrition data for the specific foods and quantities/portions mentioned. Pay close attention to stated quantities (e.g. "6oz chicken" vs "3oz chicken" should produce noticeably different numbers — do not return the same generic estimate regardless of portion size). If no quantity is given, assume a typical single serving for that food. Sum totals across all items mentioned into one combined estimate. Description: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"brief description of the meal","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
     if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data || !data.content || !Array.isArray(data.content)){
