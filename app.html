@@ -152,6 +152,24 @@
     .exercise-grid { grid-template-columns: 1fr; }
     header { padding: 16px; }
   }
+  .section-collapsible { border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .section-collapsible:last-child { border-bottom: none; }
+  .section-header { display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 12px 0; }
+  .section-header-title { font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:3px; }
+  .section-toggle-icon { font-size:0.9rem; color:var(--muted); transition: transform 0.2s; }
+  .section-body { display:none; padding-bottom: 16px; }
+  .section-body.open { display:block; }
+  .section-header.open .section-toggle-icon { transform: rotate(180deg); }
+  .subsection-banner {
+    font-family:'Bebas Neue',sans-serif;
+    font-size:0.95rem;
+    letter-spacing:3px;
+    color: var(--accent);
+    background: rgba(232,255,71,0.06);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    margin-bottom: 14px;
+  }
 </style>
 </head>
 <body>
@@ -168,8 +186,6 @@
 
 <nav>
   <button onclick="showPage('dashboard')">Dashboard</button>
-  <button onclick="showPage('log')">Daily Log</button>
-  <button onclick="showPage('goals')">Goals</button>
   <button onclick="showPage('myplan')">My Plan</button>
   <button onclick="showPage('lab')">Video Lab</button>
   <button onclick="showPage('exercises')">Exercise DB</button>
@@ -211,8 +227,8 @@
       <hr class="divider">
       <div id="dash-workout-list"><div class="empty-state">No workout logged today</div></div>
       <div class="quick-actions">
-        <button class="btn btn-primary" onclick="showPage('log')">+ Log Food</button>
-        <button class="btn" onclick="showPage('log')">+ Log Workout</button>
+        <button class="btn btn-primary" onclick="openSection('log')">+ Log Food</button>
+        <button class="btn" onclick="openSection('log')">+ Log Workout</button>
       </div>
     </div>
     <div class="panel">
@@ -220,13 +236,16 @@
       <div id="dash-goals-snap"></div>
     </div>
   </div>
-</div>
 
-<!-- DAILY LOG -->
-<div id="page-log" class="page">
+  <div class="section-collapsible">
+    <div class="section-header" id="section-header-log" onclick="toggleSection('log')">
+      <div class="section-header-title">📋 Daily Log — Food, Workout &amp; Cardio</div>
+      <div class="section-toggle-icon">▾</div>
+    </div>
+    <div class="section-body" id="section-log">
   <div class="log-grid">
     <div class="panel">
-      <div class="panel-title">Nutrition Log</div>
+      <div class="subsection-banner">🍎 NUTRITION LOG</div>
       <div style="background:rgba(232,255,71,0.04);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:16px;margin-bottom:16px;">
         <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;">⚡ AI Food Analyzer</div>
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
@@ -284,7 +303,7 @@
       <div class="log-list" id="food-log-list"><div class="empty-state">No entries yet</div></div>
     </div>
     <div class="panel">
-      <div class="panel-title">Workout Log</div>
+      <div class="subsection-banner">🏋️ WORKOUT LOG</div>
       <div class="section-sub">Add Exercise</div>
       <div class="log-entry-form">
         <input id="ex-name" type="text" placeholder="Exercise name">
@@ -306,7 +325,7 @@
       <div class="section-sub">Today's Workout</div>
       <div class="log-list" id="workout-log-list"><div class="empty-state">No exercises logged</div></div>
       <hr class="divider">
-      <div class="section-sub" style="margin-top:0">Cardio / NEAT</div>
+      <div class="subsection-banner" style="margin-top:0;">🏃 CARDIO / NEAT</div>
       <div class="log-entry-form">
         <div class="form-row">
           <input id="cardio-type" type="text" placeholder="Activity (walking, cycling...)">
@@ -318,18 +337,23 @@
       <div class="log-list" id="cardio-log-list"><div class="empty-state">No cardio logged</div></div>
     </div>
   </div>
-</div>
+    </div>
+  </div>
 
-<!-- GOALS -->
-<div id="page-goals" class="page">
+  <div class="section-collapsible">
+    <div class="section-header" id="section-header-goals" onclick="toggleSection('goals')">
+      <div class="section-header-title">🎯 Goals &amp; Body Metrics</div>
+      <div class="section-toggle-icon">▾</div>
+    </div>
+    <div class="section-body" id="section-goals">
   <div class="goals-grid">
     <div class="panel">
-      <div class="panel-title">Active Goals</div>
+      <div class="subsection-banner">🎯 ACTIVE GOALS</div>
       <div id="goals-list"></div>
       <div class="quick-actions"><button class="btn btn-primary" onclick="openGoalModal()">+ New Goal</button></div>
     </div>
     <div class="panel">
-      <div class="panel-title">Body Metrics</div>
+      <div class="subsection-banner">📏 BODY METRICS</div>
       <div class="log-entry-form">
         <div class="form-row">
           <div style="flex:1"><label class="form-label">Weight (lbs)</label><input id="metric-weight" type="number" placeholder="e.g. 143"></div>
@@ -344,6 +368,8 @@
       <hr class="divider">
       <div class="panel-title" style="margin-top:0">Metrics History</div>
       <div id="metrics-history"></div>
+    </div>
+  </div>
     </div>
   </div>
 </div>
@@ -932,12 +958,31 @@ function loadState() {
 }
 function saveState(){localStorage.setItem('e2fitness_state',JSON.stringify(state));}
 
+function toggleSection(id) {
+  const body = document.getElementById('section-'+id);
+  const header = document.getElementById('section-header-'+id);
+  if (!body) return;
+  body.classList.toggle('open');
+  header.classList.toggle('open');
+}
+
+function openSection(id) {
+  showPage('dashboard');
+  const body = document.getElementById('section-'+id);
+  const header = document.getElementById('section-header-'+id);
+  if (body && !body.classList.contains('open')) {
+    body.classList.add('open');
+    header.classList.add('open');
+  }
+  setTimeout(() => { body && body.scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
+}
+
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') refreshDashboard();
+  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1387,13 +1432,24 @@ function filterEx(type,btn){
   btn.classList.add('active');
   renderExercises();
 }
-function renderExercises(){
+let exerciseVideosCache = null;
+
+async function loadExerciseVideos() {
+  const rows = await sbGet('exercise_videos');
+  const map = {};
+  rows.forEach(r => { map[r.exercise_name] = r.video_url; });
+  exerciseVideosCache = map;
+  return map;
+}
+
+async function renderExercises(){
   const grid=document.getElementById('exercise-grid');
+  if (exerciseVideosCache === null) await loadExerciseVideos();
   const filtered=currentFilter==='all'?exercises:exercises.filter(e=>e.type===currentFilter);
   grid.innerHTML=filtered.map(e=>{
     const tagClass=e.tags[0]==='highrisk'?'tag-avoid':e.tags[0]==='caution'?'tag-caution':'tag-safe';
     const tagLabel=e.tags[0]==='highrisk'?'⚠️ High Risk':e.tags[0]==='caution'?'⚠️ Caution':'✓ Safe';
-    const savedVideos=state.exerciseVideos||{};
+    const savedVideos=exerciseVideosCache||{};
     const demoUrl=savedVideos[e.name];
     const demoVid=demoUrl?extractYouTubeId(demoUrl):null;
 
@@ -1443,7 +1499,7 @@ function addExerciseDemo(exName){
 function editExerciseDemo(exName){
   currentDemoExercise=exName;
   document.getElementById('demo-video-exercise-name').textContent=exName;
-  const saved=(state.exerciseVideos||{})[exName]||'';
+  const saved=(exerciseVideosCache||{})[exName]||'';
   document.getElementById('demo-video-url').value=saved;
   document.getElementById('demo-video-preview').style.display='none';
   document.getElementById('demoVideoModal').classList.add('open');
@@ -1457,22 +1513,30 @@ function previewDemoVideo(){
   document.getElementById('demo-video-preview').style.display='block';
 }
 
-function saveDemoVideo(){
+async function saveDemoVideo(){
   const url=document.getElementById('demo-video-url').value.trim();
   const vid=extractYouTubeId(url);
   if(!vid){toast('Invalid YouTube URL');return;}
-  if(!state.exerciseVideos)state.exerciseVideos={};
-  state.exerciseVideos[currentDemoExercise]=url;
-  saveState();
+
+  // Check if a row already exists for this exercise
+  const existing = await sbGet(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
+  if (existing.length) {
+    await sbUpdate('exercise_videos', existing[0].id, { video_url: url });
+  } else {
+    await sbInsert('exercise_videos', { exercise_name: currentDemoExercise, video_url: url });
+  }
+  if(!exerciseVideosCache)exerciseVideosCache={};
+  exerciseVideosCache[currentDemoExercise]=url;
   closeModal('demoVideoModal');
   renderExercises();
   toast('Demo video saved ✓');
 }
 
-function removeExerciseDemo(exName){
-  if(!state.exerciseVideos)return;
-  delete state.exerciseVideos[exName];
-  saveState();renderExercises();toast('Demo video removed');
+async function removeExerciseDemo(exName){
+  const existing = await sbGet(`exercise_videos?exercise_name=eq.${encodeURIComponent(exName)}`);
+  for (const row of existing) { await sbDelete('exercise_videos', row.id); }
+  if(exerciseVideosCache) delete exerciseVideosCache[exName];
+  renderExercises();toast('Demo video removed');
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
