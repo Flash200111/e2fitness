@@ -1027,7 +1027,7 @@ async function addFoodEntry(){
   const fat=parseInt(document.getElementById('food-fat').value)||0;
   const meal=document.getElementById('food-meal').value;
   if(!name||!cal)return toast('Enter food name and calories');
-  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()};
+  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
   
   // Save to Supabase
   const session=getSession();
@@ -1088,27 +1088,71 @@ async function renderFoodLog(){
   updateExpenditureBreakdown();
 }
 async function removeDuplicateFood(){
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+
   const seen = new Set();
-  const toRemove = [];
-  state.today.food.forEach(f=>{
-    const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
-    if (seen.has(key)) toRemove.push(f.id);
-    else seen.add(key);
-  });
-  for (const id of toRemove) {
-    await removeFoodEntry(id);
+  let removedCount = 0;
+
+  for (const log of logs) {
+    const items = log.food_items || [];
+    const keep = [];
+    for (const f of items) {
+      const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
+      if (seen.has(key)) {
+        removedCount++; // drop this duplicate item
+      } else {
+        seen.add(key);
+        keep.push(f);
+      }
+    }
+    if (keep.length !== items.length) {
+      if (keep.length === 0) {
+        await sbDeleteAuth('client_nutrition_logs', log.id);
+      } else {
+        const totals = keep.reduce((acc,f)=>{
+          acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+          return acc;
+        },{cal:0,protein:0,carbs:0,fat:0});
+        await sbUpdateAuth('client_nutrition_logs', log.id, {
+          food_items: keep,
+          total_calories: totals.cal,
+          total_protein: totals.protein,
+          total_carbs: totals.carbs,
+          total_fat: totals.fat
+        });
+      }
+    }
   }
-  toast(`Removed ${toRemove.length} duplicate${toRemove.length===1?'':'s'} ✓`);
+
+  await renderFoodLog();
+  toast(`Removed ${removedCount} duplicate${removedCount===1?'':'s'} ✓`);
 }
 async function removeFoodEntry(id){
-  // Delete from Supabase
+  // Update Supabase: remove just this item from whichever row contains it
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
   const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
   for(const log of logs){
     const items=log.food_items||[];
     if(items.find(f=>f.id===id)){
-      await sbDeleteAuth('client_nutrition_logs',log.id);
+      const remaining = items.filter(f=>f.id!==id);
+      if (remaining.length === 0) {
+        await sbDeleteAuth('client_nutrition_logs',log.id);
+      } else {
+        const totals = remaining.reduce((acc,f)=>{
+          acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+          return acc;
+        },{cal:0,protein:0,carbs:0,fat:0});
+        await sbUpdateAuth('client_nutrition_logs', log.id, {
+          food_items: remaining,
+          total_calories: totals.cal,
+          total_protein: totals.protein,
+          total_carbs: totals.carbs,
+          total_fat: totals.fat
+        });
+      }
     }
   }
   state.today.food=state.today.food.filter(f=>f.id!==id);
@@ -1862,7 +1906,7 @@ async function logAiFood(){
   const protein=parseInt(document.getElementById('ai-food-protein').value)||0, carbs=parseInt(document.getElementById('ai-food-carbs').value)||0;
   const fat=parseInt(document.getElementById('ai-food-fat').value)||0, meal=document.getElementById('ai-food-meal').value;
   if(!name||!cal){if(btn)btn.disabled=false;return toast('Need at least a name and calories');}
-  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()};
+  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
 
   // Save to Supabase
   const session=getSession();
