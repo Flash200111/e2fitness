@@ -236,6 +236,16 @@
     <div id="expenditure-breakdown"></div>
   </div>
 
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">📅 Weekly Overview — Net Calories</div>
+    <div id="weekly-overview"></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">🗓️ Workout History (Last 30 Days)</div>
+    <div id="monthly-workout-history"></div>
+  </div>
+
   <div class="dashboard-lower">
     <div class="panel">
       <div class="panel-title">Today's Summary</div>
@@ -269,6 +279,13 @@
           <input type="file" id="ai-photo-input" accept="image/*" style="display:none" onchange="handleFoodPhoto(event)">
           <button class="btn" onclick="toggleAiDesc()" style="flex:1;min-width:120px;">✏️ Describe</button>
         </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.65rem;">Meal</label>
+          <select id="ai-food-meal" style="width:100%;">
+            <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
+            <option>Snack</option><option>Pre-Workout</option><option>Post-Workout</option>
+          </select>
+        </div>
         <div id="ai-desc-area" style="display:none;margin-bottom:10px;">
           <textarea id="ai-food-desc" rows="2" placeholder="e.g. grilled chicken breast 6oz, white rice 1 cup..." style="width:100%;"></textarea>
           <button class="btn btn-primary" onclick="analyzeByDescription()" style="margin-top:6px;width:100%;">Analyze</button>
@@ -290,10 +307,6 @@
               <input id="ai-food-carbs" type="number" placeholder="Carbs (g)">
               <input id="ai-food-fat" type="number" placeholder="Fat (g)">
             </div>
-            <select id="ai-food-meal">
-              <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
-              <option>Snack</option><option>Pre-Workout</option><option>Post-Workout</option>
-            </select>
             <button class="btn btn-primary" id="log-ai-food-btn" onclick="logAiFood()">Log This Food ✓</button>
           </div>
         </div>
@@ -1004,7 +1017,7 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); }
+  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); renderWeeklyOverview(); renderMonthlyWorkoutHistory(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1279,14 +1292,23 @@ function estimateCardioCalories(){
   toast(`Estimated ${calories} kcal (based on ${met} MET activity)`);
 }
 
-function addCardioEntry(){
+async function addCardioEntry(){
   const type=document.getElementById('cardio-type').value.trim();
   const mins=document.getElementById('cardio-mins').value;
   const cal=parseInt(document.getElementById('cardio-cal').value)||0;
   if(!type)return toast('Enter activity name');
-  state.today.cardio.push({type,mins,cal,id:Date.now()});
+  const entry={type,mins,cal,id:Date.now()+Math.floor(Math.random()*1000)};
+  state.today.cardio.push(entry);
   saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();
   ['cardio-type','cardio-mins','cardio-cal'].forEach(id=>document.getElementById(id).value='');
+
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  await sbInsertAuth('client_cardio_logs',{
+    user_email:session.email,
+    log_date:today,
+    activities:[entry]
+  });
   toast('Activity logged ✓');
 }
 function renderNutritionTotals(combined){
@@ -1310,12 +1332,42 @@ function renderNutritionTotals(combined){
     </div>`;
 }
 
-function renderCardioLog(){
+async function renderCardioLog(){
   const list=document.getElementById('cardio-log-list');
-  if(!state.today.cardio.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
-  list.innerHTML=state.today.cardio.map(c=>`<div class="log-item"><div><div class="log-item-name">${c.type}</div><div class="log-item-detail">${c.mins||'—'} min · ${c.cal||'—'} kcal burned</div></div><button class="log-item-del" onclick="removeCardio(${c.id})">✕</button></div>`).join('');
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_cardio_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+  const allCardio=[];
+  for(const log of logs){
+    if(log.activities && Array.isArray(log.activities)){
+      allCardio.push(...log.activities);
+    }
+  }
+  const localOnly=state.today.cardio.filter(c=>!allCardio.find(ac=>ac.id===c.id));
+  const combined=[...allCardio,...localOnly];
+  state.today.cardio=combined;
+  saveState();
+  if(!combined.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
+  list.innerHTML=combined.map(c=>`<div class="log-item"><div><div class="log-item-name">${c.type}</div><div class="log-item-detail">${c.mins||'—'} min · ${c.cal||'—'} kcal burned</div></div><button class="log-item-del" onclick="removeCardio(${c.id})">✕</button></div>`).join('');
 }
-function removeCardio(id){state.today.cardio=state.today.cardio.filter(c=>c.id!==id);saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();}
+async function removeCardio(id){
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_cardio_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  for(const log of logs){
+    const items=log.activities||[];
+    if(items.find(c=>c.id===id)){
+      const remaining=items.filter(c=>c.id!==id);
+      if(remaining.length===0){
+        await sbDeleteAuth('client_cardio_logs',log.id);
+      } else {
+        await sbUpdateAuth('client_cardio_logs',log.id,{activities:remaining});
+      }
+    }
+  }
+  state.today.cardio=state.today.cardio.filter(c=>c.id!==id);
+  saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();
+}
 
 // ── ENERGY EXPENDITURE ──────────────────────────────────────────────────────
 async function loadClientProfile() {
@@ -1432,6 +1484,147 @@ async function updateExpenditureBreakdown() {
       <div style="text-align:right;"><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Net ${balance>=0?'Surplus':'Deficit'}</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:${balance>=0?'var(--accent2)':'var(--success)'};">${balance>=0?'+':''}${balance} kcal</div></div>
     </div>
     <div style="font-size:0.68rem;color:var(--muted);margin-top:10px;font-style:italic;">Estimates based on your logged food, cardio, and profile. BMR uses the Mifflin-St Jeor equation; TEF is calculated per macronutrient (protein ~25%, carbs ~8%, fat ~3% of their calories, since protein has a notably higher thermic cost); NEAT reflects your typical daily activity level; EPOC accounts for elevated post-exercise calorie burn.</div>
+  `;
+}
+
+// ── WEEKLY / MONTHLY HISTORY ────────────────────────────────────────────────
+async function renderWeeklyOverview() {
+  const el = document.getElementById('weekly-overview');
+  if (!el) return;
+  const session = getSession();
+  if (!session?.email) return;
+
+  const profile = await loadClientProfile();
+  const latestWeight = (state.metrics && state.metrics.length)
+    ? state.metrics[state.metrics.length-1].weight
+    : parseFloat(profile?.weight) || null;
+  const bmr = calcBMR(profile || {}, latestWeight);
+  const activityLevel = (profile?.activity_level || '').toLowerCase();
+  let neat = Math.round(bmr * 0.20);
+  if (activityLevel.includes('sedentary')) neat = Math.round(bmr * 0.12);
+  else if (activityLevel.includes('moderate')) neat = Math.round(bmr * 0.25);
+  else if (activityLevel.includes('active') || activityLevel.includes('high')) neat = Math.round(bmr * 0.35);
+
+  const dates = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  const startDate = dates[0];
+
+  const [nutritionLogs, cardioLogs, workoutLogs] = await Promise.all([
+    sbGetAuth('client_nutrition_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`),
+    sbGetAuth('client_cardio_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`),
+    sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`)
+  ]);
+
+  const rows = dates.map(date => {
+    const isToday = date === new Date().toISOString().split('T')[0];
+
+    let cal=0, protein=0, carbs=0, fat=0;
+    nutritionLogs.filter(l=>l.log_date===date).forEach(l=>{
+      (l.food_items||[]).forEach(f=>{ cal+=f.cal||0; protein+=f.protein||0; carbs+=f.carbs||0; fat+=f.fat||0; });
+    });
+
+    let cardioCal=0;
+    cardioLogs.filter(l=>l.log_date===date).forEach(l=>{
+      (l.activities||[]).forEach(a=>{ cardioCal+=a.cal||0; });
+    });
+
+    const trained = workoutLogs.some(l=>l.log_date===date);
+
+    const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
+    let workoutBurn=0, epoc=0;
+    if (trained) { workoutBurn=250; epoc=Math.round(workoutBurn*0.10); }
+    const totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+    const net = cal - totalExpenditure;
+
+    return { date, isToday, cal, totalExpenditure, net, trained, hasData: cal>0 || cardioCal>0 || trained };
+  });
+
+  const weeklyNet = rows.reduce((s,r)=>s+r.net,0);
+  const daysWithData = rows.filter(r=>r.hasData).length;
+
+  const dayLabel = (dateStr) => {
+    const d = new Date(dateStr+'T00:00:00');
+    return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  };
+
+  el.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;">Day</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;">Trained</th>
+            <th style="text-align:right;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;">Cal In</th>
+            <th style="text-align:right;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;">Est. Burn</th>
+            <th style="text-align:right;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`
+            <tr style="border-bottom:1px solid var(--border);${r.isToday?'background:rgba(232,255,71,0.04);':''}">
+              <td style="padding:6px 8px;">${dayLabel(r.date)}${r.isToday?' <span style="color:var(--accent);font-size:0.65rem;">(today)</span>':''}</td>
+              <td style="text-align:center;padding:6px 8px;">${r.trained?'✅':'—'}</td>
+              <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;">${r.hasData?r.cal:'—'}</td>
+              <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;">${r.hasData?r.totalExpenditure:'—'}</td>
+              <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;color:${r.hasData?(r.net>=0?'var(--accent2)':'var(--success)'):'var(--muted)'};">${r.hasData?(r.net>=0?'+':'')+r.net:'—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:0.7rem;color:var(--muted);">Based on ${daysWithData} day${daysWithData===1?'':'s'} with logged data this week</div>
+      <div><span style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">7-Day Net: </span><span style="font-family:'DM Mono',monospace;font-size:1.1rem;color:${weeklyNet>=0?'var(--accent2)':'var(--success)'};">${weeklyNet>=0?'+':''}${weeklyNet} kcal</span></div>
+    </div>
+  `;
+}
+
+async function renderMonthlyWorkoutHistory() {
+  const el = document.getElementById('monthly-workout-history');
+  if (!el) return;
+  const session = getSession();
+  if (!session?.email) return;
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 29);
+  const startStr = startDate.toISOString().split('T')[0];
+
+  const logs = await sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startStr}&order=log_date.desc`);
+
+  if (!logs.length) {
+    el.innerHTML = '<div class="empty-state">No workouts logged in the last 30 days</div>';
+    return;
+  }
+
+  const byDate = {};
+  logs.forEach(l => {
+    if (!byDate[l.log_date]) byDate[l.log_date] = [];
+    byDate[l.log_date].push(...(l.exercises||[]));
+  });
+
+  const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
+  const dayLabel = (dateStr) => {
+    const d = new Date(dateStr+'T00:00:00');
+    return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  };
+
+  el.innerHTML = `
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:10px;">${dates.length} workout day${dates.length===1?'':'s'} logged in the last 30 days</div>
+    ${dates.map(date => `
+      <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+        <div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">${dayLabel(date)}</div>
+        ${byDate[date].map(ex => `
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:2px;">
+            ${ex.name}: ${Array.isArray(ex.sets) ? ex.sets.map(s=>`${s.weight||'—'}${s.weight?'lb':''}×${s.reps||'—'}`).join(', ') : '—'}
+            ${ex.notes ? ` <span style="color:var(--accent2);">📝 ${ex.notes}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
   `;
 }
 
@@ -1847,10 +2040,13 @@ function closePinOverlay(){}
 
 // ── AI FOOD ANALYZER ──────────────────────────────────────────────────────────
 const WORKER_URL='https://bold-tooth-7ce6.flash2001.workers.dev';
-const AI_DAILY_LIMIT=6;
+const AI_DAILY_LIMIT=20;
 function getAiUsageToday(){const today=new Date().toDateString(),usage=JSON.parse(localStorage.getItem('ai_usage')||'{}');if(usage.date!==today)return 0;return usage.count||0;}
 function incrementAiUsage(){const today=new Date().toDateString(),count=getAiUsageToday()+1;localStorage.setItem('ai_usage',JSON.stringify({date:today,count}));}
-function checkAiLimit(){const used=getAiUsageToday();if(used>=AI_DAILY_LIMIT){toast('Daily limit reached ('+AI_DAILY_LIMIT+' analyses/day). Resets tomorrow!');return false;}return true;}
+function checkAiLimit(){
+  const session=getSession();
+  if(session && (session.is_coach||session.email===COACH_EMAIL)) return true; // coach bypasses limit
+  const used=getAiUsageToday();if(used>=AI_DAILY_LIMIT){toast('Daily limit reached ('+AI_DAILY_LIMIT+' analyses/day). Resets tomorrow!');return false;}return true;}
 let currentPhotoBase64=null;
 function toggleAiDesc(){const area=document.getElementById('ai-desc-area');area.style.display=area.style.display==='none'?'block':'none';}
 function handleFoodPhoto(event){
