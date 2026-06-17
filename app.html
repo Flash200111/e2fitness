@@ -269,11 +269,6 @@
       <div class="subsection-banner">🍎 NUTRITION LOG</div>
       <div style="background:rgba(232,255,71,0.04);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:16px;margin-bottom:16px;">
         <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;">⚡ AI Food Analyzer</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-          <button class="btn" onclick="document.getElementById('ai-photo-input').click()" style="flex:1;min-width:120px;">📷 Photo</button>
-          <input type="file" id="ai-photo-input" accept="image/*" style="display:none" onchange="handleFoodPhoto(event)">
-          <button class="btn" onclick="toggleAiDesc()" style="flex:1;min-width:120px;">✏️ Describe</button>
-        </div>
         <div style="margin-bottom:10px;">
           <label class="form-label" style="font-size:0.65rem;">Meal</label>
           <select id="ai-food-meal" style="width:100%;">
@@ -281,14 +276,23 @@
             <option>Snack</option><option>Pre-Workout</option><option>Post-Workout</option>
           </select>
         </div>
-        <div id="ai-desc-area" style="display:none;margin-bottom:10px;">
-          <textarea id="ai-food-desc" rows="2" placeholder="e.g. grilled chicken breast 6oz, white rice 1 cup..." style="width:100%;"></textarea>
-          <button class="btn btn-primary" onclick="analyzeByDescription()" style="margin-top:6px;width:100%;">Analyze</button>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.65rem;">📷 Photo (optional — tap to add)</label>
+          <div id="ai-photo-preview" style="margin-bottom:6px;display:none;">
+            <div style="position:relative;display:inline-block;width:100%;">
+              <img id="ai-preview-img" style="width:100%;max-height:140px;object-fit:cover;border-radius:4px;border:1px solid var(--border);">
+              <button onclick="clearFoodPhoto()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);border:none;color:white;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.75rem;line-height:1;">✕</button>
+            </div>
+          </div>
+          <button class="btn" onclick="document.getElementById('ai-photo-input').click()" style="width:100%;font-size:0.78rem;" id="ai-photo-btn">📷 Add Photo</button>
+          <input type="file" id="ai-photo-input" accept="image/*" style="display:none" onchange="handleFoodPhoto(event)">
         </div>
-        <div id="ai-photo-preview" style="display:none;margin-bottom:10px;">
-          <img id="ai-preview-img" style="width:100%;max-height:160px;object-fit:cover;border-radius:4px;border:1px solid var(--border);">
-          <button class="btn btn-primary" onclick="analyzePhotoNow()" style="margin-top:8px;width:100%;">Analyze Photo</button>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.65rem;">✏️ Description (optional — add details for better accuracy)</label>
+          <textarea id="ai-food-desc" rows="2" placeholder="e.g. grilled chicken breast 6oz, white rice 1 cup, mixed vegetables..." style="width:100%;"></textarea>
         </div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-style:italic;">💡 Use both photo and description together for the most accurate estimate</div>
+        <button class="btn btn-primary" onclick="analyzeFood()" style="width:100%;margin-bottom:10px;">⚡ Analyze</button>
         <div id="ai-loading" style="display:none;text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);"><span style="color:var(--accent);">⚡</span> Analyzing...</div>
         <div id="ai-result" style="display:none;">
           <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">AI Estimate — Edit if needed</div>
@@ -2082,50 +2086,60 @@ function checkAiLimit(){
   if(session && (session.is_coach||session.email===COACH_EMAIL)) return true; // coach bypasses limit
   const used=getAiUsageToday();if(used>=AI_DAILY_LIMIT){toast('Daily limit reached ('+AI_DAILY_LIMIT+' analyses/day). Resets tomorrow!');return false;}return true;}
 let currentPhotoBase64=null;
-function toggleAiDesc(){const area=document.getElementById('ai-desc-area');area.style.display=area.style.display==='none'?'block':'none';}
+function toggleAiDesc(){} // no-op, kept for legacy calls
 function handleFoodPhoto(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=function(e){currentPhotoBase64=e.target.result.split(',')[1];document.getElementById('ai-preview-img').src=e.target.result;document.getElementById('ai-photo-preview').style.display='block';document.getElementById('ai-result').style.display='none';};
+  reader.onload=function(e){
+    currentPhotoBase64=e.target.result.split(',')[1];
+    document.getElementById('ai-preview-img').src=e.target.result;
+    document.getElementById('ai-photo-preview').style.display='block';
+    document.getElementById('ai-photo-btn').textContent='📷 Change Photo';
+    document.getElementById('ai-result').style.display='none';
+  };
   reader.readAsDataURL(file);
 }
-async function analyzePhotoNow(){
-  if(!currentPhotoBase64)return toast('No photo selected');
-  if(!checkAiLimit())return;
-  showAiLoading(true);
-  try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoBase64}},{type:'text',text:'You are a precise nutrition analyst. Look carefully at this food image and identify each distinct food item, estimate its portion size using visual cues (plate size, utensils, hand if visible, container size), and calculate realistic nutrition values based on standard USDA nutrition data for those specific foods and portions. Do not default to generic round numbers — base your estimate on what is actually visible (e.g. a small chicken breast ~4oz is roughly 185 kcal/35g protein, while a large one ~8oz is roughly 370 kcal/70g protein; a cup of white rice is roughly 205 kcal/45g carbs, while a half cup is roughly 100 kcal). Sum the totals across all visible items into one combined estimate. Reply ONLY with this JSON, no other text: {"name":"brief description of the meal","calories":number,"protein":number,"carbs":number,"fat":number}'}]}]})});
-    if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
-    const data=await response.json();
-    if(!data || !data.content || !Array.isArray(data.content)){
-      const errMsg = data.error ? data.error.message : JSON.stringify(data);
-      toast('API Error: '+errMsg,true);showAiLoading(false);return;
-    }
-    const text=data.content.map(c=>c.text||'').join('');
-    const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
-    incrementAiUsage();fillAiResult(parsed);
-  } catch(e){toast('Analysis failed: '+e.message,true);}
-  showAiLoading(false);
+function clearFoodPhoto(){
+  currentPhotoBase64=null;
+  document.getElementById('ai-photo-preview').style.display='none';
+  document.getElementById('ai-photo-btn').textContent='📷 Add Photo';
+  document.getElementById('ai-photo-input').value='';
 }
-async function analyzeByDescription(){
+async function analyzeFood(){
   const desc=document.getElementById('ai-food-desc').value.trim();
-  if(!desc)return toast('Enter a food description');
-  if(!checkAiLimit())return;
+  const hasPhoto=!!currentPhotoBase64;
+  const hasDesc=!!desc;
+  if(!hasPhoto && !hasDesc) return toast('Add a photo, a description, or both');
+  if(!checkAiLimit()) return;
   showAiLoading(true);
   try {
-    const response=await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,messages:[{role:'user',content:'You are a precise nutrition analyst. Estimate nutrition for the following food description using standard USDA nutrition data for the specific foods and quantities/portions mentioned. Pay close attention to stated quantities (e.g. "6oz chicken" vs "3oz chicken" should produce noticeably different numbers — do not return the same generic estimate regardless of portion size). If no quantity is given, assume a typical single serving for that food. Sum totals across all items mentioned into one combined estimate. Description: '+desc+'. Reply ONLY with this JSON, no other text: {"name":"brief description of the meal","calories":number,"protein":number,"carbs":number,"fat":number}'}]})});
-    if(!response.ok){toast('API Error: '+response.status,true);showAiLoading(false);return;}
-    const data=await response.json();
-    if(!data || !data.content || !Array.isArray(data.content)){
-      const errMsg = data.error ? data.error.message : JSON.stringify(data);
-      toast('API Error: '+errMsg,true);showAiLoading(false);return;
+    const basePrompt = 'You are a precise nutrition analyst using standard USDA nutrition data. Identify each food item and estimate its portion size accurately. Do NOT use generic round numbers — base estimates on actual visible/described portions (e.g. a 4oz chicken breast ~185 kcal/35g protein; a cup of white rice ~205 kcal/45g carbs). Sum all items into one combined total. Reply ONLY with this JSON, no other text: {"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number}';
+    let messages;
+    if (hasPhoto && hasDesc) {
+      messages = [{role:"user", content:[
+        {type:"image", source:{type:"base64", media_type:"image/jpeg", data:currentPhotoBase64}},
+        {type:"text", text: basePrompt + "\n\nThe user also provided this description to clarify what is in the image: \"" + desc + "\". Use both the photo and description together — the description may clarify portion sizes, ingredients, or preparation methods not clearly visible in the photo."}
+      ]}];
+    } else if (hasPhoto) {
+      messages = [{role:"user", content:[
+        {type:"image", source:{type:"base64", media_type:"image/jpeg", data:currentPhotoBase64}},
+        {type:"text", text: basePrompt + "\n\nEstimate portion sizes using visual cues (plate size, utensils, containers)."}
+      ]}];
+    } else {
+      messages = [{role:"user", content: basePrompt + "\n\nFood description: \"" + desc + "\". Pay close attention to stated quantities — \"6oz chicken\" vs \"3oz chicken\" should produce meaningfully different numbers."}];
     }
-    const text=data.content.map(c=>c.text||'').join('');
-    const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
+    const response=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1024,messages})});
+    if(!response.ok){toast("API Error: "+response.status,true);showAiLoading(false);return;}
+    const data=await response.json();
+    if(!data||!data.content||!Array.isArray(data.content)){toast("API Error: "+(data.error?data.error.message:JSON.stringify(data)),true);showAiLoading(false);return;}
+    const text=data.content.map(c=>c.text||"").join("");
+    const parsed=JSON.parse(text.replace(/```json|```/g,"").trim());
     incrementAiUsage();fillAiResult(parsed);
-  } catch(e){toast('Analysis failed: '+e.message,true);}
+  } catch(e){toast("Analysis failed: "+e.message,true);}
   showAiLoading(false);
 }
+async function analyzePhotoNow(){ analyzeFood(); }
+async function analyzeByDescription(){ analyzeFood(); }
 function showAiLoading(show){document.getElementById('ai-loading').style.display=show?'block':'none';if(show)document.getElementById('ai-result').style.display='none';}
 function fillAiResult(data){document.getElementById('ai-food-name').value=data.name||'';document.getElementById('ai-food-cal').value=data.calories||'';document.getElementById('ai-food-protein').value=data.protein||'';document.getElementById('ai-food-carbs').value=data.carbs||'';document.getElementById('ai-food-fat').value=data.fat||'';document.getElementById('ai-result').style.display='block';}
 async function logAiFood(){
@@ -2153,8 +2167,9 @@ async function logAiFood(){
 
   state.today.food.push(entry);
   saveState();renderFoodLog();refreshDashboard();
-  ['ai-result','ai-photo-preview','ai-desc-area'].forEach(id=>document.getElementById(id).style.display='none');
-  document.getElementById('ai-food-desc').value='';currentPhotoBase64=null;
+  ['ai-result','ai-desc-area'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  document.getElementById('ai-food-desc').value='';
+  clearFoodPhoto();
   if(btn) btn.disabled=false;
   toast('Food logged ✓');
 }
