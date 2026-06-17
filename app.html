@@ -2019,25 +2019,28 @@ async function saveDemoVideo(){
   const vid=extractYouTubeId(url);
   if(!vid){toast('Invalid YouTube URL');return;}
 
-  // Check if a row already exists for this exercise
-  const existing = await sbGet(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
+  // Use auth versions so coach session token is passed
+  const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
   if (existing.length) {
-    await sbUpdate('exercise_videos', existing[0].id, { video_url: url });
+    await sbUpdateAuth('exercise_videos', existing[0].id, { video_url: url });
   } else {
-    await sbInsert('exercise_videos', { exercise_name: currentDemoExercise, video_url: url });
+    await sbInsertAuth('exercise_videos', { exercise_name: currentDemoExercise, video_url: url });
   }
   if(!exerciseVideosCache)exerciseVideosCache={};
   exerciseVideosCache[currentDemoExercise]=url;
   closeModal('demoVideoModal');
-  renderExercises();
+  exerciseVideosCache = null; // force fresh reload from Supabase
+  await renderExercises();
   toast('Demo video saved ✓');
 }
 
 async function removeExerciseDemo(exName){
-  const existing = await sbGet(`exercise_videos?exercise_name=eq.${encodeURIComponent(exName)}`);
-  for (const row of existing) { await sbDelete('exercise_videos', row.id); }
+  const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(exName)}`);
+  for (const row of existing) { await sbDeleteAuth('exercise_videos', row.id); }
   if(exerciseVideosCache) delete exerciseVideosCache[exName];
-  renderExercises();toast('Demo video removed');
+  exerciseVideosCache = null; // force fresh reload
+  await renderExercises();
+  toast('Demo video removed');
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
