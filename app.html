@@ -1935,7 +1935,7 @@ function filterEx(type,btn){
 let exerciseVideosCache = null;
 
 async function loadExerciseVideos() {
-  const rows = await sbGetAuth('exercise_videos', 'order=exercise_name.asc');
+  const rows = await sbGetAuth('exercise_videos', null);
   const map = {};
   rows.forEach(r => { map[r.exercise_name] = r.video_url; });
   exerciseVideosCache = map;
@@ -2019,19 +2019,37 @@ async function saveDemoVideo(){
   const vid=extractYouTubeId(url);
   if(!vid){toast('Invalid YouTube URL');return;}
 
-  // Use auth versions so coach session token is passed
-  const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
-  if (existing.length) {
-    await sbUpdateAuth('exercise_videos', existing[0].id, { video_url: url });
-  } else {
-    await sbInsertAuth('exercise_videos', { exercise_name: currentDemoExercise, video_url: url });
+  try {
+    const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
+    let result;
+    if (existing.length) {
+      // PATCH existing row
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos?id=eq.${existing[0].id}`, {
+        method: 'PATCH',
+        headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+        body: JSON.stringify({ video_url: url })
+      });
+      const d = await r.json();
+      if (!r.ok) { toast('Save failed: ' + (d.message || d.hint || JSON.stringify(d)), true); return; }
+    } else {
+      // INSERT new row
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos`, {
+        method: 'POST',
+        headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+        body: JSON.stringify({ exercise_name: currentDemoExercise, video_url: url })
+      });
+      const d = await r.json();
+      if (!r.ok) { toast('Save failed: ' + (d.message || d.hint || JSON.stringify(d)), true); return; }
+    }
+    if(!exerciseVideosCache) exerciseVideosCache={};
+    exerciseVideosCache[currentDemoExercise] = url;
+    closeModal('demoVideoModal');
+    exerciseVideosCache = null;
+    await renderExercises();
+    toast('Demo video saved ✓');
+  } catch(e) {
+    toast('Save error: ' + e.message, true);
   }
-  if(!exerciseVideosCache)exerciseVideosCache={};
-  exerciseVideosCache[currentDemoExercise]=url;
-  closeModal('demoVideoModal');
-  exerciseVideosCache = null; // force fresh reload from Supabase
-  await renderExercises();
-  toast('Demo video saved ✓');
 }
 
 async function removeExerciseDemo(exName){
@@ -2309,13 +2327,27 @@ function getAuthHeaders() {
 
 async function sbGetAuth(table, filter) {
   try {
-    const url = filter
-      ? `${SUPABASE_URL}/rest/v1/${table}?${filter}&order=created_at.desc`
-      : `${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`;
-    const r = await fetch(url, {headers: getAuthHeaders()});
-    const d = await r.json();
-    return (r.ok && Array.isArray(d)) ? d : [];
-  } catch(e) { return []; }
+    const baseTable = table.split('?')[0]; // handle table names with inline filters
+    let url;
+    if (filter) {
+      const hasOrder = filter.includes('order=');
+      url = `${SUPABASE_URL}/rest/v1/${baseTable}?${filter}${hasOrder ? '' : '&order=created_at.desc'}`;
+    } else {
+      url = `${SUPABASE_URL}/rest/v1/${baseTable}?order=created_at.desc`;
+    }
+    let r = await fetch(url, {headers: getAuthHeaders()});
+    let d = await r.json();
+    // If order by created_at failed (table might not have that column), retry without order
+    if (!r.ok && d && (d.message||'').includes('created_at')) {
+      const urlNoOrder = filter
+        ? `${SUPABASE_URL}/rest/v1/${baseTable}?${filter}`
+        : `${SUPABASE_URL}/rest/v1/${baseTable}`;
+      r = await fetch(urlNoOrder, {headers: getAuthHeaders()});
+      d = await r.json();
+    }
+    if (!r.ok) { console.warn('sbGetAuth error', baseTable, d); return []; }
+    return Array.isArray(d) ? d : [];
+  } catch(e) { console.warn('sbGetAuth exception', table, e); return []; }
 }
 
 async function sbInsertAuth(table, data) {
