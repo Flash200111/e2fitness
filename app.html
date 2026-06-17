@@ -1064,9 +1064,8 @@ async function addFoodEntry(){
     total_fat:fat
   });
   
-  // Also keep in localStorage for today
-  state.today.food.push(entry);
-  saveState();renderFoodLog();refreshDashboard();
+  // Supabase is source of truth — renderFoodLog will sync state
+  await renderFoodLog();refreshDashboard();
   ['food-name','food-cal','food-protein','food-carbs','food-fat'].forEach(id=>document.getElementById(id).value='');
   toast('Food logged ✓');
 }
@@ -1085,12 +1084,11 @@ async function renderFoodLog(){
       allFood.push(...log.food_items.map(f=>({...f,_log_id:log.id})));
     }
   }
-  
-  // Also include any local items not yet synced
-  const localOnly=state.today.food.filter(f=>!allFood.find(sf=>sf.id===f.id));
-  const combined=[...allFood,...localOnly];
-  
-  // Update state with combined
+
+  // Use Supabase as single source of truth — no local merge
+  const combined=[...allFood];
+
+  // Sync state for expenditure calculations
   state.today.food=combined;
   saveState();
   
@@ -1794,7 +1792,7 @@ async function renderVideos(){
     const vidId=v.vid_id||v.vid||'';
     const vId=String(v.id||'');
     return `<div class="video-card">
-      <div class="video-thumb"><iframe src="https://www.youtube.com/embed/${vidId}" allowfullscreen loading="lazy"></iframe></div>
+      <div class="video-thumb"><a href="https://www.youtube.com/watch?v=${vidId}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#111;color:#ff4444;font-size:2rem;text-decoration:none;">▶</a></div>
       <div class="video-info">
         <div class="video-title">${v.title||''}</div>
         <div class="video-tag">${v.cat||v.category||''}</div>
@@ -1937,7 +1935,7 @@ function filterEx(type,btn){
 let exerciseVideosCache = null;
 
 async function loadExerciseVideos() {
-  const rows = await sbGet('exercise_videos');
+  const rows = await sbGetAuth('exercise_videos', 'order=exercise_name.asc');
   const map = {};
   rows.forEach(r => { map[r.exercise_name] = r.video_url; });
   exerciseVideosCache = map;
@@ -1959,8 +1957,8 @@ async function renderExercises(){
     if(coachUnlocked){
       if(demoVid){
         demoSection=`
-          <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
-            <div style="aspect-ratio:16/9;"><iframe src="https://www.youtube.com/embed/${demoVid}" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;"></iframe></div>
+          <div style="margin-top:10px;">
+            <a href="${demoUrl}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;background:rgba(255,0,0,0.08);border:1px solid rgba(255,0,0,0.25);color:#ff4444;padding:10px 14px;border-radius:6px;font-size:0.78rem;text-decoration:none;font-weight:600;">▶ Watch Demo Video <span style="font-size:0.65rem;color:var(--muted);font-weight:400;">(opens YouTube)</span></a>
           </div>
           <div style="display:flex;gap:6px;margin-top:8px;">
             <button class="btn" style="font-size:0.7rem;flex:1;" onclick="editExerciseDemo('${e.name.replace(/'/g,"\\'")}')">✏️ Change Video</button>
@@ -1972,8 +1970,8 @@ async function renderExercises(){
     } else {
       if(demoVid){
         demoSection=`
-          <div style="margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
-            <div style="aspect-ratio:16/9;"><iframe src="https://www.youtube.com/embed/${demoVid}" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;"></iframe></div>
+          <div style="margin-top:10px;">
+            <a href="${demoUrl}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;background:rgba(255,0,0,0.08);border:1px solid rgba(255,0,0,0.25);color:#ff4444;padding:10px 14px;border-radius:6px;font-size:0.78rem;text-decoration:none;font-weight:600;">▶ Watch Demo Video <span style="font-size:0.65rem;color:var(--muted);font-weight:400;">(opens YouTube)</span></a>
           </div>`;
       }
     }
@@ -2011,7 +2009,8 @@ function previewDemoVideo(){
   const url=document.getElementById('demo-video-url').value.trim();
   const vid=extractYouTubeId(url);
   if(!vid){toast('Invalid YouTube URL');return;}
-  document.getElementById('demo-video-iframe').src='https://www.youtube.com/embed/'+vid;
+  const link=document.getElementById('demo-video-link');
+  link.href='https://www.youtube.com/watch?v='+vid;
   document.getElementById('demo-video-preview').style.display='block';
 }
 
@@ -2165,8 +2164,8 @@ async function logAiFood(){
     total_fat:fat
   });
 
-  state.today.food.push(entry);
-  saveState();renderFoodLog();refreshDashboard();
+  // Supabase is source of truth — renderFoodLog will sync state
+  await renderFoodLog();refreshDashboard();
   ['ai-result','ai-desc-area'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   document.getElementById('ai-food-desc').value='';
   clearFoodPhoto();
@@ -3826,12 +3825,10 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
       <input type="text" id="demo-video-url" placeholder="https://youtube.com/watch?v=...">
     </div>
     <div id="demo-video-preview" style="display:none;margin:12px 0;">
-      <div style="aspect-ratio:16/9;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
-        <iframe id="demo-video-iframe" allowfullscreen style="width:100%;height:100%;border:none;"></iframe>
-      </div>
+      <a id="demo-video-link" href="#" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;background:rgba(255,0,0,0.08);border:1px solid rgba(255,0,0,0.25);color:#ff4444;padding:10px 14px;border-radius:6px;font-size:0.78rem;text-decoration:none;font-weight:600;">▶ Open Video to Preview <span style="font-size:0.65rem;color:var(--muted);font-weight:400;">(opens YouTube)</span></a>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="btn" style="flex:1;" onclick="previewDemoVideo()">Preview</button>
+      <button class="btn" style="flex:1;" onclick="previewDemoVideo()">Preview Link</button>
       <button class="btn btn-primary" style="flex:1;" onclick="saveDemoVideo()">Save Video</button>
     </div>
   </div>
