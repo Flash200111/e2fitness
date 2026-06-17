@@ -2366,6 +2366,22 @@ async function renderMyPlan() {
     return;
   }
 
+  // Get Sun-Sat week boundaries
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+  // Fetch workout logs for this week to know which days are already done
+  const weekLogs = await sbGetAuth('client_workout_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${weekStartStr}&log_date=lte.${weekEndStr}`);
+
+  // Build a set of "planId-dayIndex" keys that were logged this week
+  // We store plan_id and day_index in the log when saving
+  const loggedThisWeek = new Set(weekLogs.map(l => `${l.plan_id}-${l.day_index}`).filter(k => !k.startsWith('undefined')));
+
   container.innerHTML = plans.map(plan => {
     const p = plan.plan_data;
     const days = p.days || [];
@@ -2378,9 +2394,19 @@ async function renderMyPlan() {
         ${plan.coach_notes ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;font-style:italic;">${plan.coach_notes}</div>` : ''}
         ${days.map((day, di) => {
           const maxSets = Math.max(1, ...((day.exercises||[]).map(ex => parseInt(ex.sets) || 1)));
+          const isDone = loggedThisWeek.has(`${plan.id}-${di}`);
           return `
-          <div style="margin-bottom:24px;">
-            <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.name}</div>
+          <div style="margin-bottom:24px;${isDone ? 'opacity:0.75;' : ''}">
+            <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:${isDone ? 'var(--success)' : 'var(--accent)'};margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${isDone ? 'var(--success)' : 'var(--border)'};display:flex;justify-content:space-between;align-items:center;">
+              <span>${day.name}</span>
+              ${isDone ? '<span style="font-size:0.7rem;background:rgba(71,255,138,0.15);color:var(--success);padding:2px 10px;border-radius:2px;letter-spacing:1px;">✅ DONE THIS WEEK</span>' : ''}
+            </div>
+            ${isDone ? `
+            <div style="text-align:center;padding:16px;color:var(--success);font-size:0.8rem;background:rgba(71,255,138,0.04);border-radius:6px;border:1px solid rgba(71,255,138,0.2);">
+              ✅ You've already logged ${day.name} this week.<br>
+              <span style="font-size:0.72rem;color:var(--muted);">Resets Sunday. Check Workout History for your sets.</span>
+            </div>
+            ` : `
             <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
                 <thead>
@@ -2415,6 +2441,7 @@ async function renderMyPlan() {
               </table>
             </div>
             <button class="btn btn-primary" style="font-size:0.75rem;padding:8px 16px;width:100%;margin-top:10px;" onclick="saveDayLog('${plan.id}', ${di})">💾 Save ${day.name} Log</button>
+            `}
           </div>
         `;}).join('')}
       </div>`;
@@ -2452,11 +2479,14 @@ async function saveDayLog(planId, dayIndex) {
     user_email: session.email,
     log_date: today,
     exercises: entries,
+    plan_id: planId,
+    day_index: dayIndex,
     notes: ''
   });
   state.today.workout.push(...entries);
   saveState();
   toast(`${day.name} logged ✓ (${entries.length} exercise${entries.length===1?'':'s'})`);
+  renderMyPlan(); // refresh to show day as completed/locked
 }
 
 // ── COMMUNITY ─────────────────────────────────────────────────────────────────
