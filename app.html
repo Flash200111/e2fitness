@@ -241,11 +241,6 @@
     <div id="weekly-overview"></div>
   </div>
 
-  <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-title">🗓️ Workout History (Last 30 Days)</div>
-    <div id="monthly-workout-history"></div>
-  </div>
-
   <div class="dashboard-lower">
     <div class="panel">
       <div class="panel-title">Today's Summary</div>
@@ -555,6 +550,16 @@
   </div>
   <div id="myplan-content"><div class="empty-state" style="padding:48px;">Loading your plan...</div></div>
   <div id="cardio-recommendations" style="margin-top:16px;"></div>
+
+  <div class="section-collapsible" style="margin-top:24px;">
+    <div class="section-header" id="section-header-workout-history" onclick="toggleSection('workout-history');if(document.getElementById('section-workout-history').classList.contains('open'))renderMonthlyWorkoutHistory();">
+      <div class="section-header-title">🗓️ Workout History (Last 30 Days)</div>
+      <div class="section-toggle-icon">▾</div>
+    </div>
+    <div class="section-body" id="section-workout-history">
+      <div id="monthly-workout-history"><div class="empty-state">Tap to load workout history</div></div>
+    </div>
+  </div>
 </div>
 
 <!-- COMMUNITY PAGE -->
@@ -1017,7 +1022,7 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); renderWeeklyOverview(); renderMonthlyWorkoutHistory(); }
+  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); renderWeeklyOverview(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1589,21 +1594,29 @@ async function renderMonthlyWorkoutHistory() {
   const session = getSession();
   if (!session?.email) return;
 
+  el.innerHTML = '<div class="empty-state">Loading...</div>';
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 29);
   const startStr = startDate.toISOString().split('T')[0];
 
-  const logs = await sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startStr}&order=log_date.desc`);
+  const logs = await sbGetAuth('client_workout_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startStr}&order=log_date.desc`);
 
   if (!logs.length) {
     el.innerHTML = '<div class="empty-state">No workouts logged in the last 30 days</div>';
     return;
   }
 
+  // Group by date, deduplicate exercises by name within each day
   const byDate = {};
   logs.forEach(l => {
-    if (!byDate[l.log_date]) byDate[l.log_date] = [];
-    byDate[l.log_date].push(...(l.exercises||[]));
+    if (!byDate[l.log_date]) byDate[l.log_date] = new Map();
+    (l.exercises||[]).forEach(ex => {
+      if (!byDate[l.log_date].has(ex.name)) {
+        byDate[l.log_date].set(ex.name, ex);
+      }
+    });
   });
 
   const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
@@ -1613,18 +1626,39 @@ async function renderMonthlyWorkoutHistory() {
   };
 
   el.innerHTML = `
-    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:10px;">${dates.length} workout day${dates.length===1?'':'s'} logged in the last 30 days</div>
-    ${dates.map(date => `
-      <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
-        <div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">${dayLabel(date)}</div>
-        ${byDate[date].map(ex => `
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:2px;">
-            ${ex.name}: ${Array.isArray(ex.sets) ? ex.sets.map(s=>`${s.weight||'—'}${s.weight?'lb':''}×${s.reps||'—'}`).join(', ') : '—'}
-            ${ex.notes ? ` <span style="color:var(--accent2);">📝 ${ex.notes}</span>` : ''}
-          </div>
-        `).join('')}
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:10px;">${dates.length} workout day${dates.length===1?'':'s'} in the last 30 days</div>
+    ${dates.map(date => {
+      const exercises = [...byDate[date].values()];
+      const maxSets = Math.max(1, ...exercises.map(ex => Array.isArray(ex.sets) ? ex.sets.length : 1));
+      return `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);">${dayLabel(date)}</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Exercise</th>
+                ${Array.from({length:maxSets},(_,si)=>`<th style="text-align:center;padding:5px 4px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Set ${si+1}</th>`).join('')}
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${exercises.map(ex => `
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:6px 8px;font-weight:600;">${ex.name}</td>
+                  ${Array.isArray(ex.sets)
+                    ? ex.sets.map(s=>`<td style="text-align:center;padding:6px 4px;font-family:'DM Mono',monospace;font-size:0.7rem;">${s.weight||'—'}${s.weight?'lb':''}×${s.reps||'—'}</td>`).join('')
+                    : `<td style="text-align:center;padding:6px 4px;color:var(--muted);">—</td>`
+                  }
+                  ${Array.from({length:maxSets-(Array.isArray(ex.sets)?ex.sets.length:1)},()=>'<td></td>').join('')}
+                  <td style="padding:6px 8px;font-size:0.7rem;color:var(--muted);">${ex.notes||''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
-    `).join('')}
+    `;}).join('')}
   `;
 }
 
