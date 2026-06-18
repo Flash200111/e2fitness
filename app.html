@@ -2464,7 +2464,10 @@ async function renderMyPlan() {
                         <td style="padding:6px 4px;vertical-align:top;">
                           <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
                             <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">WT</div>
-                            <input type="number" inputmode="decimal" placeholder="lbs" id="set-${exId}-${si}-weight" style="font-size:0.78rem;padding:6px 4px;width:58px;text-align:center;border-radius:4px;">
+                            <div style="display:flex;gap:2px;align-items:center;">
+                              <input type="number" inputmode="decimal" placeholder="lbs" id="set-${exId}-${si}-weight" style="font-size:0.78rem;padding:6px 4px;width:48px;text-align:center;border-radius:4px;">
+                              <button onclick="toggleBW('set-${exId}-${si}-weight', this)" style="font-size:0.6rem;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;white-space:nowrap;">BW</button>
+                            </div>
                             <div style="font-size:0.6rem;color:var(--accent);font-weight:600;">×</div>
                             <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">REPS</div>
                             <input type="number" inputmode="numeric" placeholder="${ex.reps}" id="set-${exId}-${si}-reps" style="font-size:0.78rem;padding:6px 4px;width:58px;text-align:center;border-radius:4px;">
@@ -2487,6 +2490,32 @@ async function renderMyPlan() {
   }).join('');
 }
 
+function toggleBW(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.dataset.bw === 'true') {
+    // Switch back to lbs
+    input.dataset.bw = 'false';
+    input.value = '';
+    input.placeholder = 'lbs';
+    input.disabled = false;
+    input.style.color = '';
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--muted)';
+    btn.style.borderColor = 'var(--border)';
+  } else {
+    // Switch to bodyweight
+    input.dataset.bw = 'true';
+    input.value = '';
+    input.placeholder = 'BW';
+    input.disabled = true;
+    input.style.color = 'var(--accent)';
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#000';
+    btn.style.borderColor = 'var(--accent)';
+  }
+}
+
 async function saveDayLog(planId, dayIndex) {
   const plans = await sbGetAuth('workout_plans', `id=eq.${planId}`);
   const plan = plans[0];
@@ -2500,7 +2529,8 @@ async function saveDayLog(planId, dayIndex) {
     const numSets = parseInt(ex.sets) || 1;
     const sets = [];
     for (let si = 0; si < numSets; si++) {
-      const weight = document.getElementById(`set-${exId}-${si}-weight`)?.value.trim();
+      const weightInput = document.getElementById(`set-${exId}-${si}-weight`);
+      const weight = weightInput?.dataset.bw === 'true' ? 'BW' : (weightInput?.value.trim() || null);
       const reps = document.getElementById(`set-${exId}-${si}-reps`)?.value.trim();
       if (weight || reps) sets.push({ set: si + 1, weight: weight || null, reps: reps || null });
     }
