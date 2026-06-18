@@ -2446,7 +2446,7 @@ async function renderMyPlan() {
                 <thead>
                   <tr style="border-bottom:1px solid var(--border);">
                     <th style="text-align:left;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;">Exercise</th>
-                    ${Array.from({length: maxSets}, (_, si) => `<th style="text-align:center;padding:6px 4px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;">Set ${si+1}<br><span style="font-size:0.6rem;">Wt / Reps</span></th>`).join('')}
+                    ${Array.from({length: maxSets}, (_, si) => `<th style="text-align:center;padding:6px 4px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;">Set ${si+1}</th>`).join('')}
                     <th style="text-align:left;padding:6px 8px;color:var(--muted);font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;min-width:120px;">Notes</th>
                   </tr>
                 </thead>
@@ -2462,8 +2462,13 @@ async function renderMyPlan() {
                       </td>
                       ${Array.from({length: maxSets}, (_, si) => si < numSets ? `
                         <td style="padding:6px 4px;vertical-align:top;">
-                          <input type="number" inputmode="decimal" placeholder="lbs" id="set-${exId}-${si}-weight" style="font-size:0.75rem;padding:5px;width:54px;margin-bottom:3px;text-align:center;">
-                          <input type="number" inputmode="numeric" placeholder="${ex.reps}" id="set-${exId}-${si}-reps" style="font-size:0.75rem;padding:5px;width:54px;text-align:center;">
+                          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                            <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">WT</div>
+                            <input type="number" inputmode="decimal" placeholder="lbs" id="set-${exId}-${si}-weight" style="font-size:0.78rem;padding:6px 4px;width:58px;text-align:center;border-radius:4px;">
+                            <div style="font-size:0.6rem;color:var(--accent);font-weight:600;">×</div>
+                            <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">REPS</div>
+                            <input type="number" inputmode="numeric" placeholder="${ex.reps}" id="set-${exId}-${si}-reps" style="font-size:0.78rem;padding:6px 4px;width:58px;text-align:center;border-radius:4px;">
+                          </div>
                         </td>
                       ` : `<td></td>`).join('')}
                       <td style="padding:6px 8px;vertical-align:top;">
