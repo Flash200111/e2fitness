@@ -2050,6 +2050,7 @@ async function saveDemoVideo(){
     exerciseVideosCache[currentDemoExercise] = url;
     closeModal('demoVideoModal');
     exerciseVideosCache = null;
+    await loadExerciseVideos(); // reload fresh from Supabase before rendering
     await renderExercises();
     toast('Demo video saved ✓');
   } catch(e) {
@@ -2240,12 +2241,45 @@ function addClient(){
   saveState();renderClientList();closeModal('clientModal');toast('Client added ✓');
   ['c-name','c-email','c-age','c-injuries','c-equipment'].forEach(id=>document.getElementById(id).value='');
 }
-function renderClientList(){
+async function renderClientList(){
   if(!state.clients)state.clients=[];
   const el=document.getElementById('client-list');
-  if(!state.clients.length){el.innerHTML='<div class="empty-state">No clients yet</div>';return;}
-  el.innerHTML=state.clients.map(c=>`<div class="log-item" style="cursor:pointer;flex-direction:column;align-items:flex-start;gap:4px;${activeClientId===c.id?'border-color:var(--accent);':''}" onclick="selectClient(${c.id})"><div style="display:flex;justify-content:space-between;width:100%;"><div class="log-item-name">${c.name}</div><button class="log-item-del" onclick="event.stopPropagation();removeClient(${c.id})">✕</button></div><div style="font-size:0.72rem;color:var(--muted);">${c.goal} · ${c.level}</div></div>`).join('');
+  if(!el) return;
+
+  // Pull all clients from workout_plans table
+  const plans = await sbGet('workout_plans');
+  const clientMap = {};
+  plans.forEach(p => {
+    const email = p.client_email;
+    if (!email) return;
+    if (!clientMap[email] || p.status === 'approved') {
+      const intake = p.plan_data?.intake || {};
+      clientMap[email] = {
+        email,
+        status: p.status,
+        name: intake.name || email.split('@')[0],
+        goal: intake.goal?.replace(/_/g,' ') || '—',
+        level: intake.level || '—',
+        medical: intake.medical || '',
+        plan_id: p.id
+      };
+    }
+  });
+  const clients = Object.values(clientMap);
+
+  if(!clients.length){el.innerHTML='<div class="empty-state">No clients yet</div>';return;}
+  el.innerHTML=clients.map(c=>`
+    <div class="log-item" style="cursor:pointer;flex-direction:column;align-items:flex-start;gap:4px;${activeClientId===c.email?'border-color:var(--accent);':''}" onclick="selectClientByEmail('${c.email}')">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <div class="log-item-name">${c.name}</div>
+        <span style="font-size:0.65rem;color:${c.status==='approved'?'var(--success)':'var(--accent)'};">${c.status?.replace(/_/g,' ')}</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);">${c.email}</div>
+      <div style="font-size:0.72rem;color:var(--muted);">${c.goal} · ${c.level}${c.medical?' · <span style="color:var(--danger);">⚠️ '+c.medical+'</span>':''}</div>
+    </div>
+  `).join('');
 }
+function selectClientByEmail(email){ activeClientId=email; renderClientList(); renderClientDetail(); }
 function selectClient(id){activeClientId=id;renderClientList();renderClientDetail();}
 function renderClientDetail(){
   const c=(state.clients||[]).find(c=>c.id===activeClientId);if(!c)return;
