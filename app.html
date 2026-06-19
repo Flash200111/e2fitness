@@ -1940,10 +1940,14 @@ function filterEx(type,btn){
 let exerciseVideosCache = null;
 
 async function loadExerciseVideos() {
-  const rows = await sbGetAuth('exercise_videos', null);
+  // exercise_videos has no created_at, so fetch with no order
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos`, {headers: getAuthHeaders()});
+  const rows = await r.json();
+  console.log('exercise_videos fetch:', r.status, rows);
   const map = {};
-  rows.forEach(r => { map[r.exercise_name] = r.video_url; });
+  if (Array.isArray(rows)) rows.forEach(row => { map[row.exercise_name] = row.video_url; });
   exerciseVideosCache = map;
+  console.log('exerciseVideosCache:', map);
   return map;
 }
 
@@ -2021,39 +2025,40 @@ function previewDemoVideo(){
 
 async function saveDemoVideo(){
   const url=document.getElementById('demo-video-url').value.trim();
+  console.log('saveDemoVideo called, url:', url, 'exercise:', currentDemoExercise);
   const vid=extractYouTubeId(url);
+  console.log('extracted vid:', vid);
   if(!vid){toast('Invalid YouTube URL');return;}
 
   try {
     const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
-    let result;
+    console.log('existing rows:', JSON.stringify(existing));
     if (existing.length) {
-      // PATCH existing row
       const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos?id=eq.${existing[0].id}`, {
         method: 'PATCH',
         headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
         body: JSON.stringify({ video_url: url })
       });
       const d = await r.json();
+      console.log('patch result:', r.status, JSON.stringify(d));
       if (!r.ok) { toast('Save failed: ' + (d.message || d.hint || JSON.stringify(d)), true); return; }
     } else {
-      // INSERT new row
       const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos`, {
         method: 'POST',
         headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
         body: JSON.stringify({ exercise_name: currentDemoExercise, video_url: url })
       });
       const d = await r.json();
+      console.log('insert result:', r.status, JSON.stringify(d));
       if (!r.ok) { toast('Save failed: ' + (d.message || d.hint || JSON.stringify(d)), true); return; }
     }
-    if(!exerciseVideosCache) exerciseVideosCache={};
-    exerciseVideosCache[currentDemoExercise] = url;
     closeModal('demoVideoModal');
     exerciseVideosCache = null;
-    await loadExerciseVideos(); // reload fresh from Supabase before rendering
+    await loadExerciseVideos();
     await renderExercises();
     toast('Demo video saved ✓');
   } catch(e) {
+    console.error('saveDemoVideo error:', e);
     toast('Save error: ' + e.message, true);
   }
 }
