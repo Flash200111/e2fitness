@@ -1737,8 +1737,13 @@ function openVideoModal(){
   requireCoach(()=>document.getElementById('videoModal').classList.add('open'));
 }
 function extractYouTubeId(url){
-  const m=url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
-  return m?m[1]:null;
+  if(!url) return null;
+  // Handle all YouTube URL formats including shorts with ?si= params
+  const m=url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})(?:[?&]|$)/);
+  if(m) return m[1];
+  // Fallback: grab any 11-char alphanumeric sequence after the last /
+  const m2=url.match(/\/([a-zA-Z0-9_-]{11})(?:\?|$)/);
+  return m2?m2[1]:null;
 }
 
 async function addVideo(){
@@ -2456,9 +2461,9 @@ async function renderMyPlan() {
                     const numSets = parseInt(ex.sets) || 1;
                     return `
                     <tr style="border-bottom:1px solid var(--border);">
-                      <td style="padding:8px 8px;vertical-align:top;">
-                        <div style="font-weight:600;">${ex.name}</div>
-                        <div style="font-size:0.68rem;color:var(--muted);">${ex.sets}×${ex.reps}${ex.rest ? ' · '+ex.rest : ''}</div>
+                      <td style="padding:8px 8px;vertical-align:top;${ex.superset_group ? 'border-left:3px solid var(--accent2);padding-left:10px;' : ''}">
+                        <div style="font-weight:600;${ex.superset_group ? 'color:var(--accent2);' : ''}">${ex.superset_group ? ex.superset_group+'. ' : ''}${ex.name}</div>
+                        <div style="font-size:0.68rem;color:var(--muted);">${ex.sets}×${ex.reps}${ex.rest ? ' · '+ex.rest : ''}${ex.superset_group ? ' · <span style="color:var(--accent2);">'+ ({superset:'Superset',triset:'Tri-Set',circuit:'Circuit'}[ex.type]||'Superset')+'</span>' : ''}</div>
                       </td>
                       ${Array.from({length: maxSets}, (_, si) => si < numSets ? `
                         <td style="padding:6px 4px;vertical-align:top;">
