@@ -2284,7 +2284,7 @@ async function renderClientList(){
     </div>
   `).join('');
 }
-function selectClientByEmail(email){ activeClientId=email; renderClientList(); renderClientDetail(); }
+function selectClientByEmail(email){ alert('clicked: '+email); activeClientId=email; renderClientList(); renderClientDetail(); }
 function selectClient(id){activeClientId=id;renderClientList();renderClientDetail();}
 async function renderClientDetail(){
   console.log('renderClientDetail called, activeClientId:', activeClientId);
