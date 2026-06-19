@@ -2286,14 +2286,92 @@ async function renderClientList(){
 }
 function selectClientByEmail(email){ activeClientId=email; renderClientList(); renderClientDetail(); }
 function selectClient(id){activeClientId=id;renderClientList();renderClientDetail();}
-function renderClientDetail(){
-  const c=(state.clients||[]).find(c=>c.id===activeClientId);if(!c)return;
+async function renderClientDetail(){
+  console.log('renderClientDetail called, activeClientId:', activeClientId);
+  if(!activeClientId) return;
   const panel=document.getElementById('client-detail');
-  panel.innerHTML=`<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;"><div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;">${c.name}</div><div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">${c.email||'No email'}</div></div><button class="btn btn-primary" onclick="openWorkoutModal(${c.id})">+ Quick Plan</button><button class="btn btn-primary" style="margin-left:8px;" onclick="openPlanBuilderForClient('${c.email}')">📋 Build Full Plan</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;">${[['Goal',c.goal],['Level',c.level],['Age',c.age||'—'],['Days/Week',c.days],['Equipment',c.equipment||'—'],['Injuries',c.injuries||'None']].map(([k,v])=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px 14px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${k}</div><div style="font-size:0.85rem;font-weight:500;">${v}</div></div>`).join('')}</div><div style="margin-bottom:20px;"><div class="section-sub" style="border-top:none;padding-top:0;margin-top:0;">Workout Plans (${(c.workoutPlans||[]).length})</div>${(c.workoutPlans||[]).length?c.workoutPlans.map((wp,i)=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div><div style="font-weight:600;font-size:0.9rem;">${wp.name}</div><div style="font-size:0.72rem;color:var(--muted);">${wp.day} · ${(wp.exercises||[]).length} exercises</div></div><button class="log-item-del" onclick="removeWorkoutPlan(${c.id},${i})">✕</button></div>${(wp.exercises||[]).map(e=>`<div style="display:flex;gap:16px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem;"><span style="flex:2;font-weight:500;">${e.name}</span><span style="color:var(--accent);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><span style="color:var(--muted);">${e.rest||''}</span></div>`).join('')}${wp.notes?`<div style="font-size:0.78rem;color:var(--muted);margin-top:8px;font-style:italic;">${wp.notes}</div>`:''}</div>`).join(''):'<div class="empty-state">No workout plans yet</div>'}</div><div><div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Coaching Notes</div><div style="margin-bottom:10px;">${(c.notes||[]).length?c.notes.map((n,i)=>`<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px;"><div style="display:flex;justify-content:space-between;width:100%;"><div style="font-size:0.7rem;color:var(--muted);font-family:'DM Mono',monospace;">${n.date}</div><button class="log-item-del" onclick="removeClientNote(${c.id},${i})">✕</button></div><div style="font-size:0.85rem;line-height:1.5;">${n.text}</div></div>`).join(''):'<div class="empty-state">No notes yet</div>'}</div><div style="display:flex;gap:8px;"><input type="text" id="new-client-note" placeholder="Add coaching note, progress update..." style="flex:1;"><button class="btn btn-primary" onclick="addClientNote(${c.id})">Add</button></div></div>`;
+  if(!panel) { console.error('client-detail panel not found in DOM'); return; }
+  panel.innerHTML='<div class="empty-state" style="padding:48px;">Loading...</div>';
+
+  try {
+    const email = activeClientId;
+    const plans = await sbGet(`workout_plans?client_email=eq.${encodeURIComponent(email)}&order=created_at.desc`);
+    console.log('plans found for', email, ':', plans);
+    if (!plans.length) { panel.innerHTML = '<div class="empty-state" style="padding:48px;">No data found for this client</div>'; return; }
+
+  const latestPlan = plans[0];
+  const intake = latestPlan.plan_data?.intake || {};
+  const approvedPlan = plans.find(p => p.status === 'approved');
+  const planDays = approvedPlan?.plan_data?.days || [];
+
+  // Pull recent logs
+  const [nutritionLogs, workoutLogs, metricsLogs] = await Promise.all([
+    sbGet(`client_nutrition_logs?user_email=eq.${encodeURIComponent(email)}&order=log_date.desc&limit=5`),
+    sbGet(`client_workout_logs?user_email=eq.${encodeURIComponent(email)}&order=log_date.desc&limit=10`),
+    sbGet(`client_metrics?user_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=5`)
+  ]);
+
+  panel.innerHTML = `
+    <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;">${intake.name || email.split('@')[0]}</div>
+        <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">${email}</div>
+      </div>
+      <span style="font-size:0.7rem;background:rgba(232,255,71,0.1);color:var(--accent);padding:4px 12px;border-radius:2px;letter-spacing:1px;">${latestPlan.status?.replace(/_/g,' ')}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:20px;">
+      ${[['Goal',intake.goal?.replace(/_/g,' ')||'—'],['Level',intake.level||'—'],['Age',intake.age||'—'],['Days/Week',intake.days||'—'],['Equipment',intake.equipment?.replace(/_/g,' ')||'—']].map(([k,v])=>`
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:10px 14px;">
+          <div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">${k}</div>
+          <div style="font-size:0.85rem;font-weight:500;">${v}</div>
+        </div>`).join('')}
+    </div>
+
+    ${intake.medical ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:0.8rem;">⚠️ <strong>Medical:</strong> ${intake.medical}</div>` : ''}
+    ${intake.avoid ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;"><strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
+
+    <div style="margin-bottom:20px;">
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}</div>
+      ${planDays.length ? planDays.map(day => `
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.72rem;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">${day.name}</div>
+          ${(day.exercises||[]).map(e=>`<div style="display:flex;gap:16px;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span></div>`).join('')}
+        </div>
+      `).join('') : '<div class="empty-state">No approved plan yet</div>'}
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Recent Workout Logs</div>
+      ${workoutLogs.length ? workoutLogs.map(l => `
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;">
+          <strong style="color:var(--text);">${l.log_date}</strong> — ${(l.exercises||[]).map(e=>e.name).join(', ')}
+        </div>
+      `).join('') : '<div class="empty-state">No workout logs yet</div>'}
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Recent Nutrition</div>
+      ${nutritionLogs.length ? nutritionLogs.map(l => {
+        const totalCal = (l.food_items||[]).reduce((s,f)=>s+(f.cal||0),0);
+        return `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;"><strong style="color:var(--text);">${l.log_date}</strong> — ${totalCal} kcal logged</div>`;
+      }).join('') : '<div class="empty-state">No nutrition logs yet</div>'}
+    </div>
+
+    <div>
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Body Metrics</div>
+      ${metricsLogs.length ? metricsLogs.map(m => `
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;">
+          <strong style="color:var(--text);">${new Date(m.created_at).toLocaleDateString()}</strong> — ${m.weight?m.weight+' lbs':''} ${m.body_fat?'· '+m.body_fat+'% BF':''}
+        </div>
+      `).join('') : '<div class="empty-state">No metrics logged yet</div>'}
+    </div>
+  `;
+  } catch(e) {
+    console.error('renderClientDetail error:', e);
+    panel.innerHTML = '<div class="empty-state" style="padding:48px;color:var(--danger);">Error loading client: ' + e.message + '</div>';
+  }
 }
-function addClientNote(clientId){const input=document.getElementById('new-client-note');const text=input.value.trim();if(!text)return;const c=state.clients.find(c=>c.id===clientId);if(!c.notes)c.notes=[];c.notes.unshift({text,date:new Date().toLocaleDateString()});input.value='';saveState();renderClientDetail();toast('Note added ✓');}
-function removeClientNote(clientId,idx){const c=state.clients.find(c=>c.id===clientId);c.notes.splice(idx,1);saveState();renderClientDetail();}
-function removeClient(id){if(!confirm('Remove this client?'))return;state.clients=state.clients.filter(c=>c.id!==id);if(activeClientId===id){activeClientId=null;document.getElementById('client-detail').innerHTML='<div class="empty-state" style="padding:48px">Select a client to view their profile</div>';}saveState();renderClientList();toast('Client removed');}
 function openPlanBuilderForClient(clientEmail){
   openPlanBuilder(clientEmail);
 }
