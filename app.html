@@ -1970,11 +1970,11 @@ async function renderExercises(){
             <a href="${demoUrl}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;background:rgba(255,0,0,0.08);border:1px solid rgba(255,0,0,0.25);color:#ff4444;padding:10px 14px;border-radius:6px;font-size:0.78rem;text-decoration:none;font-weight:600;">▶ Watch Demo Video <span style="font-size:0.65rem;color:var(--muted);font-weight:400;">(opens YouTube)</span></a>
           </div>
           <div style="display:flex;gap:6px;margin-top:8px;">
-            <button class="btn" style="font-size:0.7rem;flex:1;" onclick="editExerciseDemo('${e.name.replace(/'/g,"\\'")}')">✏️ Change Video</button>
-            <button class="btn btn-danger" style="font-size:0.7rem;" onclick="removeExerciseDemo('${e.name.replace(/'/g,"\\'")}')">✕</button>
+            <button class="btn" style="font-size:0.7rem;flex:1;" onclick="editExerciseDemo(this.dataset.name)" data-name="${e.name.replace(/"/g,'&quot;')}">✏️ Change Video</button>
+            <button class="btn btn-danger" style="font-size:0.7rem;" onclick="removeExerciseDemo(this.dataset.name)" data-name="${e.name.replace(/"/g,'&quot;')}">✕</button>
           </div>`;
       } else {
-        demoSection=`<button class="btn" style="margin-top:10px;width:100%;font-size:0.75rem;" onclick="addExerciseDemo('${e.name.replace(/'/g,"\\'")}')">+ Add Demo Video</button>`;
+        demoSection=`<button class="btn" style="margin-top:10px;width:100%;font-size:0.75rem;" onclick="addExerciseDemo(this.dataset.name)" data-name="${e.name.replace(/"/g,'&quot;')}">+ Add Demo Video</button>`;
       }
     } else {
       if(demoVid){
@@ -2031,7 +2031,7 @@ async function saveDemoVideo(){
   if(!vid){toast('Invalid YouTube URL');return;}
 
   try {
-    const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
+    const existing = await sbGetAuth('exercise_videos', `exercise_name=eq.${encodeURIComponent(currentDemoExercise)}`);
     console.log('existing rows:', JSON.stringify(existing));
     if (existing.length) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/exercise_videos?id=eq.${existing[0].id}`, {
@@ -2064,7 +2064,7 @@ async function saveDemoVideo(){
 }
 
 async function removeExerciseDemo(exName){
-  const existing = await sbGetAuth(`exercise_videos?exercise_name=eq.${encodeURIComponent(exName)}`);
+  const existing = await sbGetAuth('exercise_videos', `exercise_name=eq.${encodeURIComponent(exName)}`);
   for (const row of existing) { await sbDeleteAuth('exercise_videos', row.id); }
   if(exerciseVideosCache) delete exerciseVideosCache[exName];
   exerciseVideosCache = null; // force fresh reload
@@ -2371,7 +2371,10 @@ function getAuthHeaders() {
 
 async function sbGetAuth(table, filter) {
   try {
-    const baseTable = table.split('?')[0]; // handle table names with inline filters
+    const baseTable = table.split('?')[0];
+    if (table.includes('?') && !filter) {
+      console.warn('sbGetAuth: inline filter in table name ignored — pass filter as 2nd argument:', table);
+    }
     let url;
     if (filter) {
       const hasOrder = filter.includes('order=');
