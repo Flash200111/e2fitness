@@ -2353,8 +2353,9 @@ async function renderClientDetail(){
     ${intake.avoid ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;"><strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
 
     <div style="margin-bottom:20px;">
-      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">
-        Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}</span>
+        ${approvedPlan ? `<button class="btn" style="font-size:0.7rem;" onclick="regenerateApprovedPlan('${approvedPlan.id}', '${email}')">🔄 Regenerate Plan</button>` : ''}
       </div>
       ${approvedPlan?.plan_data?.coach_notes ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.78rem;color:var(--muted);line-height:1.5;"><strong style="color:var(--text);">Coach Notes:</strong> ${approvedPlan.plan_data.coach_notes}</div>` : ''}
       ${planDays.length ? planDays.map((day, di) => `
@@ -3658,6 +3659,19 @@ async function renderPendingPlans() {
         </div>
       </div>`;
   }).join('');
+}
+
+async function regenerateApprovedPlan(planId, clientEmail) {
+  if (!confirm('Regenerate this plan? The new version will go to "Plans Pending Your Review" before the client sees it.')) return;
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+  const intake = plan.plan_data?.intake || {};
+  const planType = plan.plan_data?.plan_type || 'full_body';
+  toast('Regenerating plan...');
+  await generateAIPlan(planId, clientEmail, intake, planType);
+  toast('New plan ready for review ✓ Check "Plans Pending Your Review" above');
+  showPage('coaching');
 }
 
 async function regenPlan(planId, clientEmail) {
