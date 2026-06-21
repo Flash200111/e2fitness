@@ -2356,6 +2356,7 @@ async function renderClientDetail(){
       <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">
         Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}
       </div>
+      ${approvedPlan?.plan_data?.coach_notes ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.78rem;color:var(--muted);line-height:1.5;"><strong style="color:var(--text);">Coach Notes:</strong> ${approvedPlan.plan_data.coach_notes}</div>` : ''}
       ${planDays.length ? planDays.map((day, di) => `
         <div style="margin-bottom:10px;">
           <div style="font-size:0.72rem;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">${day.name}</div>
@@ -2575,7 +2576,13 @@ async function renderMyPlan() {
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;">${p.name || 'My Workout Plan'}</div>
           <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
         </div>
-        ${plan.coach_notes ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;font-style:italic;">${plan.coach_notes}</div>` : ''}
+        ${(() => {
+          const summary = p.client_summary || '';
+          // Safety check: if client_summary is unexpectedly long, it likely leaked
+          // coach-only content — show a generic fallback instead of the wall of text.
+          const safeSummary = (summary.length > 600) ? '' : summary;
+          return safeSummary ? `<div style="background:rgba(232,255,71,0.06);border-left:3px solid var(--accent);border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:0.85rem;line-height:1.6;">${safeSummary}</div>` : '';
+        })()}
         ${days.map((day, di) => {
           const maxSets = Math.max(1, ...((day.exercises||[]).map(ex => parseInt(ex.sets) || 1)));
           const isDone = loggedThisWeek.has(`${plan.id}-${di}`);
@@ -3500,7 +3507,8 @@ Respond ONLY with this exact JSON structure, no other text:
     "hydration": "hydration guidance",
     "goal_specific": "specific advice for their goal"
   },
-  "coach_notes": "overall notes for the coach to review"
+  "coach_notes": "DETAILED notes for the COACH ONLY — include here all of the following: program rationale, why specific exercises were chosen or excluded, contingency guidance (e.g. what to do if the client reports fatigue, pain, or poor sleep), how to progress or regress the program, and any other technical coaching detail. This is the field for in-depth analysis — be thorough here.",
+  "client_summary": "EXACTLY 2-3 short sentences written DIRECTLY TO THE CLIENT in a warm, simple tone (use 'you/your', no jargon). It MUST follow this structure: (1) one sentence confirming the plan was built around their age, goals, and any injuries; (2) one sentence encouraging them to keep up any cardio or sports activities they already mentioned doing; (3) one sentence briefly explaining progressive overload in plain language. Example: 'This plan was designed with your age, goals, and knee history in mind, so every exercise is safe and effective for you. Keep up your walking and pickleball — they're a great complement to this program! As exercises start to feel easier, we'll gradually increase your weight or reps so you keep making progress — that's called progressive overload.' NEVER include exercise substitution reasoning, medical/injury specifics beyond a brief acknowledgment, sleep/recovery monitoring instructions, or any other coaching strategy — all of that belongs in coach_notes instead."
 }`;
 
   try {
@@ -3841,7 +3849,8 @@ Respond ONLY with this exact JSON (no other text):
     "hydration": "guidance",
     "goal_specific": "goal specific advice"
   },
-  "coach_notes": "notes for coach review"
+  "coach_notes": "DETAILED notes for the COACH ONLY — include here all of the following: rationale for changes made since the last plan, progress observations, why specific exercises were adjusted, contingency guidance (e.g. what to do if the client reports fatigue, pain, or poor sleep), and any other technical coaching detail. Be thorough here.",
+  "client_summary": "EXACTLY 2-3 short sentences written DIRECTLY TO THE CLIENT in a warm, simple tone (use 'you/your', no jargon). It MUST follow this structure: (1) one sentence confirming the updated plan reflects their progress, goals, and any injuries; (2) one sentence encouraging them to keep up any cardio or sports activities they already mentioned doing; (3) one sentence briefly explaining progressive overload in plain language. NEVER include exercise substitution reasoning, medical/injury specifics beyond a brief acknowledgment, sleep/recovery monitoring instructions, or any other coaching strategy — all of that belongs in coach_notes instead."
 }`;
 
   try {
