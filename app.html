@@ -493,7 +493,7 @@
     <div id="plan-updates-due"><div class="empty-state">Loading...</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;">
-    <div class="panel"><div class="panel-title">Clients</div><button onclick="alert('TEST BUTTON WORKS')" style="margin-bottom:8px;">TEST CLICK</button><div id="client-list"><div class="empty-state">No clients yet</div></div></div>
+    <div class="panel"><div class="panel-title">Clients</div><div id="client-list"><div class="empty-state">No clients yet</div></div></div>
     <div class="panel"><div id="client-detail"><div class="empty-state" style="padding:48px">Select a client to view their profile</div></div></div>
   </div>
 </div>
@@ -2284,7 +2284,7 @@ async function renderClientList(){
     </div>
   `).join('');
 }
-function selectClientByEmail(email){ alert('clicked: '+email); activeClientId=email; renderClientList(); renderClientDetail(); }
+function selectClientByEmail(email){ activeClientId=email; renderClientList(); renderClientDetail(); }
 function selectClient(id){activeClientId=id;renderClientList();renderClientDetail();}
 async function renderClientDetail(){
   console.log('renderClientDetail called, activeClientId:', activeClientId);
@@ -2311,6 +2311,27 @@ async function renderClientDetail(){
     sbGet(`client_metrics?user_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=5`)
   ]);
 
+  // Group workout logs by date and dedupe exercises within each day
+  const workoutByDate = {};
+  workoutLogs.forEach(l => {
+    if (!workoutByDate[l.log_date]) workoutByDate[l.log_date] = new Map();
+    (l.exercises||[]).forEach(ex => {
+      if (!workoutByDate[l.log_date].has(ex.name)) workoutByDate[l.log_date].set(ex.name, ex);
+    });
+  });
+  const workoutDates = Object.keys(workoutByDate).sort((a,b)=>b.localeCompare(a)).slice(0,5);
+
+  // Group nutrition logs by date and sum unique items
+  const nutritionByDate = {};
+  nutritionLogs.forEach(l => {
+    if (!nutritionByDate[l.log_date]) nutritionByDate[l.log_date] = new Map();
+    (l.food_items||[]).forEach(f => {
+      const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
+      if (!nutritionByDate[l.log_date].has(key)) nutritionByDate[l.log_date].set(key, f);
+    });
+  });
+  const nutritionDates = Object.keys(nutritionByDate).sort((a,b)=>b.localeCompare(a)).slice(0,5);
+
   panel.innerHTML = `
     <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
       <div>
@@ -2332,29 +2353,33 @@ async function renderClientDetail(){
     ${intake.avoid ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;"><strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
 
     <div style="margin-bottom:20px;">
-      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}</div>
-      ${planDays.length ? planDays.map(day => `
+      <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">
+        Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}
+      </div>
+      ${planDays.length ? planDays.map((day, di) => `
         <div style="margin-bottom:10px;">
           <div style="font-size:0.72rem;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">${day.name}</div>
-          ${(day.exercises||[]).map(e=>`<div style="display:flex;gap:16px;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span></div>`).join('')}
+          ${(day.exercises||[]).map((e,ei)=>`<div style="display:flex;gap:12px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><button class="btn" style="font-size:0.65rem;padding:3px 8px;" onclick="editPlanExercise('${approvedPlan.id}', ${di}, ${ei})">✏️</button></div>`).join('')}
         </div>
       `).join('') : '<div class="empty-state">No approved plan yet</div>'}
     </div>
 
     <div style="margin-bottom:20px;">
       <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Recent Workout Logs</div>
-      ${workoutLogs.length ? workoutLogs.map(l => `
-        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;">
-          <strong style="color:var(--text);">${l.log_date}</strong> — ${(l.exercises||[]).map(e=>e.name).join(', ')}
-        </div>
-      `).join('') : '<div class="empty-state">No workout logs yet</div>'}
+      ${workoutDates.length ? workoutDates.map(date => {
+        const exercises = [...workoutByDate[date].values()];
+        return `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;">
+          <strong style="color:var(--text);">${date}</strong> — ${exercises.map(e=>e.name).join(', ')}
+        </div>`;
+      }).join('') : '<div class="empty-state">No workout logs yet</div>'}
     </div>
 
     <div style="margin-bottom:20px;">
       <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;">Recent Nutrition</div>
-      ${nutritionLogs.length ? nutritionLogs.map(l => {
-        const totalCal = (l.food_items||[]).reduce((s,f)=>s+(f.cal||0),0);
-        return `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;"><strong style="color:var(--text);">${l.log_date}</strong> — ${totalCal} kcal logged</div>`;
+      ${nutritionDates.length ? nutritionDates.map(date => {
+        const items = [...nutritionByDate[date].values()];
+        const totalCal = items.reduce((s,f)=>s+(f.cal||0),0);
+        return `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;padding:8px 12px;background:var(--surface2);border-radius:4px;"><strong style="color:var(--text);">${date}</strong> — ${totalCal} kcal logged</div>`;
       }).join('') : '<div class="empty-state">No nutrition logs yet</div>'}
     </div>
 
@@ -3944,7 +3969,8 @@ async function saveExerciseEdit() {
   
   await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
   closeModal('exerciseEditModal');
-  renderPendingPlans();
+  if (document.getElementById('pending-review-plans')) renderPendingPlans();
+  if (activeClientId) renderClientDetail();
   toast('Exercise updated ✓');
 }
 
@@ -3959,7 +3985,8 @@ async function deleteExerciseFromPlan() {
   
   await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
   closeModal('exerciseEditModal');
-  renderPendingPlans();
+  if (document.getElementById('pending-review-plans')) renderPendingPlans();
+  if (activeClientId) renderClientDetail();
   toast('Exercise removed');
 }
 
