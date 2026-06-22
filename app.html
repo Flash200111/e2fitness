@@ -2144,7 +2144,7 @@ async function analyzeFood(){
   if(!checkAiLimit()) return;
   showAiLoading(true);
   try {
-    const basePrompt = 'You are a precise nutrition analyst using standard USDA nutrition data. Identify each food item and estimate its portion size accurately. Do NOT use generic round numbers — base estimates on actual visible/described portions (e.g. a 4oz chicken breast ~185 kcal/35g protein; a cup of white rice ~205 kcal/45g carbs). Sum all items into one combined total. Reply ONLY with this JSON, no other text: {"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number}';
+    const basePrompt = 'You are a precise nutrition analyst using standard USDA nutrition data. If the food description mentions a specific brand name (e.g. "Whole Foods 365", "Trader Joe\'s", "Kirkland", or any named product), use the web_search tool to look up that exact product\'s real nutrition facts before answering — search for "[brand] [product name] nutrition facts" and use the verified numbers from the search results. For generic/unbranded foods, do not search — use the standard reference portions below. For consistency on ambiguous generic portions, ALWAYS use these standard reference values: "a serving/order of fries" = 4oz (365 kcal); "half order fries" = 2oz (183 kcal); "a sandwich/sub roll or hero roll" = 6-inch roll (~220 kcal); "a cheesesteak/sub filling" (meat+cheese+veg, no bread) for a 6-inch sub = approximately 6oz meat (350 kcal/35g protein), 1.5oz cheese (150 kcal), vegetables (negligible); "half a [sandwich/cheesesteak]" = exactly half the full-portion numbers. When the user says "half" of something, always compute it as precisely half of your full-portion estimate for that exact item. Identify each distinct food item, assign it a standard portion using the reference rules above (or verified brand data from search, or closest USDA equivalent), and calculate nutrition from those values. Sum all items into one combined total. After any searching is complete, reply ONLY with this JSON as your final message, no other text: {"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number}';
     let messages;
     if (hasPhoto && hasDesc) {
       messages = [{role:"user", content:[
@@ -2159,12 +2159,21 @@ async function analyzeFood(){
     } else {
       messages = [{role:"user", content: basePrompt + "\n\nFood description: \"" + desc + "\". Pay close attention to stated quantities — \"6oz chicken\" vs \"3oz chicken\" should produce meaningfully different numbers."}];
     }
-    const response=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1024,messages})});
+    const response=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      model:"claude-haiku-4-5-20251001",
+      max_tokens:1536,
+      temperature:0,
+      tools:[{type:"web_search_20250305", name:"web_search", max_uses:2}],
+      messages
+    })});
     if(!response.ok){toast("API Error: "+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data||!data.content||!Array.isArray(data.content)){toast("API Error: "+(data.error?data.error.message:JSON.stringify(data)),true);showAiLoading(false);return;}
-    const text=data.content.map(c=>c.text||"").join("");
-    const parsed=JSON.parse(text.replace(/```json|```/g,"").trim());
+    const text=data.content.map(c=>c.text||"").join("\n");
+    // Extract the JSON object specifically (handles extra text/reasoning around it from web search)
+    const jsonMatch = text.match(/\{[^{}]*"name"[\s\S]*?\}/);
+    if (!jsonMatch) { toast("Could not parse AI response", true); showAiLoading(false); return; }
+    const parsed=JSON.parse(jsonMatch[0].replace(/```json|```/g,"").trim());
     incrementAiUsage();fillAiResult(parsed);
   } catch(e){toast("Analysis failed: "+e.message,true);}
   showAiLoading(false);
