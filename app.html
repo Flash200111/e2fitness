@@ -1050,10 +1050,15 @@ async function addFoodEntry(){
   const meal=document.getElementById('food-meal').value;
   if(!name||!cal)return toast('Enter food name and calories');
   const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
-  
-  // Save to Supabase
+
+  // Check for duplicate before saving
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
+  const existingLogs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  const alreadyExists=existingLogs.some(log=>(log.food_items||[]).some(f=>f.name===name&&f.cal===cal&&f.meal===meal));
+  if(alreadyExists){return toast('This entry appears already logged today');}
+
+  // Save to Supabase
   await sbInsertAuth('client_nutrition_logs',{
     user_email:session.email,
     log_date:today,
@@ -2192,9 +2197,14 @@ async function logAiFood(){
   if(!name||!cal){if(btn)btn.disabled=false;return toast('Need at least a name and calories');}
   const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
 
-  // Save to Supabase
+  // Check for duplicate before saving
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
+  const existingLogs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  const alreadyExists=existingLogs.some(log=>(log.food_items||[]).some(f=>f.name===name&&f.cal===cal&&f.meal===meal));
+  if(alreadyExists){toast('This meal appears already logged today — check your food log',true);if(btn)btn.disabled=false;return;}
+
+  // Save to Supabase
   await sbInsertAuth('client_nutrition_logs',{
     user_email:session.email,
     log_date:today,
@@ -2458,6 +2468,28 @@ function getSession(){
   try{const s=localStorage.getItem('e2_session');return s?JSON.parse(s):null;}catch(e){return null;}
 }
 
+async function refreshSession(){
+  try {
+    const session = getSession();
+    if (!session?.refresh_token) return false;
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY},
+      body: JSON.stringify({refresh_token: session.refresh_token})
+    });
+    const d = await r.json();
+    if (r.ok && d.access_token) {
+      localStorage.setItem('e2_session', JSON.stringify({
+        ...session,
+        access_token: d.access_token,
+        refresh_token: d.refresh_token || session.refresh_token
+      }));
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 function checkAuth(){
   const session=getSession();
   if(!session||!session.access_token){window.location.href='login.html';return false;}
@@ -2497,6 +2529,16 @@ async function sbGetAuth(table, filter) {
       url = `${SUPABASE_URL}/rest/v1/${baseTable}?order=created_at.desc`;
     }
     let r = await fetch(url, {headers: getAuthHeaders()});
+    // Auto-refresh token on 401 and retry once
+    if (r.status === 401) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        r = await fetch(url, {headers: getAuthHeaders()});
+      } else {
+        window.location.href = 'login.html';
+        return [];
+      }
+    }
     let d = await r.json();
     // If order by created_at failed (table might not have that column), retry without order
     if (!r.ok && d && (d.message||'').includes('created_at')) {
