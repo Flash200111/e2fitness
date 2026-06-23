@@ -995,6 +995,7 @@ let state = {
   goals:[],metrics:[],videos:[],resources:[],clients:[],transformations:[]
 };
 let clientProfileCache = null;
+let lastComputedExpenditure = null; // updated by updateExpenditureBreakdown(), used by refreshDashboard()
 function loadState() {
   try { const s=localStorage.getItem('e2fitness_state'); if(s) state={...state,...JSON.parse(s)}; } catch(e){}
   const today=new Date().toDateString(), saved=localStorage.getItem('e2fitness_date');
@@ -1022,11 +1023,11 @@ function openSection(id) {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
-function showPage(id) {
+async function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); updateExpenditureBreakdown(); renderWeeklyOverview(); }
+  if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); renderWeeklyOverview(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1479,6 +1480,7 @@ async function updateExpenditureBreakdown() {
   }
 
   const totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+  lastComputedExpenditure = totalExpenditure; // expose to refreshDashboard()
   const balance = totalCal - totalExpenditure;
 
   el.innerHTML = `
@@ -1681,9 +1683,13 @@ function refreshDashboard(){
   document.getElementById('dash-protein-target').textContent=protTarget;
   document.getElementById('dash-cal-bar').style.width=Math.min(100,(totalCal/calTarget)*100)+'%';
   document.getElementById('dash-protein-bar').style.width=Math.min(100,(totalProtein/protTarget)*100)+'%';
-  const balance=(totalCal-totalCardio)-tdee;
+  // If BMR/TEF/EPOC breakdown has been computed, use it (already includes cardio).
+  // Otherwise fall back to flat TDEE minus logged cardio (old behavior).
+  const expenditure = lastComputedExpenditure !== null ? lastComputedExpenditure : (tdee||2450) - totalCardio;
+  const balance = totalCal - expenditure;
   const balEl=document.getElementById('dash-balance'), balSub=document.getElementById('dash-balance-sub');
   if(totalCal>0){balEl.textContent=(balance>=0?'+':'')+balance;balEl.className='stat-value '+(balance>=0?'balance-positive':'balance-negative');balSub.textContent=balance>=0?'caloric surplus':'caloric deficit';}
+  else if(lastComputedExpenditure !== null){ balEl.textContent='—'; balSub.textContent='Log food to see balance'; }
   const fList=document.getElementById('dash-food-list');
   fList.innerHTML=state.today.food.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Nutrition</div>`+state.today.food.slice(0,4).map(f=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${f.name}</span><span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:0.75rem">${f.cal} kcal</span></div>`).join('')+(state.today.food.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.food.length-4} more</div>`:''): '<div class="empty-state">No food logged today</div>';
   const wList=document.getElementById('dash-workout-list');
