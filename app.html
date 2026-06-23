@@ -1042,6 +1042,25 @@ async function showPage(id) {
 }
 
 // ── FOOD LOG ──────────────────────────────────────────────────────────────────
+// One row per user per day in client_nutrition_logs.
+// All food items live in that single row's food_items array.
+// This eliminates duplicate rows entirely — no race conditions possible.
+
+async function getTodayFoodRow(session, today) {
+  // Returns the single daily row (or null if none exists yet)
+  const rows = await sbGetAuth('client_nutrition_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+  return (rows && rows.length) ? rows[0] : null;
+}
+
+function calcFoodTotals(items) {
+  return items.reduce((acc,f)=>{
+    acc.cal+=f.cal||0; acc.protein+=f.protein||0;
+    acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+    return acc;
+  },{cal:0,protein:0,carbs:0,fat:0});
+}
+
 async function addFoodEntry(){
   const name=document.getElementById('food-name').value.trim();
   const cal=parseInt(document.getElementById('food-cal').value)||0;
@@ -1050,139 +1069,133 @@ async function addFoodEntry(){
   const fat=parseInt(document.getElementById('food-fat').value)||0;
   const meal=document.getElementById('food-meal').value;
   if(!name||!cal)return toast('Enter food name and calories');
-  const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
 
-  // Check for duplicate before saving
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
-  const existingLogs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
-  const alreadyExists=existingLogs.some(log=>(log.food_items||[]).some(f=>f.name===name&&f.cal===cal&&f.meal===meal));
-  if(alreadyExists){return toast('This entry appears already logged today');}
 
-  // Save to Supabase
-  await sbInsertAuth('client_nutrition_logs',{
-    user_email:session.email,
-    log_date:today,
-    food_items:[entry],
-    total_calories:cal,
-    total_protein:protein,
-    total_carbs:carbs,
-    total_fat:fat
-  });
-  
-  // Supabase is source of truth — renderFoodLog will sync state
-  await renderFoodLog();refreshDashboard();
-  ['food-name','food-cal','food-protein','food-carbs','food-fat'].forEach(id=>document.getElementById(id).value='');
+  // Get or create the single daily row
+  const existingRow = await getTodayFoodRow(session, today);
+  const currentItems = existingRow ? (existingRow.food_items || []) : [];
+
+  // Prevent duplicate: same name + cal + meal already in today's list
+  const alreadyExists = currentItems.some(f =>
+    f.name.toLowerCase()===name.toLowerCase() && f.cal===cal && f.meal===meal);
+  if(alreadyExists) return toast('Already logged today — use ✕ to remove if it was a mistake');
+
+  const newEntry = {
+    id: Date.now() + Math.floor(Math.random()*1000),
+    name, cal, protein, carbs, fat, meal
+  };
+  const updatedItems = [...currentItems, newEntry];
+  const totals = calcFoodTotals(updatedItems);
+
+  if(existingRow) {
+    // Update the single row — append to food_items array
+    await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
+      food_items: updatedItems,
+      total_calories: totals.cal,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fat: totals.fat
+    });
+  } else {
+    // First entry of the day — create the row
+    await sbInsertAuth('client_nutrition_logs', {
+      user_email: session.email,
+      log_date: today,
+      food_items: updatedItems,
+      total_calories: totals.cal,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fat: totals.fat
+    });
+  }
+
+  ['food-name','food-cal','food-protein','food-carbs','food-fat']
+    .forEach(id=>document.getElementById(id).value='');
+  await renderFoodLog();
   toast('Food logged ✓');
 }
+
 async function renderFoodLog(){
   const list=document.getElementById('food-log-list');
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
-  
-  // Load from Supabase
-  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
-  
-  // Merge all food items from Supabase logs
-  const allFood=[];
-  for(const log of logs){
-    if(log.food_items && Array.isArray(log.food_items)){
-      allFood.push(...log.food_items.map(f=>({...f,_log_id:log.id})));
-    }
-  }
 
-  // Use Supabase as single source of truth — no local merge
-  const combined=[...allFood];
+  const row = await getTodayFoodRow(session, today);
+  const combined = row ? (row.food_items || []) : [];
 
   // Sync state for expenditure calculations
-  state.today.food=combined;
+  state.today.food = combined;
   saveState();
-  
-  if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';return;}
-  // Detect exact duplicates (same name, cal, protein, carbs, fat, meal) for cleanup
-  const dupeIds = new Set();
-  const seen = new Map();
-  combined.forEach(f=>{
-    const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
-    if (seen.has(key)) dupeIds.add(f.id);
-    else seen.set(key, f.id);
-  });
-  const dupeBanner = dupeIds.size ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><span>⚠️ ${dupeIds.size} duplicate entr${dupeIds.size===1?'y':'ies'} detected</span><button class="btn btn-danger" style="font-size:0.7rem;padding:5px 12px;" onclick="removeDuplicateFood()">Remove Duplicates</button></div>` : '';
-  list.innerHTML=dupeBanner+combined.map(f=>`<div class="log-item" style="${dupeIds.has(f.id)?'opacity:0.5;':''}"><div><div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span>${dupeIds.has(f.id)?' <span style="font-size:0.65rem;color:var(--danger);">DUPLICATE</span>':''}</div><div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div></div><button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button></div>`).join('');
+
+  if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';renderNutritionTotals([]);refreshDashboard();return;}
+
+  list.innerHTML = combined.map(f=>`
+    <div class="log-item">
+      <div>
+        <div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div>
+        <div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div>
+      </div>
+      <button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button>
+    </div>`).join('');
+
   renderNutritionTotals(combined);
   refreshDashboard();
   updateExpenditureBreakdown();
 }
-async function removeDuplicateFood(){
+async function removeFoodEntry(id){
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
-  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+  const row = await getTodayFoodRow(session, today);
+  if(!row) return;
+  const remaining = (row.food_items||[]).filter(f=>f.id!==id);
+  if(remaining.length===0){
+    await sbDeleteAuth('client_nutrition_logs', row.id);
+  } else {
+    const totals = calcFoodTotals(remaining);
+    await sbUpdateAuth('client_nutrition_logs', row.id, {
+      food_items: remaining,
+      total_calories: totals.cal,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fat: totals.fat
+    });
+  }
+  await renderFoodLog();
+}
 
-  const seen = new Set();
-  let removedCount = 0;
+// One-time cleanup: collapses any legacy multi-row days into a single row.
+// Run this once from the browser console: consolidateLegacyFoodRows()
+async function consolidateLegacyFoodRows(){
+  const session=getSession();
+  const today=new Date().toISOString().split('T')[0];
+  const logs=await sbGetAuth('client_nutrition_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+  if(logs.length<=1){toast('No cleanup needed ✓');return;}
 
-  for (const log of logs) {
-    const items = log.food_items || [];
-    const keep = [];
-    for (const f of items) {
-      const key = `${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
-      if (seen.has(key)) {
-        removedCount++; // drop this duplicate item
-      } else {
-        seen.add(key);
-        keep.push(f);
-      }
-    }
-    if (keep.length !== items.length) {
-      if (keep.length === 0) {
-        await sbDeleteAuth('client_nutrition_logs', log.id);
-      } else {
-        const totals = keep.reduce((acc,f)=>{
-          acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
-          return acc;
-        },{cal:0,protein:0,carbs:0,fat:0});
-        await sbUpdateAuth('client_nutrition_logs', log.id, {
-          food_items: keep,
-          total_calories: totals.cal,
-          total_protein: totals.protein,
-          total_carbs: totals.carbs,
-          total_fat: totals.fat
-        });
-      }
+  // Merge all items, deduplicate by key
+  const seen=new Set(); const merged=[];
+  for(const log of logs){
+    for(const f of (log.food_items||[])){
+      const key=`${f.name}|${f.cal}|${f.protein}|${f.carbs}|${f.fat}|${f.meal}`;
+      if(!seen.has(key)){seen.add(key);merged.push(f);}
     }
   }
+  const totals=calcFoodTotals(merged);
+
+  // Update the first row with all merged items, delete the rest
+  await sbUpdateAuth('client_nutrition_logs', logs[0].id, {
+    food_items: merged,
+    total_calories: totals.cal,
+    total_protein: totals.protein,
+    total_carbs: totals.carbs,
+    total_fat: totals.fat
+  });
+  for(let i=1;i<logs.length;i++) await sbDeleteAuth('client_nutrition_logs', logs[i].id);
 
   await renderFoodLog();
-  toast(`Removed ${removedCount} duplicate${removedCount===1?'':'s'} ✓`);
-}
-async function removeFoodEntry(id){
-  // Update Supabase: remove just this item from whichever row contains it
-  const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
-  const logs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
-  for(const log of logs){
-    const items=log.food_items||[];
-    if(items.find(f=>f.id===id)){
-      const remaining = items.filter(f=>f.id!==id);
-      if (remaining.length === 0) {
-        await sbDeleteAuth('client_nutrition_logs',log.id);
-      } else {
-        const totals = remaining.reduce((acc,f)=>{
-          acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
-          return acc;
-        },{cal:0,protein:0,carbs:0,fat:0});
-        await sbUpdateAuth('client_nutrition_logs', log.id, {
-          food_items: remaining,
-          total_calories: totals.cal,
-          total_protein: totals.protein,
-          total_carbs: totals.carbs,
-          total_fat: totals.fat
-        });
-      }
-    }
-  }
-  state.today.food=state.today.food.filter(f=>f.id!==id);
-  saveState();renderFoodLog();refreshDashboard();
+  toast(`Consolidated ${logs.length} rows → 1 ✓`);
 }
 
 // ── WORKOUT LOG ───────────────────────────────────────────────────────────────
@@ -2203,23 +2216,40 @@ async function logAiFood(){
   if(!name||!cal){if(btn)btn.disabled=false;return toast('Need at least a name and calories');}
   const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
 
-  // Check for duplicate before saving
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
-  const existingLogs=await sbGetAuth('client_nutrition_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
-  const alreadyExists=existingLogs.some(log=>(log.food_items||[]).some(f=>f.name===name&&f.cal===cal&&f.meal===meal));
-  if(alreadyExists){toast('This meal appears already logged today — check your food log',true);if(btn)btn.disabled=false;return;}
 
-  // Save to Supabase
-  await sbInsertAuth('client_nutrition_logs',{
-    user_email:session.email,
-    log_date:today,
-    food_items:[entry],
-    total_calories:cal,
-    total_protein:protein,
-    total_carbs:carbs,
-    total_fat:fat
-  });
+  // Get or create the single daily row
+  const existingRow = await getTodayFoodRow(session, today);
+  const currentItems = existingRow ? (existingRow.food_items || []) : [];
+
+  // Prevent duplicate
+  const alreadyExists = currentItems.some(f =>
+    f.name.toLowerCase()===name.toLowerCase() && f.cal===cal && f.meal===meal);
+  if(alreadyExists){toast('Already logged today — check your food log',true);if(btn)btn.disabled=false;return;}
+
+  const updatedItems = [...currentItems, entry];
+  const totals = calcFoodTotals(updatedItems);
+
+  if(existingRow){
+    await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
+      food_items: updatedItems,
+      total_calories: totals.cal,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fat: totals.fat
+    });
+  } else {
+    await sbInsertAuth('client_nutrition_logs',{
+      user_email: session.email,
+      log_date: today,
+      food_items: updatedItems,
+      total_calories: totals.cal,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fat: totals.fat
+    });
+  }
 
   // Supabase is source of truth — renderFoodLog will sync state
   await renderFoodLog();refreshDashboard();
