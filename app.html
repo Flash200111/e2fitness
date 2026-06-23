@@ -2199,12 +2199,42 @@ async function analyzeFood(){
     if(!response.ok){toast("API Error: "+response.status,true);showAiLoading(false);return;}
     const data=await response.json();
     if(!data||!data.content||!Array.isArray(data.content)){toast("API Error: "+(data.error?data.error.message:JSON.stringify(data)),true);showAiLoading(false);return;}
-    const text=data.content.map(c=>c.text||"").join("\n");
-    // Extract the JSON object specifically (handles extra text/reasoning around it from web search)
-    const jsonMatch = text.match(/\{[^{}]*"name"[\s\S]*?\}/);
-    if (!jsonMatch) { toast("Could not parse AI response", true); showAiLoading(false); return; }
-    const parsed=JSON.parse(jsonMatch[0].replace(/```json|```/g,"").trim());
-    incrementAiUsage();fillAiResult(parsed);
+    const text=data.content.map(c=>c.text||'').join('\n');
+
+    // Robust JSON extraction — tries multiple strategies in order
+    let parsed = null;
+
+    // Strategy 1: find a ```json ... ``` block
+    const fenceMatch = text.match(/```json\s*([\s\S]*?)```/);
+    if(fenceMatch){ try{ parsed=JSON.parse(fenceMatch[1].trim()); }catch(e){} }
+
+    // Strategy 2: find last { ... } block containing "name" and "calories"
+    if(!parsed){
+      const allBraces = [...text.matchAll(/\{[\s\S]*?\}/g)].map(m=>m[0]);
+      for(let i=allBraces.length-1;i>=0;i--){
+        try{
+          const candidate=JSON.parse(allBraces[i]);
+          if((candidate.calories||candidate.cal) && candidate.name){ parsed=candidate; break; }
+        }catch(e){}
+      }
+    }
+
+    // Strategy 3: greedily grab from first { to last }
+    if(!parsed){
+      const first=text.indexOf('{'), last=text.lastIndexOf('}');
+      if(first!==-1&&last>first){
+        try{ parsed=JSON.parse(text.slice(first,last+1)); }catch(e){}
+      }
+    }
+
+    if(!parsed){
+      console.warn('AI food analyzer — raw response:', text);
+      toast('Could not read AI response — try rephrasing your description', true);
+      showAiLoading(false); return;
+    }
+
+    if(!parsed.calories && parsed.cal) parsed.calories = parsed.cal;
+    incrementAiUsage(); fillAiResult(parsed);
   } catch(e){toast("Analysis failed: "+e.message,true);}
   showAiLoading(false);
 }
