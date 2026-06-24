@@ -2707,6 +2707,11 @@ async function renderMyPlan() {
           const safeSummary = (summary.length > 600) ? '' : summary;
           return safeSummary ? `<div style="background:rgba(232,255,71,0.06);border-left:3px solid var(--accent);border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:0.85rem;line-height:1.6;">${safeSummary}</div>` : '';
         })()}
+        <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:11px 14px;margin-bottom:20px;font-size:0.76rem;line-height:1.65;color:var(--muted);">
+          <div style="color:var(--accent);font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">How to Log Your Workout</div>
+          <div style="margin-bottom:3px;"><span style="color:var(--text);">Weight (WT)</span> — Use a weight where the last 2–3 reps of each set are very challenging but your form stays solid. Enter the number in lbs, or tap <span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:0.72rem;">BW</span> for bodyweight exercises.</div>
+          <div><span style="color:var(--text);">Reps</span> — Enter how many reps you actually completed. Your target is shown as a guide.</div>
+        </div>
         ${days.map((day, di) => {
           const maxSets = Math.max(1, ...((day.exercises||[]).map(ex => parseInt(ex.sets) || 1)));
           const isDone = loggedThisWeek.has(`${plan.id}-${di}`);
@@ -2722,11 +2727,6 @@ async function renderMyPlan() {
               <span style="font-size:0.72rem;color:var(--muted);">Resets Sunday. Check Workout History for your sets.</span>
             </div>
             ` : `
-            <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:11px 14px;margin-bottom:12px;font-size:0.76rem;line-height:1.65;color:var(--muted);">
-              <div style="color:var(--accent);font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">How to Fill In Your Workout</div>
-              <div style="margin-bottom:3px;"><span style="color:var(--text);">Weight (WT)</span> — Choose a weight where the last 2–3 reps of each set are very challenging but your form stays solid. Type the number in lbs, or tap <span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:0.72rem;">BW</span> for bodyweight exercises.</div>
-              <div><span style="color:var(--text);">Reps</span> — Enter how many reps you completed. Your target is shown as a guide — hit it, or log what you actually did.</div>
-            </div>
             <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
                 <thead>
