@@ -1079,13 +1079,17 @@ function calcFoodTotals(items) {
 }
 
 async function addFoodEntry(){
+  const btn=document.querySelector('button[onclick="addFoodEntry()"]');
+  if(btn && btn.disabled) return;
+  if(btn) btn.disabled=true;
+  try{
   const name=document.getElementById('food-name').value.trim();
   const cal=parseInt(document.getElementById('food-cal').value)||0;
   const protein=parseInt(document.getElementById('food-protein').value)||0;
   const carbs=parseInt(document.getElementById('food-carbs').value)||0;
   const fat=parseInt(document.getElementById('food-fat').value)||0;
   const meal=document.getElementById('food-meal').value;
-  if(!name||!cal)return toast('Enter food name and calories');
+  if(!name||!cal){if(btn)btn.disabled=false;return toast('Enter food name and calories');}
 
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
@@ -1132,6 +1136,8 @@ async function addFoodEntry(){
     .forEach(id=>document.getElementById(id).value='');
   await renderFoodLog();
   toast('Food logged ✓');
+  }catch(e){toast('Error saving food — please try again',true);}
+  finally{const btn=document.querySelector('button[onclick="addFoodEntry()"]');if(btn)btn.disabled=false;}
 }
 
 async function renderFoodLog(){
@@ -1364,6 +1370,11 @@ function updateStepsPreview() {
 }
 
 async function addCardioEntry(mode) {
+  const btnId = mode==='steps' ? 'button[onclick="addCardioEntry(\'steps\')"  ]' : 'button[onclick="addCardioEntry(\'time\')"]';
+  const btn = document.querySelector(`button[onclick="addCardioEntry('${mode}')"]`);
+  if(btn && btn.disabled) return;
+  if(btn) btn.disabled=true;
+  try{
   const session = getSession();
   const today = new Date().toISOString().split('T')[0];
   let entry;
@@ -1397,9 +1408,15 @@ async function addCardioEntry(mode) {
     activities: [entry]
   });
   toast('Activity logged ✓');
+  }catch(e){toast('Error saving — please try again',true);}
+  finally{const btn=document.querySelector(`button[onclick="addCardioEntry('${mode}')"]`);if(btn)btn.disabled=false;}
 }
 
 async function addExtraExercise() {
+  const btn=document.querySelector('button[onclick="addExtraExercise()"]');
+  if(btn && btn.disabled) return;
+  if(btn) btn.disabled=true;
+  try{
   const name = document.getElementById('extra-ex-name').value.trim();
   const sets = document.getElementById('extra-ex-sets').value.trim();
   const reps = document.getElementById('extra-ex-reps').value.trim();
@@ -1422,6 +1439,8 @@ async function addExtraExercise() {
     .forEach(id => document.getElementById(id).value = '');
   await renderExtraExerciseLog();
   toast('Exercise logged ✓');
+  }catch(e){toast('Error saving — please try again',true);}
+  finally{const btn=document.querySelector('button[onclick="addExtraExercise()"]');if(btn)btn.disabled=false;}
 }
 
 async function renderExtraExerciseLog() {
