@@ -360,19 +360,55 @@
       <div class="section-sub">Today's Workout</div>
       <div class="log-list" id="workout-log-list"><div class="empty-state">No exercises logged</div></div>
       <hr class="divider">
-      <div class="subsection-banner" style="margin-top:0;">🏃 CARDIO / NEAT</div>
-      <div class="log-entry-form">
-        <div class="form-row">
-          <input id="cardio-type" type="text" placeholder="Activity (walking, cycling...)">
-          <input id="cardio-mins" type="number" placeholder="Minutes" min="1">
-        </div>
-        <div class="form-row">
-          <input id="cardio-cal" type="number" placeholder="Calories burned (estimate)" style="flex:1;">
-          <button class="btn" onclick="estimateCardioCalories()" style="flex:0 0 auto;font-size:0.75rem;">⚡ Estimate</button>
-        </div>
-        <button class="btn" onclick="addCardioEntry()">Add Activity</button>
+      <div class="subsection-banner" style="margin-top:0;">🏃 DAILY CARDIO &amp; EXTRA EXERCISES</div>
+
+      <!-- Cardio Mode Toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button id="cardio-tab-time" onclick="switchCardioTab('time')" style="flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;cursor:pointer;">⏱ By Time</button>
+        <button id="cardio-tab-steps" onclick="switchCardioTab('steps')" style="flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">👟 By Steps</button>
       </div>
-      <div class="log-list" id="cardio-log-list"><div class="empty-state">No cardio logged</div></div>
+
+      <!-- Time-based cardio -->
+      <div id="cardio-panel-time" class="log-entry-form">
+        <input id="cardio-type" type="text" placeholder="Activity (walking, running, cycling...)">
+        <div class="form-row">
+          <input id="cardio-mins" type="number" inputmode="numeric" placeholder="Minutes" min="1" style="flex:1;">
+          <div style="display:flex;gap:6px;flex:1;">
+            <input id="cardio-cal" type="number" inputmode="numeric" placeholder="Calories" style="flex:1;">
+            <button class="btn" onclick="estimateCardioCalories()" style="flex:0 0 auto;font-size:0.72rem;white-space:nowrap;">⚡ Estimate</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addCardioEntry('time')">Log Cardio</button>
+      </div>
+
+      <!-- Steps-based cardio -->
+      <div id="cardio-panel-steps" class="log-entry-form" style="display:none;">
+        <input id="cardio-steps-type" type="text" placeholder="Activity (walking, hiking...)" value="Walking">
+        <div class="form-row">
+          <input id="cardio-steps-count" type="number" inputmode="numeric" placeholder="Step count (e.g. 8000)" min="1" style="flex:1;" oninput="updateStepsPreview()">
+          <div id="cardio-steps-preview" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:0.78rem;color:var(--muted);background:var(--surface2);border-radius:4px;padding:8px;min-height:42px;">— kcal</div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:-4px;">📍 Calories calculated using your body weight for accuracy.</div>
+        <button class="btn btn-primary" onclick="addCardioEntry('steps')">Log Steps</button>
+      </div>
+
+      <div class="log-list" id="cardio-log-list"><div class="empty-state">No cardio logged today</div></div>
+
+      <hr class="divider" style="margin-top:16px;">
+
+      <!-- Extra Exercises -->
+      <div class="subsection-banner" style="margin-top:0;">💪 EXTRA EXERCISES</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Anything outside your plan — extra sets, a sport, gym work on a rest day.</div>
+      <div class="log-entry-form">
+        <input id="extra-ex-name" type="text" placeholder="Exercise name">
+        <div class="form-row">
+          <input id="extra-ex-sets" type="number" inputmode="numeric" placeholder="Sets" min="1" style="flex:1;">
+          <input id="extra-ex-reps" type="text" placeholder="Reps" style="flex:1;">
+          <input id="extra-ex-weight" type="text" placeholder="Weight / BW" style="flex:1;">
+        </div>
+        <button class="btn btn-primary" onclick="addExtraExercise()">Add Exercise</button>
+      </div>
+      <div class="log-list" id="extra-ex-log-list"><div class="empty-state">No extra exercises logged</div></div>
     </div>
   </div>
     </div>
@@ -1033,7 +1069,7 @@ async function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderGoals(); renderMetrics(); renderWeeklyOverview(); }
+  if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderExtraExerciseLog(); renderGoals(); renderMetrics(); renderWeeklyOverview(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1282,19 +1318,40 @@ async function removeWorkout(id){
   state.today.workout=state.today.workout.filter(e=>e.id!==id);
   saveState();renderWorkoutLog();refreshDashboard();updateExpenditureBreakdown();
 }
+function switchCardioTab(tab) {
+  const isTime = tab === 'time';
+  document.getElementById('cardio-panel-time').style.display = isTime ? '' : 'none';
+  document.getElementById('cardio-panel-steps').style.display = isTime ? 'none' : '';
+  document.getElementById('cardio-tab-time').style.cssText = isTime
+    ? 'flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;cursor:pointer;'
+    : 'flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;';
+  document.getElementById('cardio-tab-steps').style.cssText = isTime
+    ? 'flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;'
+    : 'flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;cursor:pointer;';
+}
+
+function getClientWeight() {
+  const profile = clientProfileCache || {};
+  return (state.metrics && state.metrics.length)
+    ? parseFloat(state.metrics[state.metrics.length - 1].weight) || parseFloat(profile.weight) || 154
+    : parseFloat(profile.weight) || 154;
+}
+
+function stepsToCalories(steps, weightLbs) {
+  // Formula: steps × 0.57 × (weight / 154 reference weight)
+  // Scales linearly with body weight for accuracy
+  return Math.round(steps * 0.57 * (weightLbs / 154));
+}
+
 function estimateCardioCalories(){
   const type=(document.getElementById('cardio-type').value||'').trim().toLowerCase();
   const mins=parseFloat(document.getElementById('cardio-mins').value);
   if(!type) return toast('Enter an activity name first');
   if(!mins) return toast('Enter minutes first');
 
-  const profile = clientProfileCache || {};
-  const latestWeight = (state.metrics && state.metrics.length)
-    ? state.metrics[state.metrics.length-1].weight
-    : parseFloat(profile.weight) || 170;
-  const weightKg = latestWeight * 0.453592;
+  const weightLbs = getClientWeight();
+  const weightKg = weightLbs * 0.453592;
 
-  // MET values for common activities (approximate, moderate intensity)
   const metTable = [
     {keys:['walk'], met:3.5},
     {keys:['hike','hiking'], met:6.0},
@@ -1306,42 +1363,108 @@ function estimateCardioCalories(){
     {keys:['elliptical'], met:5.0},
     {keys:['stairmaster','stair'], met:8.0},
     {keys:['hiit'], met:8.0},
-    {keys:['jump rope', 'jumping rope'], met:11.0},
+    {keys:['jump rope','jumping rope'], met:11.0},
     {keys:['yoga'], met:2.5},
     {keys:['dance','dancing','zumba'], met:5.5},
     {keys:['basketball'], met:6.5},
     {keys:['soccer','football'], met:7.0},
     {keys:['tennis'], met:7.3},
   ];
-  let met = 5.0; // default moderate activity
+  let met = 5.0;
   for (const entry of metTable) {
     if (entry.keys.some(k => type.includes(k))) { met = entry.met; break; }
   }
-
-  // Calories = MET × weight(kg) × duration(hours)
   const calories = Math.round(met * weightKg * (mins / 60));
   document.getElementById('cardio-cal').value = calories;
-  toast(`Estimated ${calories} kcal (based on ${met} MET activity)`);
+  toast(`Estimated ${calories} kcal (based on your weight & ${met} MET)`);
 }
 
-async function addCardioEntry(){
-  const type=document.getElementById('cardio-type').value.trim();
-  const mins=document.getElementById('cardio-mins').value;
-  const cal=parseInt(document.getElementById('cardio-cal').value)||0;
-  if(!type)return toast('Enter activity name');
-  const entry={type,mins,cal,id:Date.now()+Math.floor(Math.random()*1000)};
-  state.today.cardio.push(entry);
-  saveState();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();
-  ['cardio-type','cardio-mins','cardio-cal'].forEach(id=>document.getElementById(id).value='');
+function updateStepsPreview() {
+  const steps = parseInt(document.getElementById('cardio-steps-count').value) || 0;
+  const preview = document.getElementById('cardio-steps-preview');
+  if (!steps) { preview.textContent = '— kcal'; return; }
+  const cal = stepsToCalories(steps, getClientWeight());
+  const miles = (steps * 0.000473).toFixed(1);
+  preview.innerHTML = `<span style="color:var(--accent);font-family:'DM Mono',monospace;">${cal} kcal</span><span style="color:var(--muted);font-size:0.68rem;margin-left:4px;">~${miles} mi</span>`;
+}
 
-  const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
-  await sbInsertAuth('client_cardio_logs',{
-    user_email:session.email,
-    log_date:today,
-    activities:[entry]
+async function addCardioEntry(mode) {
+  const session = getSession();
+  const today = new Date().toISOString().split('T')[0];
+  let entry;
+
+  if (mode === 'steps') {
+    const type = (document.getElementById('cardio-steps-type').value || 'Walking').trim();
+    const steps = parseInt(document.getElementById('cardio-steps-count').value);
+    if (!steps || steps < 1) return toast('Enter your step count');
+    const weightLbs = getClientWeight();
+    const cal = stepsToCalories(steps, weightLbs);
+    const miles = parseFloat((steps * 0.000473).toFixed(1));
+    entry = { type, steps, miles, cal, mode: 'steps', id: Date.now() + Math.floor(Math.random() * 1000) };
+    document.getElementById('cardio-steps-count').value = '';
+    document.getElementById('cardio-steps-preview').textContent = '— kcal';
+  } else {
+    const type = document.getElementById('cardio-type').value.trim();
+    const mins = parseFloat(document.getElementById('cardio-mins').value);
+    const cal = parseInt(document.getElementById('cardio-cal').value) || 0;
+    if (!type) return toast('Enter activity name');
+    if (!mins) return toast('Enter duration in minutes');
+    entry = { type, mins, cal, mode: 'time', id: Date.now() + Math.floor(Math.random() * 1000) };
+    ['cardio-type', 'cardio-mins', 'cardio-cal'].forEach(id => document.getElementById(id).value = '');
+  }
+
+  state.today.cardio.push(entry);
+  saveState(); renderCardioLog(); refreshDashboard(); updateExpenditureBreakdown();
+
+  await sbInsertAuth('client_cardio_logs', {
+    user_email: session.email,
+    log_date: today,
+    activities: [entry]
   });
   toast('Activity logged ✓');
+}
+
+async function addExtraExercise() {
+  const name = document.getElementById('extra-ex-name').value.trim();
+  const sets = document.getElementById('extra-ex-sets').value.trim();
+  const reps = document.getElementById('extra-ex-reps').value.trim();
+  const weight = document.getElementById('extra-ex-weight').value.trim();
+  if (!name) return toast('Enter exercise name');
+
+  const session = getSession();
+  const today = new Date().toISOString().split('T')[0];
+  const entry = { name, sets, reps, weight, id: Date.now() + Math.floor(Math.random() * 1000), extra: true };
+
+  // Save as a workout log entry tagged as extra
+  await sbInsertAuth('client_workout_logs', {
+    user_email: session.email,
+    log_date: today,
+    exercises: [entry],
+    extra: true
+  });
+
+  ['extra-ex-name', 'extra-ex-sets', 'extra-ex-reps', 'extra-ex-weight']
+    .forEach(id => document.getElementById(id).value = '');
+  await renderExtraExerciseLog();
+  toast('Exercise logged ✓');
+}
+
+async function renderExtraExerciseLog() {
+  const list = document.getElementById('extra-ex-log-list');
+  if (!list) return;
+  const session = getSession();
+  const today = new Date().toISOString().split('T')[0];
+  const logs = await sbGetAuth('client_workout_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&extra=eq.true`);
+  const exercises = logs.flatMap(l => l.exercises || []);
+  if (!exercises.length) { list.innerHTML = '<div class="empty-state">No extra exercises logged</div>'; return; }
+  list.innerHTML = exercises.map(e => `
+    <div class="log-item">
+      <div>
+        <div class="log-item-name">${e.name}</div>
+        <div class="log-item-detail">${e.sets ? e.sets + ' sets' : ''}${e.reps ? ' · ' + e.reps + ' reps' : ''}${e.weight ? ' · ' + e.weight : ''}</div>
+      </div>
+    </div>`).join('');
 }
 function renderNutritionTotals(combined){
   const el=document.getElementById('nutrition-totals');
@@ -1380,7 +1503,12 @@ async function renderCardioLog(){
   state.today.cardio=combined;
   saveState();
   if(!combined.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
-  list.innerHTML=combined.map(c=>`<div class="log-item"><div><div class="log-item-name">${c.type}</div><div class="log-item-detail">${c.mins||'—'} min · ${c.cal||'—'} kcal burned</div></div><button class="log-item-del" onclick="removeCardio(${c.id})">✕</button></div>`).join('');
+  list.innerHTML=combined.map(c=>{
+    const detail = c.mode === 'steps'
+      ? `${c.steps?.toLocaleString()} steps · ~${c.miles} mi · ${c.cal||'—'} kcal burned`
+      : `${c.mins||'—'} min · ${c.cal||'—'} kcal burned`;
+    return `<div class="log-item"><div><div class="log-item-name">${c.type}</div><div class="log-item-detail">${detail}</div></div><button class="log-item-del" onclick="removeCardio(${c.id})">✕</button></div>`;
+  }).join('');
 }
 async function removeCardio(id){
   const session=getSession();
