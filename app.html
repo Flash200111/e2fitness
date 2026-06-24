@@ -332,35 +332,7 @@
       <div class="log-list" id="food-log-list"><div class="empty-state">No entries yet</div></div>
     </div>
     <div class="panel">
-      <div class="subsection-banner">🏋️ WORKOUT LOG</div>
-      <div class="section-sub">Add Exercise</div>
-      <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:12px 14px;margin-bottom:12px;font-size:0.78rem;line-height:1.6;color:var(--muted);">
-        <div style="color:var(--accent);font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">How to Log Your Workout</div>
-        <div style="margin-bottom:4px;"><span style="color:var(--text);">Weight</span> — Use a weight where the last 2–3 reps of your set feel very challenging but your form stays solid. If it's a bodyweight exercise, type <span style="color:var(--accent);font-family:'DM Mono',monospace;">BW</span>.</div>
-        <div style="margin-bottom:4px;"><span style="color:var(--text);">Reps</span> — How many times you lifted it per set. You can log each set separately or summarize (e.g. <span style="color:var(--accent);font-family:'DM Mono',monospace;">8,8,6</span> for three sets).</div>
-        <div><span style="color:var(--text);">RPE</span> — Rate of Perceived Exertion on a 1–10 scale. A hard working set is typically 7–9. Optional, but helpful for tracking progress over time.</div>
-      </div>
-      <div class="log-entry-form">
-        <input id="ex-name" type="text" placeholder="Exercise name">
-        <div class="form-row">
-          <input id="ex-sets" type="number" placeholder="Sets" min="1">
-          <input id="ex-reps" type="text" placeholder="Reps (e.g. 8,8,6)">
-        </div>
-        <div class="form-row">
-          <input id="ex-weight" type="text" placeholder="Weight (lbs or BW)">
-          <input id="ex-rpe" type="number" placeholder="RPE (1–10)" min="1" max="10">
-        </div>
-        <input id="ex-notes" type="text" placeholder="Notes (e.g. form felt off)">
-        <select id="ex-type">
-          <option>Push</option><option>Pull</option><option>Core</option>
-          <option>Legs</option><option>Cardio</option><option value="Corrective">Corrective / Rehab</option>
-        </select>
-        <button class="btn btn-primary" onclick="addWorkoutEntry()">Add Exercise</button>
-      </div>
-      <div class="section-sub">Today's Workout</div>
-      <div class="log-list" id="workout-log-list"><div class="empty-state">No exercises logged</div></div>
-      <hr class="divider">
-      <div class="subsection-banner" style="margin-top:0;">🏃 DAILY CARDIO &amp; EXTRA EXERCISES</div>
+      <div class="subsection-banner">🏃 DAILY CARDIO &amp; EXTRA EXERCISES</div>
 
       <!-- Cardio Mode Toggle -->
       <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -1038,12 +1010,15 @@ let state = {
 };
 let clientProfileCache = null;
 let lastComputedExpenditure = null; // updated by updateExpenditureBreakdown(), used by refreshDashboard()
-function loadState() {
-  try { const s=localStorage.getItem('e2fitness_state'); if(s) state={...state,...JSON.parse(s)}; } catch(e){}
-  const today=new Date().toDateString(), saved=localStorage.getItem('e2fitness_date');
-  if(saved!==today){state.today={food:[],workout:[],cardio:[],trainedToday:null};localStorage.setItem('e2fitness_date',today);}
+function getStateKey(){
+  try{ const s=localStorage.getItem('e2_session'); const sess=s?JSON.parse(s):null; return sess?.email ? 'e2fitness_state_'+sess.email : 'e2fitness_state'; }catch(e){ return 'e2fitness_state'; }
 }
-function saveState(){localStorage.setItem('e2fitness_state',JSON.stringify(state));}
+function loadState() {
+  try { const s=localStorage.getItem(getStateKey()); if(s) state={...state,...JSON.parse(s)}; } catch(e){}
+  const today=new Date().toDateString(), saved=localStorage.getItem('e2fitness_date_'+(getStateKey()));
+  if(saved!==today){state.today={food:[],workout:[],cardio:[],trainedToday:null};localStorage.setItem('e2fitness_date_'+getStateKey(),today);}
+}
+function saveState(){localStorage.setItem(getStateKey(),JSON.stringify(state));}
 
 function toggleSection(id) {
   const body = document.getElementById('section-'+id);
