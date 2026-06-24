@@ -1910,17 +1910,9 @@ async function addVideo(){
   const btn=document.getElementById('add-video-submit');
   btn.disabled=true; btn.textContent='Saving...';
 
-  let savedToDb=false;
   try {
-    const result=await sbInsert('videos',{url,title,cat,notes,vid_id:vid});
-    if(result)savedToDb=true;
-  } catch(e){}
-
-  if(!savedToDb){
-    if(!state.videos)state.videos=[];
-    state.videos.unshift({url,title,cat,notes,vid_id:vid,id:Date.now(),discussion:[]});
-    saveState();
-  }
+    await sbInsertAuth('videos',{url,title,cat,notes,vid_id:vid});
+  } catch(e){ toast('Error saving video — please try again',true); btn.disabled=false; btn.textContent='Add to Lab'; return; }
 
   closeModal('videoModal');
   ['v-url','v-title','v-notes'].forEach(id=>document.getElementById(id).value='');
@@ -1933,8 +1925,13 @@ async function renderVideos(){
   const grid=document.getElementById('video-grid');
   grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">Loading...</div>';
   const dbVideos=await sbGet('videos');
-  const localVideos=(state.videos||[]).filter(lv=>!dbVideos.find(sv=>sv.vid_id===(lv.vid_id||lv.vid)));
-  let allVideos=[...dbVideos,...localVideos];
+  // Load user-specific notes from Supabase
+  const session=getSession();
+  let userNotes=[];
+  if(session?.email){
+    userNotes=await sbGetAuth('video_notes',`user_email=eq.${encodeURIComponent(session.email)}`);
+  }
+  let allVideos=[...dbVideos];
 
   // Apply category filter
   if(currentLabFilter!=='all'){
@@ -1957,7 +1954,7 @@ async function renderVideos(){
       </div>
       <div class="video-discuss">
         <div class="discuss-thread">
-          ${(v.discussion||[]).length?(v.discussion||[]).map(d=>`<div class="discuss-entry"><div class="discuss-meta">${d.date}</div><div class="discuss-text">${d.text}</div></div>`).join(''):'<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">No notes yet</div>'}
+          ${(()=>{const notes=userNotes.filter(n=>String(n.vid_id)===String(v.id||v.vid_id));return notes.length?notes.map(d=>`<div class="discuss-entry"><div class="discuss-meta">${d.date||d.created_at?.split('T')[0]||''}</div><div class="discuss-text">${d.text}</div></div>`).join(''):'<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">No notes yet</div>';})()}
         </div>
         <div class="discuss-input-row">
           <input type="text" placeholder="Add note..." id="disc-input-${vId}" style="font-size:0.8rem">
@@ -1969,19 +1966,26 @@ async function renderVideos(){
   }).join('');
 }
 
-function addDiscussion(id){
+async function addDiscussion(id){
   const input=document.getElementById('disc-input-'+id);
   if(!input)return;
   const text=input.value.trim();
   if(!text)return;
-  if(!state.videos)state.videos=[];
-  const v=state.videos.find(v=>String(v.id)===String(id));
-  if(v){if(!v.discussion)v.discussion=[];v.discussion.push({text,date:new Date().toLocaleDateString()});saveState();renderVideos();toast('Note added ✓');}
+  const session=getSession();
+  if(!session?.email)return toast('Not logged in');
+  await sbInsertAuth('video_notes',{
+    user_email:session.email,
+    vid_id:id,
+    text,
+    date:new Date().toLocaleDateString()
+  });
+  input.value='';
+  await renderVideos();
+  toast('Note added ✓');
 }
 async function removeVideo(id){
-  await sbDelete('videos',id);
-  state.videos=(state.videos||[]).filter(v=>String(v.id)!==String(id));
-  saveState();renderVideos();
+  await sbDeleteAuth('videos',id);
+  renderVideos();
 }
 
 // ── EXERCISES ─────────────────────────────────────────────────────────────────
@@ -2427,18 +2431,15 @@ async function addResource(){
   const title=document.getElementById('r-title').value.trim(), url=document.getElementById('r-url').value.trim();
   const cat=document.getElementById('r-cat').value, notes=document.getElementById('r-notes').value.trim();
   if(!title||!url)return toast('Enter a title and URL');
-  const result=await sbInsert('resources',{title,url,category:cat,notes});
-  if(!result){if(!state.resources)state.resources=[];state.resources.unshift({title,url,cat,notes,id:Date.now()});saveState();}
+  await sbInsertAuth('resources',{title,url,category:cat,notes});
   renderResources();closeModal('resourceModal');toast('Link saved ✓');
   ['r-title','r-url','r-notes'].forEach(id=>document.getElementById(id).value='');
 }
 function filterResources(cat,btn){currentResFilter=cat;document.querySelectorAll('#res-filters .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderResources();}
 async function renderResources(){
-  if(!state.resources)state.resources=[];
   const grid=document.getElementById('resources-grid');
   grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">Loading...</div>';
-  let items=await sbGet('resources');
-  if(!items.length)items=state.resources||[];
+  let items=await sbGetAuth('resources','order=created_at.desc');
   if(currentResFilter!=='all')items=items.filter(r=>(r.cat||r.category)===currentResFilter);
   if(!items.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No links saved yet</div>';return;}
   grid.innerHTML=items.map(r=>{
@@ -2447,7 +2448,7 @@ async function renderResources(){
     return `<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:8px;padding:16px;"><div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:8px;"><div><span style="display:inline-block;font-size:0.62rem;letter-spacing:1.2px;text-transform:uppercase;background:${color}22;color:${color};padding:2px 8px;border-radius:2px;margin-bottom:6px;">${label}</span><div style="font-weight:600;font-size:0.9rem;line-height:1.3;">${r.title}</div><div style="font-size:0.72rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${domain}</div></div><button class="log-item-del" onclick="removeResource(${r.id})">✕</button></div>${r.notes?`<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;">${r.notes}</div>`:''}<a href="${r.url}" target="_blank" rel="noopener" class="btn" style="font-size:0.75rem;padding:6px 14px;text-decoration:none;display:inline-block;">Open Link ↗</a></div>`;
   }).join('');
 }
-async function removeResource(id){await sbDelete('resources',id);state.resources=(state.resources||[]).filter(r=>r.id!==id);saveState();renderResources();}
+async function removeResource(id){await sbDeleteAuth('resources',id);renderResources();}
 
 // ── COACHING ──────────────────────────────────────────────────────────────────
 let activeClientId=null, tempWorkoutExercises=[];
