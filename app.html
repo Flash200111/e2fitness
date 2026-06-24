@@ -1899,6 +1899,7 @@ function extractYouTubeId(url){
 }
 
 async function addVideo(){
+  if(!coachUnlocked)return toast('Coach access required');
   const url=document.getElementById('v-url').value.trim();
   const title=document.getElementById('v-title').value.trim();
   const cat=document.getElementById('v-cat').value;
@@ -1960,7 +1961,7 @@ async function renderVideos(){
           <input type="text" placeholder="Add note..." id="disc-input-${vId}" style="font-size:0.8rem">
           <button class="btn" onclick="addDiscussion('${vId}')">Post</button>
         </div>
-        <button class="btn btn-danger" style="margin-top:8px;font-size:0.72rem" onclick="removeVideo('${vId}')">Remove</button>
+        ${coachUnlocked ? `<button class="btn btn-danger" style="margin-top:8px;font-size:0.72rem" onclick="removeVideo('${vId}')">Remove</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1984,6 +1985,8 @@ async function addDiscussion(id){
   toast('Note added ✓');
 }
 async function removeVideo(id){
+  if(!coachUnlocked)return toast('Coach access required');
+  if(!confirm('Remove this video?'))return;
   await sbDeleteAuth('videos',id);
   renderVideos();
 }
@@ -2428,6 +2431,7 @@ function openResourceModal(){requireCoach(()=>document.getElementById('resourceM
 const resCatLabels={supplement:'Supplements & Products',article:'Article',research:'Research',video:'YouTube',tool:'Tool / App'};
 const resCatColors={supplement:'#e8ff47',article:'#47c8ff',research:'#47ff8a',video:'#ff4545',tool:'#ff6b35'};
 async function addResource(){
+  if(!coachUnlocked)return toast('Coach access required');
   const title=document.getElementById('r-title').value.trim(), url=document.getElementById('r-url').value.trim();
   const cat=document.getElementById('r-cat').value, notes=document.getElementById('r-notes').value.trim();
   if(!title||!url)return toast('Enter a title and URL');
@@ -2445,10 +2449,10 @@ async function renderResources(){
   grid.innerHTML=items.map(r=>{
     const cat=r.cat||r.category||'', color=resCatColors[cat]||'var(--accent)', label=resCatLabels[cat]||cat;
     let domain='';try{domain=new URL(r.url).hostname.replace('www.','');}catch(e){}
-    return `<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:8px;padding:16px;"><div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:8px;"><div><span style="display:inline-block;font-size:0.62rem;letter-spacing:1.2px;text-transform:uppercase;background:${color}22;color:${color};padding:2px 8px;border-radius:2px;margin-bottom:6px;">${label}</span><div style="font-weight:600;font-size:0.9rem;line-height:1.3;">${r.title}</div><div style="font-size:0.72rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${domain}</div></div><button class="log-item-del" onclick="removeResource(${r.id})">✕</button></div>${r.notes?`<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;">${r.notes}</div>`:''}<a href="${r.url}" target="_blank" rel="noopener" class="btn" style="font-size:0.75rem;padding:6px 14px;text-decoration:none;display:inline-block;">Open Link ↗</a></div>`;
+    return `<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:8px;padding:16px;"><div style="display:flex;justify-content:space-between;width:100%;align-items:flex-start;gap:8px;"><div><span style="display:inline-block;font-size:0.62rem;letter-spacing:1.2px;text-transform:uppercase;background:${color}22;color:${color};padding:2px 8px;border-radius:2px;margin-bottom:6px;">${label}</span><div style="font-weight:600;font-size:0.9rem;line-height:1.3;">${r.title}</div><div style="font-size:0.72rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">${domain}</div></div>${coachUnlocked ? `<button class="log-item-del" onclick="removeResource(${r.id})">✕</button>` : ''}</div>${r.notes?`<div style="font-size:0.78rem;color:var(--muted);line-height:1.5;">${r.notes}</div>`:''}<a href="${r.url}" target="_blank" rel="noopener" class="btn" style="font-size:0.75rem;padding:6px 14px;text-decoration:none;display:inline-block;">Open Link ↗</a></div>`;
   }).join('');
 }
-async function removeResource(id){await sbDeleteAuth('resources',id);renderResources();}
+async function removeResource(id){if(!coachUnlocked)return toast('Coach access required');if(!confirm('Remove this resource?'))return;await sbDeleteAuth('resources',id);renderResources();}
 
 // ── COACHING ──────────────────────────────────────────────────────────────────
 let activeClientId=null, tempWorkoutExercises=[];
