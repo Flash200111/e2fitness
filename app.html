@@ -1470,6 +1470,82 @@ async function renderExtraExerciseLog() {
       <button class="log-item-del" onclick="removeExtraExercise(${e.id})">✕</button>
     </div>`).join('');
 }
+function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase) {
+  const tips = [];
+  const hour = new Date().getHours();
+  const protLeft = Math.max(0, protTarget - totals.protein);
+  const calLeft = Math.max(0, calTarget - totals.cal);
+  const calOver = Math.max(0, totals.cal - calTarget);
+
+  // Age bracket label for tip context
+  const ageTip = age >= 60
+    ? 'At 60+ your muscles are less efficient at using protein, so hitting your target is especially important.'
+    : age >= 40
+    ? 'After 40 protein synthesis becomes less efficient — consistency with your protein target matters more.'
+    : 'Your body synthesizes protein efficiently at your age — hitting your daily target is the key factor.';
+
+  // ── PROTEIN TIP ──────────────────────────────────────────────────────────
+  if (totals.protein === 0) {
+    tips.push({ icon: '💪', label: 'Protein', text: `Your target is ${protTarget}g today. ${ageTip} Start adding protein-rich foods like chicken, eggs, fish, or Greek yogurt.` });
+  } else if (protLeft > 20) {
+    const foods = protLeft > 80
+      ? 'Consider spreading it across 2-3 more meals — chicken breast, eggs, cottage cheese, or a protein shake are great options.'
+      : protLeft > 40
+      ? 'A serving of chicken, fish, or Greek yogurt would make a big dent in the remainder.'
+      : 'A small protein snack like cottage cheese, eggs, or a shake will get you there.';
+    tips.push({ icon: '💪', label: 'Protein', text: `You've hit ${totals.protein}g of your ${protTarget}g target — ${protLeft}g to go. ${ageTip} ${foods}` });
+  } else {
+    tips.push({ icon: '✅', label: 'Protein', text: `Great work — you've hit ${totals.protein}g of your ${protTarget}g protein target. ${ageTip}` });
+  }
+
+  // ── CALORIE TIP ──────────────────────────────────────────────────────────
+  if (phase === 'cut' || phase === 'weight_loss') {
+    if (totals.cal === 0) {
+      tips.push({ icon: '🔥', label: 'Calories', text: `Your target is ${calTarget} calories today. Don't skip meals — eating too little slows your metabolism and causes muscle loss, making fat loss harder long term.` });
+    } else if (calLeft > 200) {
+      tips.push({ icon: '🔥', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target — ${calLeft} calories left. Stay close to your target; a large deficit slows your metabolism and accelerates muscle loss.` });
+    } else if (calOver > 150) {
+      tips.push({ icon: '⚠️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} target today. One over day won't derail progress — just aim to stay consistent the rest of the week.` });
+    } else {
+      tips.push({ icon: '✅', label: 'Calories', text: `You're right on target at ${totals.cal} of ${calTarget} calories. Consistent daily deficits are what drive fat loss — great job staying on track.` });
+    }
+    // TEF tip for weight loss
+    tips.push({ icon: '🔬', label: 'Fat Loss Tip', text: `Protein has a 20-30% thermic effect — your body burns more calories just digesting protein compared to carbs (5-10%) or fat (0-3%). Prioritizing protein gives you a metabolic edge on your weight loss goal.` });
+
+  } else if (phase === 'bulk' || phase === 'muscle_gain') {
+    if (totals.cal === 0) {
+      tips.push({ icon: '📈', label: 'Calories', text: `Your target is ${calTarget} calories today. To build muscle you need a consistent 200-300 calorie surplus — without it your body won't have the energy needed for muscle growth.` });
+    } else if (calLeft > 300) {
+      tips.push({ icon: '📈', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target — ${calLeft} calories to go. Building muscle requires a consistent surplus of 200-300 calories. Add a meal or snack to hit your target.` });
+    } else if (calOver > 400) {
+      tips.push({ icon: '⚠️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} target. A moderate surplus of 200-300 calories is ideal for muscle gain — a large surplus mostly adds fat rather than muscle.` });
+    } else {
+      tips.push({ icon: '✅', label: 'Calories', text: `You're in your target surplus range at ${totals.cal} of ${calTarget} calories. Consistent daily surpluses over weeks and months drive muscle growth — stay the course.` });
+    }
+
+  } else {
+    // Maintenance
+    if (calOver > 200) {
+      tips.push({ icon: '⚖️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} maintenance target today. Occasional over days are fine — aim to balance it out across the week.` });
+    } else if (calLeft > 300) {
+      tips.push({ icon: '⚖️', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target. Consistently eating well below maintenance can lead to muscle loss over time — try to stay close to your target.` });
+    } else {
+      tips.push({ icon: '✅', label: 'Calories', text: `You're on track at ${totals.cal} of ${calTarget} calories. Staying consistent with your maintenance target supports energy, performance, and body composition.` });
+    }
+  }
+
+  // ── CARB / TIMING TIP ───────────────────────────────────────────────────
+  if (hour >= 6 && hour <= 14) {
+    tips.push({ icon: '🌾', label: 'Pre-Workout Carbs', text: `If you're training later today, a meal with quality carbohydrates — oats, rice, sweet potato, or fruit — before your workout will improve your energy and performance. Carbs are your muscles' preferred fuel source during exercise.` });
+  } else if (phase === 'bulk' || phase === 'muscle_gain') {
+    tips.push({ icon: '🌾', label: 'Carbs & Muscle', text: `Don't shy away from carbohydrates on training days — they fuel your workouts, support performance, and spare muscle protein. Rice, oats, potatoes, and fruit are excellent choices.` });
+  } else if (phase === 'cut' || phase === 'weight_loss') {
+    tips.push({ icon: '🌾', label: 'Smart Carbs', text: `Focus on fiber-rich carbohydrates — vegetables, legumes, oats, and fruit. High-fiber carbs keep you fuller longer, support gut health, and help you stay within your calorie target more easily.` });
+  }
+
+  return tips.slice(0, 3); // max 3 tips
+}
+
 function renderNutritionTotals(combined){
   const el=document.getElementById('nutrition-totals');
   if(!el)return;
@@ -1479,15 +1555,51 @@ function renderNutritionTotals(combined){
     return acc;
   },{cal:0,protein:0,carbs:0,fat:0});
   const calTarget=state.settings.calTarget||2600, protTarget=state.settings.proteinTarget||190;
+
+  // Pull profile data for tips
+  const profile = clientProfileCache || {};
+  const age = parseInt(profile.age) || 35;
+  const weightLbs = getClientWeight();
+  const phase = state.settings.phase || profile.goal || 'maintain';
+
+  // Generate age-adjusted protein target
+  let adjProtTarget = protTarget;
+  if(weightLbs > 50 && weightLbs < 500){
+    if(phase === 'cut' || phase === 'weight_loss'){
+      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.2) : age >= 40 ? Math.round(weightLbs * 1.0) : Math.round(weightLbs * 0.75);
+    } else if(phase === 'bulk' || phase === 'muscle_gain'){
+      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.4) : age >= 40 ? Math.round(weightLbs * 1.15) : Math.round(weightLbs * 1.0);
+    } else {
+      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.1) : age >= 40 ? Math.round(weightLbs * 0.9) : Math.round(weightLbs * 0.75);
+    }
+  }
+
+  const tips = getNutritionTips(totals, calTarget, adjProtTarget, weightLbs, age, phase);
+  const tipsHtml = tips.map(t => `
+    <div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:1.1rem;flex-shrink:0;">${t.icon}</span>
+      <div>
+        <div style="font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:2px;">${t.label}</div>
+        <div style="font-size:0.78rem;line-height:1.55;color:var(--text);">${t.text}</div>
+      </div>
+    </div>`).join('');
+
   el.innerHTML=`
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;">
       <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Today's Totals</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:8px;">
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${calTarget?` / ${calTarget}`:''}</div></div>
-        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein${protTarget?` / ${protTarget}g`:''}</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein / ${adjProtTarget}g</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.carbs}g</div><div style="font-size:0.65rem;color:var(--muted);">Carbs</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fat}g</div><div style="font-size:0.65rem;color:var(--muted);">Fat</div></div>
       </div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:12px 14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);">Nutrition Coaching Tips</div>
+      </div>
+      ${tipsHtml}
+      <div style="font-size:0.65rem;color:var(--muted);margin-top:10px;line-height:1.4;">General nutrition guidance based on research. Always consult a healthcare provider for personalized medical nutrition advice.</div>
     </div>`;
 }
 
