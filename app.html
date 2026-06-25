@@ -1814,13 +1814,18 @@ async function renderWeeklyOverview() {
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
     if (trained) { workoutBurn=250; epoc=Math.round(workoutBurn*0.10); }
-    const totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
-    const net = cal - totalExpenditure;
+    let totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+    // Sanity cap — no single day should exceed 5000 kcal burn
+    if (totalExpenditure > 5000) totalExpenditure = bmr + neat;
+    const hasData = cal > 0 || cardioCal > 0 || trained;
+    // Only calculate net for days with actual logged data
+    const net = hasData ? cal - totalExpenditure : null;
 
-    return { date, isToday, cal, totalExpenditure, net, trained, hasData: cal>0 || cardioCal>0 || trained };
+    return { date, isToday, cal, totalExpenditure, net, trained, hasData };
   });
 
-  const weeklyNet = rows.reduce((s,r)=>s+r.net,0);
+  // Only sum days that have actual data — don't penalize unlogged days
+  const weeklyNet = rows.filter(r=>r.hasData && r.net!==null).reduce((s,r)=>s+r.net,0);
   const daysWithData = rows.filter(r=>r.hasData).length;
 
   const dayLabel = (dateStr) => {
@@ -1847,7 +1852,7 @@ async function renderWeeklyOverview() {
               <td style="text-align:center;padding:6px 8px;">${r.trained?'✅':'—'}</td>
               <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;">${r.hasData?r.cal:'—'}</td>
               <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;">${r.hasData?r.totalExpenditure:'—'}</td>
-              <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;color:${r.hasData?(r.net>=0?'var(--accent2)':'var(--success)'):'var(--muted)'};">${r.hasData?(r.net>=0?'+':'')+r.net:'—'}</td>
+              <td style="text-align:right;padding:6px 8px;font-family:'DM Mono',monospace;color:${r.hasData&&r.net!==null?(r.net>=0?'var(--accent2)':'var(--success)'):'var(--muted)'};">${r.hasData&&r.net!==null?(r.net>=0?'+':'')+r.net:'—'}</td>
             </tr>
           `).join('')}
         </tbody>
