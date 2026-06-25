@@ -1313,9 +1313,12 @@ function switchCardioTab(tab) {
 
 function getClientWeight() {
   const profile = clientProfileCache || {};
-  return (state.metrics && state.metrics.length)
-    ? parseFloat(state.metrics[state.metrics.length - 1].weight) || parseFloat(profile.weight) || 154
-    : parseFloat(profile.weight) || 154;
+  let w = (state.metrics && state.metrics.length)
+    ? parseFloat(state.metrics[state.metrics.length - 1].weight)
+    : null;
+  if(!w || w < 50 || w > 500) w = parseFloat(profile.weight) || null;
+  if(!w || w < 50 || w > 500) w = 154; // safe fallback
+  return w;
 }
 
 function stepsToCalories(steps, weightLbs) {
@@ -1427,12 +1430,14 @@ async function addExtraExercise() {
   const today = new Date().toISOString().split('T')[0];
   const entry = { name, sets, reps, weight, id: Date.now() + Math.floor(Math.random() * 1000), extra: true };
 
-  // Save as a workout log entry tagged as extra
-  await sbInsertAuth('client_workout_logs', {
+  // Save to dedicated extra exercises table
+  await sbInsertAuth('client_extra_logs', {
     user_email: session.email,
     log_date: today,
-    exercises: [entry],
-    extra: true
+    name: entry.name,
+    sets: entry.sets,
+    reps: entry.reps,
+    weight: entry.weight
   });
 
   ['extra-ex-name', 'extra-ex-sets', 'extra-ex-reps', 'extra-ex-weight']
@@ -1443,21 +1448,26 @@ async function addExtraExercise() {
   finally{const btn=document.querySelector('button[onclick="addExtraExercise()"]');if(btn)btn.disabled=false;}
 }
 
+async function removeExtraExercise(id){
+  await sbDeleteAuth('client_extra_logs', id);
+  await renderExtraExerciseLog();
+}
+
 async function renderExtraExerciseLog() {
   const list = document.getElementById('extra-ex-log-list');
   if (!list) return;
   const session = getSession();
   const today = new Date().toISOString().split('T')[0];
-  const logs = await sbGetAuth('client_workout_logs',
-    `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&extra=eq.true`);
-  const exercises = logs.flatMap(l => l.exercises || []);
-  if (!exercises.length) { list.innerHTML = '<div class="empty-state">No extra exercises logged</div>'; return; }
-  list.innerHTML = exercises.map(e => `
+  const logs = await sbGetAuth('client_extra_logs',
+    `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
+  if (!logs.length) { list.innerHTML = '<div class="empty-state">No extra exercises logged</div>'; return; }
+  list.innerHTML = logs.map(e => `
     <div class="log-item">
       <div>
         <div class="log-item-name">${e.name}</div>
         <div class="log-item-detail">${e.sets ? e.sets + ' sets' : ''}${e.reps ? ' · ' + e.reps + ' reps' : ''}${e.weight ? ' · ' + e.weight : ''}</div>
       </div>
+      <button class="log-item-del" onclick="removeExtraExercise(${e.id})">✕</button>
     </div>`).join('');
 }
 function renderNutritionTotals(combined){
