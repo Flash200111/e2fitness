@@ -197,7 +197,7 @@
   <button onclick="showPage('messaging')" id="nav-messaging">Messaging <span id="messaging-badge" style="display:none;background:var(--danger);color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:10px;margin-left:4px;">!</span></button>
   <button class="coach-only" onclick="showPage('coaching')">Coaching</button>
   <button class="coach-only" onclick="showPage('transformations')">Transformations</button>
-  <button onclick="showPage('settings')">Settings</button>
+  <button onclick="showPage('settings')">Profile &amp; Goals</button>
 </nav>
 
 <main>
@@ -237,8 +237,13 @@
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-title">📅 Weekly Overview — Net Calories</div>
-    <div id="weekly-overview"></div>
+    <div class="panel-title" onclick="toggleWeeklyOverview()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+      <span>📅 Weekly Overview — Net Calories</span>
+      <span id="weekly-overview-chevron" style="font-size:0.8rem;color:var(--muted);transition:transform 0.2s;">▼</span>
+    </div>
+    <div id="weekly-overview-wrap" style="display:none;">
+      <div id="weekly-overview"></div>
+    </div>
   </div>
 
   <div class="dashboard-lower">
@@ -532,18 +537,22 @@
 <!-- SETTINGS -->
 <div id="page-settings" class="page">
   <div class="panel" style="max-width:600px;">
-    <div class="panel-title">Profile &amp; Targets</div>
+    <div class="panel-title">Profile &amp; Goals</div>
     <div class="log-entry-form">
       <div class="form-group"><label class="form-label">Name</label><input id="s-name" type="text" placeholder="Your name"></div>
       <div class="form-row">
-        <div style="flex:1"><label class="form-label">Calorie Target</label><input id="s-cal" type="number" placeholder="2600"></div>
-        <div style="flex:1"><label class="form-label">Protein Target (g)</label><input id="s-protein" type="number" placeholder="190"></div>
-      </div>
-      <div class="form-row">
-        <div style="flex:1"><label class="form-label">Current Phase</label>
-          <select id="s-phase"><option value="bulk">Lean Bulk</option><option value="cut">Cut</option><option value="maintain">Maintain</option><option value="recomp">Recomp</option></select>
+        <div style="flex:1"><label class="form-label">Current Goal</label>
+          <select id="s-phase">
+            <option value="weight_loss">Weight Loss</option>
+            <option value="bulk">Lean Bulk / Muscle Gain</option>
+            <option value="maintain">Maintenance</option>
+            <option value="recomp">Body Recomposition</option>
+          </select>
         </div>
-        <div style="flex:1"><label class="form-label">TDEE Estimate</label><input id="s-tdee" type="number" placeholder="e.g. 2450"></div>
+      </div>
+      <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:10px 14px;margin-top:4px;font-size:0.76rem;color:var(--muted);line-height:1.6;">
+        <span style="color:var(--accent);font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;">Your Targets Are Calculated Automatically</span><br>
+        Based on your age, weight, goal, and activity level your calorie and protein targets are calculated for you. No guesswork needed.
       </div>
       <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
     </div>
@@ -1765,8 +1774,18 @@ async function updateExpenditureBreakdown() {
 }
 
 // ── WEEKLY / MONTHLY HISTORY ────────────────────────────────────────────────
+function toggleWeeklyOverview() {
+  const wrap = document.getElementById('weekly-overview-wrap');
+  const chevron = document.getElementById('weekly-overview-chevron');
+  if (!wrap) return;
+  const isOpen = wrap.style.display !== 'none';
+  wrap.style.display = isOpen ? 'none' : '';
+  chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
 async function renderWeeklyOverview() {
   const el = document.getElementById('weekly-overview');
+  const wrap = document.getElementById('weekly-overview-wrap');
   if (!el) return;
   const session = getSession();
   if (!session?.email) return;
@@ -1827,6 +1846,7 @@ async function renderWeeklyOverview() {
   // Only sum days that have actual data — don't penalize unlogged days
   const weeklyNet = rows.filter(r=>r.hasData && r.net!==null).reduce((s,r)=>s+r.net,0);
   const daysWithData = rows.filter(r=>r.hasData).length;
+  if(wrap && daysWithData > 0) { wrap.style.display=''; const ch=document.getElementById('weekly-overview-chevron'); if(ch) ch.style.transform='rotate(180deg)'; }
 
   const dayLabel = (dateStr) => {
     const d = new Date(dateStr+'T00:00:00');
@@ -2361,18 +2381,12 @@ async function removeExerciseDemo(exName){
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 function loadSettings(){
   document.getElementById('s-name').value=state.settings.name||'';
-  document.getElementById('s-cal').value=state.settings.calTarget||2600;
-  document.getElementById('s-protein').value=state.settings.proteinTarget||190;
-  document.getElementById('s-phase').value=state.settings.phase||'bulk';
-  document.getElementById('s-tdee').value=state.settings.tdee||2450;
+  document.getElementById('s-phase').value=state.settings.phase||'weight_loss';
 }
 function saveSettings(){
   state.settings.name=document.getElementById('s-name').value;
-  state.settings.calTarget=parseInt(document.getElementById('s-cal').value)||2600;
-  state.settings.proteinTarget=parseInt(document.getElementById('s-protein').value)||190;
   state.settings.phase=document.getElementById('s-phase').value;
-  state.settings.tdee=parseInt(document.getElementById('s-tdee').value)||2450;
-  saveState();toast('Settings saved ✓');
+  saveState();toast('Goal saved ✓');
 }
 function clearToday(){if(!confirm("Clear today's log?"))return;state.today={food:[],workout:[],cardio:[],trainedToday:null};saveState();renderFoodLog();renderWorkoutLog();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();toast("Today's log cleared");}
 function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='e2fitness-data-'+new Date().toISOString().split('T')[0]+'.json';a.click();toast('Data exported ✓');}
