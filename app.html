@@ -237,7 +237,7 @@
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-title">📅 Weekly Overview — Net Calories</div>
+    <div class="panel-title" onclick="toggleWeeklyOverview()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><span>📅 Weekly Overview — Net Calories</span><span id="weekly-overview-chevron" style="font-size:0.8rem;color:var(--muted);">▼</span></div>
     <div id="weekly-overview-wrap">
       <div id="weekly-overview"></div>
     </div>
@@ -1780,9 +1780,11 @@ async function updateExpenditureBreakdown() {
 // ── WEEKLY / MONTHLY HISTORY ────────────────────────────────────────────────
 function toggleWeeklyOverview() {
   const wrap = document.getElementById('weekly-overview-wrap');
+  const chevron = document.getElementById('weekly-overview-chevron');
   if (!wrap) return;
   const isOpen = wrap.style.display !== 'none';
   wrap.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.textContent = isOpen ? '▶' : '▼';
 }
 
 // weekly overview always visible
