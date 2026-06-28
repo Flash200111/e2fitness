@@ -1967,7 +1967,8 @@ async function renderMonthlyWorkoutHistory() {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function refreshDashboard(){
+function refreshDashboard(){ try{ _refreshDashboardInner(); } catch(e){ console.warn('refreshDashboard error:',e); } }
+function _refreshDashboardInner(){
   const totalCal=state.today.food.reduce((s,f)=>s+(f.cal||0),0);
   const totalProtein=state.today.food.reduce((s,f)=>s+(f.protein||0),0);
   const totalCardio=state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
