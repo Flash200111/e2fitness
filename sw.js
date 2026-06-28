@@ -1,4 +1,4 @@
-const CACHE_NAME = 'e2fitness-v4';
+const CACHE_NAME = 'e2fitness-v5';
 
 // Install — skip waiting immediately
 self.addEventListener('install', event => {
