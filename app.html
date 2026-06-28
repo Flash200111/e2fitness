@@ -1268,6 +1268,7 @@ async function addWorkoutEntry(){
 }
 async function renderWorkoutLog(){
   const list=document.getElementById('workout-log-list');
+  if(!list) return; // workout log removed from dashboard — only in My Plan now
   const session=getSession();
   const today=new Date().toISOString().split('T')[0];
   
