@@ -3898,6 +3898,8 @@ async function loadTodayWorkoutFromSupabase() {
       });
       state.today.workout = deduped;
       saveState();
+      // Re-render expenditure breakdown now that trainedToday is restored
+      updateExpenditureBreakdown();
     }
   } catch(e) {
     console.log('Could not load workout from Supabase:', e);
