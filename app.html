@@ -1788,16 +1788,7 @@ function toggleWeeklyOverview() {
   localStorage.setItem('weeklyOverviewOpen', isOpen ? 'false' : 'true');
 }
 
-function restoreWeeklyOverviewState() {
-  const wrap = document.getElementById('weekly-overview-wrap');
-  const chevron = document.getElementById('weekly-overview-chevron');
-  if (!wrap) return;
-  // Default to open unless user explicitly closed it
-  const saved = localStorage.getItem('weeklyOverviewOpen');
-  const isOpen = saved === null ? true : saved === 'true';
-  wrap.style.display = isOpen ? 'block' : 'none';
-  if (chevron) chevron.textContent = isOpen ? '▼' : '▶';
-}
+// weekly overview always visible
 
 async function renderWeeklyOverview() {
   const el = document.getElementById('weekly-overview');
@@ -1862,7 +1853,6 @@ async function renderWeeklyOverview() {
   // Only sum days that have actual data — don't penalize unlogged days
   const weeklyNet = rows.filter(r=>r.hasData && r.net!==null).reduce((s,r)=>s+r.net,0);
   const daysWithData = rows.filter(r=>r.hasData).length;
-  restoreWeeklyOverviewState();
 
   const dayLabel = (dateStr) => {
     const d = new Date(dateStr+'T00:00:00');
