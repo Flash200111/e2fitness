@@ -1694,10 +1694,27 @@ function calcBMR(profile, weightLbs) {
   return Math.round(bmr);
 }
 
-function setTrainedToday(val) {
+async function setTrainedToday(val) {
   state.today.trainedToday = val;
   saveState();
   updateExpenditureBreakdown();
+  // Persist to Supabase so it survives logout/login
+  const session = getSession();
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const existing = await sbGetAuth('client_workout_logs',
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&extra=eq.true&trained_flag=eq.true`);
+    if (val && !existing.length) {
+      await sbInsertAuth('client_workout_logs', {
+        user_email: session.email,
+        log_date: today,
+        exercises: [],
+        extra: true,
+        trained_flag: true,
+        trained: val
+      });
+    }
+  } catch(e) { console.warn('Could not persist trained state', e); }
 }
 
 async function updateExpenditureBreakdown() {
@@ -3864,6 +3881,14 @@ async function loadTodayWorkoutFromSupabase() {
         if (log.exercises && Array.isArray(log.exercises)) {
           allExercises.push(...log.exercises.map(e => ({...e, _log_id: log.id})));
         }
+        // Restore trainedToday from any log that has it flagged
+        if (log.trained === true || log.trained_flag === true) {
+          state.today.trainedToday = true;
+        }
+      }
+      // Also treat having ANY workout logs today as trained
+      if (logs.some(l => !l.trained_flag && l.exercises?.length > 0)) {
+        state.today.trainedToday = true;
       }
       const seen = new Set();
       const deduped = allExercises.filter(e => {
