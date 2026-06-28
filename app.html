@@ -1862,10 +1862,20 @@ async function renderWeeklyOverview() {
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
-    if (trained) { workoutBurn=250; epoc=Math.round(workoutBurn*0.10); }
-    let totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
-    // Sanity cap — no single day should exceed 5000 kcal burn
-    if (totalExpenditure > 5000) totalExpenditure = bmr + neat;
+    // Match daily card logic: workout burn only if trained AND exercises logged
+    if (trained && workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG' && l.exercises?.length>0).length>0) {
+      workoutBurn=250; epoc=Math.round(workoutBurn*0.10);
+    }
+    // For today use lastComputedExpenditure if available so numbers always match
+    let totalExpenditure;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (isToday && typeof lastComputedExpenditure !== 'undefined' && lastComputedExpenditure > 0) {
+      totalExpenditure = lastComputedExpenditure;
+    } else {
+      totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+      // Sanity cap — no single day should exceed 5000 kcal burn
+      if (totalExpenditure > 5000) totalExpenditure = bmr + neat;
+    }
     const hasData = cal > 0 || cardioCal > 0 || trained;
     // Only calculate net for days with actual logged data
     const net = hasData ? cal - totalExpenditure : null;
