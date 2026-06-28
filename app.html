@@ -392,36 +392,6 @@
   </div>
 
   <div class="section-collapsible">
-    <div class="section-header" id="section-header-goals" onclick="toggleSection('goals')">
-      <div class="section-header-title">🎯 Goals &amp; Body Metrics</div>
-      <div class="section-toggle-icon">▾</div>
-    </div>
-    <div class="section-body" id="section-goals">
-  <div class="goals-grid">
-    <div class="panel">
-      <div class="subsection-banner">🎯 ACTIVE GOALS</div>
-      <div id="goals-list"></div>
-      <div class="quick-actions"><button class="btn btn-primary" onclick="openGoalModal()">+ New Goal</button></div>
-    </div>
-    <div class="panel">
-      <div class="subsection-banner">📏 BODY METRICS</div>
-      <div class="log-entry-form">
-        <div class="form-row">
-          <div style="flex:1"><label class="form-label">Weight (lbs)</label><input id="metric-weight" type="number" placeholder="e.g. 143"></div>
-          <div style="flex:1"><label class="form-label">Body Fat %</label><input id="metric-bf" type="number" placeholder="e.g. 11"></div>
-        </div>
-        <div class="form-row">
-          <div style="flex:1"><label class="form-label">Waist (in)</label><input id="metric-waist" type="number" placeholder=""></div>
-          <div style="flex:1"><label class="form-label">Date</label><input id="metric-date" type="date"></div>
-        </div>
-        <button class="btn btn-primary" onclick="saveMetrics()">Save Metrics</button>
-      </div>
-      <hr class="divider">
-      <div class="panel-title" style="margin-top:0">Metrics History</div>
-      <div id="metrics-history"></div>
-    </div>
-  </div>
-    </div>
   </div>
 </div>
 
@@ -536,32 +506,70 @@
 
 <!-- SETTINGS -->
 <div id="page-settings" class="page">
-  <div class="panel" style="max-width:600px;">
-    <div class="panel-title">Profile &amp; Goals</div>
-    <div class="log-entry-form">
-      <div class="form-group"><label class="form-label">Name</label><input id="s-name" type="text" placeholder="Your name"></div>
-      <div class="form-row">
-        <div style="flex:1"><label class="form-label">Current Goal</label>
-          <select id="s-phase">
-            <option value="weight_loss">Weight Loss</option>
-            <option value="bulk">Lean Bulk / Muscle Gain</option>
-            <option value="maintain">Maintenance</option>
-            <option value="recomp">Body Recomposition</option>
-          </select>
+  <div style="max-width:700px;">
+
+    <!-- Profile & Goal -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">👤 Profile &amp; Goal</div>
+      <div class="log-entry-form">
+        <div class="form-group"><label class="form-label">Name</label><input id="s-name" type="text" placeholder="Your name"></div>
+        <div class="form-row">
+          <div style="flex:1"><label class="form-label">Current Goal</label>
+            <select id="s-phase" onchange="renderCalculatedTargets()">
+              <option value="weight_loss">Weight Loss</option>
+              <option value="bulk">Lean Bulk / Muscle Gain</option>
+              <option value="maintain">Maintenance</option>
+              <option value="recomp">Body Recomposition</option>
+            </select>
+          </div>
         </div>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Goal</button>
       </div>
-      <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:10px 14px;margin-top:4px;font-size:0.76rem;color:var(--muted);line-height:1.6;">
-        <span style="color:var(--accent);font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;">Your Targets Are Calculated Automatically</span><br>
-        Based on your age, weight, goal, and activity level your calorie and protein targets are calculated for you. No guesswork needed.
+    </div>
+
+    <!-- Calculated Targets -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">⚡ Your Calculated Targets</div>
+      <div id="calculated-targets-panel">
+        <div class="empty-state">Loading your targets...</div>
       </div>
-      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
     </div>
-    <hr class="divider">
-    <div class="panel-title">Data</div>
-    <div class="quick-actions">
-      <button class="btn" onclick="exportData()">Export JSON</button>
-      <button class="btn btn-danger" onclick="clearToday()">Clear Today's Log</button>
+
+    <!-- Body Metrics -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">📏 Body Metrics</div>
+      <div class="log-entry-form">
+        <div class="form-row">
+          <div style="flex:1"><label class="form-label">Weight (lbs)</label><input id="metric-weight" type="number" placeholder="e.g. 143"></div>
+          <div style="flex:1"><label class="form-label">Body Fat %</label><input id="metric-bf" type="number" placeholder="e.g. 11"></div>
+        </div>
+        <div class="form-row">
+          <div style="flex:1"><label class="form-label">Waist (in)</label><input id="metric-waist" type="number" placeholder=""></div>
+          <div style="flex:1"><label class="form-label">Date</label><input id="metric-date" type="date"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveMetrics()">Save Metrics</button>
+      </div>
+      <hr class="divider">
+      <div class="panel-title" style="margin-top:0;">Metrics History</div>
+      <div id="metrics-history"></div>
     </div>
+
+    <!-- Active Goals -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">🎯 Active Goals</div>
+      <div id="goals-list"></div>
+      <div class="quick-actions"><button class="btn btn-primary" onclick="openGoalModal()">+ New Goal</button></div>
+    </div>
+
+    <!-- Data -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">Data</div>
+      <div class="quick-actions">
+        <button class="btn" onclick="exportData()">Export JSON</button>
+        <button class="btn btn-danger" onclick="clearToday()">Clear Today's Log</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1053,7 +1061,7 @@ async function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
-  if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderExtraExerciseLog(); renderGoals(); renderMetrics(); renderWeeklyOverview(); }
+  if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderExtraExerciseLog(); renderWeeklyOverview(); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -1061,6 +1069,7 @@ async function showPage(id) {
   if(id==='coaching'){if(!state.clients)state.clients=[];renderClientList();renderCoachingPage();renderPendingIntakes();}
   if(id==='transformations'){if(!state.transformations)state.transformations=[];renderTransformations();}
   if(id==='settings') loadSettings();
+  if(id==='goals') renderGoals();
   if(id==='myplan'){renderMyPlan();renderCardioRecommendations();}
   if(id==='community') renderCommunity();
   if(id==='messaging') renderMessaging();
@@ -1981,7 +1990,19 @@ function refreshDashboard(){
   const fList=document.getElementById('dash-food-list');
   fList.innerHTML=state.today.food.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Nutrition</div>`+state.today.food.slice(0,4).map(f=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${f.name}</span><span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:0.75rem">${f.cal} kcal</span></div>`).join('')+(state.today.food.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.food.length-4} more</div>`:''): '<div class="empty-state">No food logged today</div>';
   const wList=document.getElementById('dash-workout-list');
-  wList.innerHTML=state.today.workout.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Workout</div>`+state.today.workout.slice(0,4).map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${e.name}</span><span style="font-family:'DM Mono',monospace;color:var(--muted);font-size:0.75rem">${e.sets}×${e.reps}</span></div>`).join('')+(state.today.workout.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.workout.length-4} more</div>`:''): '<div class="empty-state">No workout logged today</div>';
+  wList.innerHTML=state.today.workout.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Workout</div>`+state.today.workout.slice(0,4).map(e=>{
+  let detail = '';
+  if(Array.isArray(e.sets)){
+    // Sets logged as array of {set, weight, reps} objects from My Plan
+    const validSets = e.sets.filter(s=>s&&(s.weight||s.reps));
+    detail = validSets.length
+      ? validSets.map(s=>`${s.weight||'BW'}×${s.reps||'—'}`).join(' ')
+      : `${e.sets.length} sets`;
+  } else {
+    detail = `${e.sets||'—'}×${e.reps||'—'}`;
+  }
+  return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${e.name}</span><span style="font-family:'DM Mono',monospace;color:var(--muted);font-size:0.75rem">${detail}</span></div>`;
+}).join('')+(state.today.workout.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.workout.length-4} more</div>`:''): '<div class="empty-state">No workout logged today</div>';
   const gSnap=document.getElementById('dash-goals-snap');
   gSnap.innerHTML=state.goals.length?state.goals.slice(0,4).map(g=>{const pct=Math.min(100,Math.round(((g.current-g.start)/(g.target-g.start))*100));return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.82rem">${g.name}</span><span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--accent)">${pct}%</span></div><div class="progress-wrap"><div class="progress-fill fill-accent" style="width:${pct}%"></div></div></div>`;}).join(''):'<div class="empty-state">No goals set</div>';
 }
@@ -2379,14 +2400,123 @@ async function removeExerciseDemo(exName){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
-function loadSettings(){
+async function loadSettings(){
   document.getElementById('s-name').value=state.settings.name||'';
   document.getElementById('s-phase').value=state.settings.phase||'weight_loss';
+  await renderCalculatedTargets();
+  renderMetrics();
+  renderGoals();
+  const d=document.getElementById('metric-date');
+  if(d&&!d.value) d.value=new Date().toISOString().split('T')[0];
 }
+
 function saveSettings(){
   state.settings.name=document.getElementById('s-name').value;
   state.settings.phase=document.getElementById('s-phase').value;
-  saveState();toast('Goal saved ✓');
+  saveState();
+  renderCalculatedTargets();
+  toast('Goal saved ✓');
+}
+
+async function renderCalculatedTargets(){
+  const el = document.getElementById('calculated-targets-panel');
+  if(!el) return;
+  const profile = await loadClientProfile();
+  if(!profile || !profile.weight){
+    el.innerHTML=`<div style="font-size:0.82rem;color:var(--muted);padding:10px 0;">Complete your intake form so Coach E can calculate your targets. <button class="btn" style="font-size:0.72rem;margin-left:8px;" onclick="showPage('intake')">Go to Intake Form</button></div>`;
+    return;
+  }
+
+  const weightLbs = parseFloat(profile.weight) || 154;
+  const age = parseInt(profile.age) || 35;
+  const gender = (profile.gender||'male').toLowerCase();
+  const phase = document.getElementById('s-phase')?.value || state.settings.phase || 'weight_loss';
+
+  // Age bracket
+  const ageBracket = age >= 60 ? '60+' : age >= 40 ? '40-60' : 'Under 40';
+
+  // Protein target — age + gender adjusted
+  let protMultiplier;
+  if(phase==='weight_loss'){
+    protMultiplier = age>=60?1.2 : age>=40?1.0 : 0.75;
+    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.65);
+  } else if(phase==='bulk'){
+    protMultiplier = age>=60?1.4 : age>=40?1.15 : 1.0;
+    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.9);
+  } else {
+    protMultiplier = age>=60?1.1 : age>=40?0.9 : 0.75;
+    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.65);
+  }
+  const protTarget = Math.round(weightLbs * protMultiplier);
+
+  // BMR using Mifflin-St Jeor
+  const bmr = calcBMR(profile, weightLbs);
+
+  // Activity multiplier
+  const activityMap = {
+    sedentary:1.2, lightly_active:1.375, moderate:1.55, very_active:1.725, extra_active:1.9
+  };
+  const actLevel = profile.activity_level||profile.level||'moderate';
+  const actMult = activityMap[actLevel]||1.55;
+  const tdee = Math.round(bmr * actMult);
+
+  // Calorie target based on goal
+  let calTarget, calNote;
+  if(phase==='weight_loss'){
+    calTarget = Math.round(tdee - 400);
+    calNote = 'A ~400 calorie daily deficit for steady fat loss while preserving muscle.';
+  } else if(phase==='bulk'){
+    calTarget = Math.round(tdee + 250);
+    calNote = 'A 200-300 calorie surplus — enough to build muscle without excess fat gain.';
+  } else if(phase==='recomp'){
+    calTarget = tdee;
+    calNote = 'Eating at maintenance supports muscle gain and fat loss simultaneously.';
+  } else {
+    calTarget = tdee;
+    calNote = 'Eating at your TDEE maintains your current weight and body composition.';
+  }
+
+  // Gender note
+  const genderNote = gender==='female'
+    ? 'Targets adjusted for female physiology — women generally have lower BMR and slightly lower protein requirements per pound.'
+    : '';
+
+  // What they need to do
+  let actionTip = '';
+  if(phase==='weight_loss') actionTip=`To lose fat: stay within your ${calTarget} calorie target daily, hit your ${protTarget}g protein goal to preserve muscle, and train consistently. Expect 0.5-1 lb of fat loss per week.`;
+  else if(phase==='bulk') actionTip=`To build muscle: eat ${calTarget} calories consistently, hit ${protTarget}g protein daily, and follow your training plan. Muscle gain is slow — expect 0.5-1 lb per month.`;
+  else if(phase==='recomp') actionTip=`Body recomposition takes patience — eat at maintenance, hit your protein target every day, and train hard. Changes happen slowly but you'll gain muscle and lose fat simultaneously.`;
+  else actionTip=`To maintain: stay close to ${calTarget} calories daily and hit your protein target. Consistency week to week is what matters most.`;
+
+  // Store calculated targets in state for use by nutrition tips
+  state.settings.calTarget = calTarget;
+  state.settings.proteinTarget = protTarget;
+  state.settings.tdee = tdee;
+  saveState();
+
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--accent);">${calTarget}</div>
+        <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Daily Calories</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--accent);">${protTarget}g</div>
+        <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Daily Protein</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:var(--accent);">${tdee}</div>
+        <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Est. TDEE</div>
+      </div>
+    </div>
+    <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:12px 14px;font-size:0.78rem;line-height:1.6;color:var(--muted);margin-bottom:10px;">
+      <div style="color:var(--accent);font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">What You Need To Do</div>
+      <div style="color:var(--text);margin-bottom:6px;">${actionTip}</div>
+      <div style="margin-bottom:4px;">📊 <strong style="color:var(--text);">Protein target</strong> — ${protTarget}g/day based on your weight (${weightLbs}lbs), age bracket (${ageBracket}), and goal.</div>
+      <div style="margin-bottom:4px;">🔥 <strong style="color:var(--text);">Calorie target</strong> — ${calNote}</div>
+      ${genderNote ? `<div>👤 ${genderNote}</div>` : ''}
+    </div>
+    <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">General nutrition guidance based on published research. Always consult a healthcare provider for personalized medical nutrition advice.</div>`;
 }
 function clearToday(){if(!confirm("Clear today's log?"))return;state.today={food:[],workout:[],cardio:[],trainedToday:null};saveState();renderFoodLog();renderWorkoutLog();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();toast("Today's log cleared");}
 function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='e2fitness-data-'+new Date().toISOString().split('T')[0]+'.json';a.click();toast('Data exported ✓');}
