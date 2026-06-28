@@ -239,7 +239,7 @@
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-title" onclick="toggleWeeklyOverview()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
       <span>📅 Weekly Overview — Net Calories</span>
-      <span id="weekly-overview-chevron" style="font-size:0.8rem;color:var(--muted);transition:transform 0.2s;">▼</span>
+      <span id="weekly-overview-chevron" style="font-size:0.8rem;color:var(--muted);transition:transform 0.2s;">▶</span>
     </div>
     <div id="weekly-overview-wrap" style="display:none;">
       <div id="weekly-overview"></div>
@@ -257,10 +257,7 @@
         <button class="btn" onclick="openSection('log')">+ Log Workout</button>
       </div>
     </div>
-    <div class="panel">
-      <div class="panel-title">Goals Snapshot</div>
-      <div id="dash-goals-snap"></div>
-    </div>
+
   </div>
 
   <div class="section-collapsible">
@@ -1790,7 +1787,7 @@ function toggleWeeklyOverview() {
   if (!wrap) return;
   const isOpen = wrap.style.display !== 'none';
   wrap.style.display = isOpen ? 'none' : '';
-  chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+  chevron.textContent = isOpen ? '▶' : '▼';
 }
 
 async function renderWeeklyOverview() {
@@ -1856,7 +1853,7 @@ async function renderWeeklyOverview() {
   // Only sum days that have actual data — don't penalize unlogged days
   const weeklyNet = rows.filter(r=>r.hasData && r.net!==null).reduce((s,r)=>s+r.net,0);
   const daysWithData = rows.filter(r=>r.hasData).length;
-  if(wrap && daysWithData > 0) { wrap.style.display=''; const ch=document.getElementById('weekly-overview-chevron'); if(ch) ch.style.transform='rotate(180deg)'; }
+  if(wrap && daysWithData > 0) { wrap.style.display=''; const ch=document.getElementById('weekly-overview-chevron'); if(ch) ch.textContent='▼'; }
 
   const dayLabel = (dateStr) => {
     const d = new Date(dateStr+'T00:00:00');
