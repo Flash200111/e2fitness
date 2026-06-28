@@ -1780,12 +1780,9 @@ async function updateExpenditureBreakdown() {
 // ── WEEKLY / MONTHLY HISTORY ────────────────────────────────────────────────
 function toggleWeeklyOverview() {
   const wrap = document.getElementById('weekly-overview-wrap');
-  const chevron = document.getElementById('weekly-overview-chevron');
   if (!wrap) return;
   const isOpen = wrap.style.display !== 'none';
   wrap.style.display = isOpen ? 'none' : 'block';
-  chevron.textContent = isOpen ? '▶' : '▼';
-  localStorage.setItem('weeklyOverviewOpen', isOpen ? 'false' : 'true');
 }
 
 // weekly overview always visible
@@ -1826,9 +1823,14 @@ async function renderWeeklyOverview() {
     const isToday = date === new Date().toISOString().split('T')[0];
 
     let cal=0, protein=0, carbs=0, fat=0;
-    nutritionLogs.filter(l=>l.log_date===date).forEach(l=>{
-      (l.food_items||[]).forEach(f=>{ cal+=f.cal||0; protein+=f.protein||0; carbs+=f.carbs||0; fat+=f.fat||0; });
-    });
+    // Use only the first/most recent row per day (single-row architecture)
+    // Summing multiple rows would double-count due to legacy duplicates
+    const dayNutritionRows = nutritionLogs.filter(l=>l.log_date===date);
+    if(dayNutritionRows.length > 0) {
+      // Sort by id descending to get most recent consolidated row
+      const bestRow = dayNutritionRows.sort((a,b)=>(b.id||0)-(a.id||0))[0];
+      (bestRow.food_items||[]).forEach(f=>{ cal+=f.cal||0; protein+=f.protein||0; carbs+=f.carbs||0; fat+=f.fat||0; });
+    }
 
     let cardioCal=0;
     cardioLogs.filter(l=>l.log_date===date).forEach(l=>{
@@ -4569,7 +4571,7 @@ async function init(){
     if(resBtn)resBtn.innerHTML='<button class="btn btn-primary" onclick="openResourceModal()">+ Add Link</button>';
   }
 
-  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();
+  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();renderWeeklyOverview();
   checkUnreadMessages();
   checkIntakeStatus();
   if(coachUnlocked) { setTimeout(checkPlanUpdatesDue, 2000); }
