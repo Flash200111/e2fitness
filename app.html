@@ -1986,9 +1986,9 @@ function refreshDashboard(){
   if(totalCal>0){balEl.textContent=(balance>=0?'+':'')+balance;balEl.className='stat-value '+(balance>=0?'balance-positive':'balance-negative');balSub.textContent=balance>=0?'caloric surplus':'caloric deficit';}
   else if(lastComputedExpenditure !== null){ balEl.textContent='—'; balSub.textContent='Log food to see balance'; }
   const fList=document.getElementById('dash-food-list');
-  fList.innerHTML=state.today.food.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Nutrition</div>`+state.today.food.slice(0,4).map(f=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${f.name}</span><span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:0.75rem">${f.cal} kcal</span></div>`).join('')+(state.today.food.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.food.length-4} more</div>`:''): '<div class="empty-state">No food logged today</div>';
+  if(fList) fList.innerHTML=state.today.food.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Nutrition</div>`+state.today.food.slice(0,4).map(f=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${f.name}</span><span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:0.75rem">${f.cal} kcal</span></div>`).join('')+(state.today.food.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.food.length-4} more</div>`:''): '<div class="empty-state">No food logged today</div>';
   const wList=document.getElementById('dash-workout-list');
-  wList.innerHTML=state.today.workout.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Workout</div>`+state.today.workout.slice(0,4).map(e=>{
+  if(wList) wList.innerHTML=state.today.workout.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Workout</div>`+state.today.workout.slice(0,4).map(e=>{
   let detail = '';
   if(Array.isArray(e.sets)){
     // Sets logged as array of {set, weight, reps} objects from My Plan
@@ -2001,8 +2001,7 @@ function refreshDashboard(){
   }
   return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${e.name}</span><span style="font-family:'DM Mono',monospace;color:var(--muted);font-size:0.75rem">${detail}</span></div>`;
 }).join('')+(state.today.workout.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.workout.length-4} more</div>`:''): '<div class="empty-state">No workout logged today</div>';
-  const gSnap=document.getElementById('dash-goals-snap');
-  gSnap.innerHTML=state.goals.length?state.goals.slice(0,4).map(g=>{const pct=Math.min(100,Math.round(((g.current-g.start)/(g.target-g.start))*100));return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.82rem">${g.name}</span><span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--accent)">${pct}%</span></div><div class="progress-wrap"><div class="progress-fill fill-accent" style="width:${pct}%"></div></div></div>`;}).join(''):'<div class="empty-state">No goals set</div>';
+  // Goals snapshot moved to Profile & Goals page
 }
 
 // ── GOALS ─────────────────────────────────────────────────────────────────────
