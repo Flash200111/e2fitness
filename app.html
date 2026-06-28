@@ -4600,7 +4600,7 @@ async function init(){
     if(resBtn)resBtn.innerHTML='<button class="btn btn-primary" onclick="openResourceModal()">+ Add Link</button>';
   }
 
-  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();renderWeeklyOverview();
+  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();renderWeeklyOverview();updateExpenditureBreakdown();
   checkUnreadMessages();
   checkIntakeStatus();
   if(coachUnlocked) { setTimeout(checkPlanUpdatesDue, 2000); }
