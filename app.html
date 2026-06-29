@@ -803,6 +803,34 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:24px;border:1px solid var(--danger);background:rgba(255,69,69,0.05);">
+      <div class="panel-title" style="color:var(--danger);">⚠️ Liability Waiver & Assumption of Risk</div>
+      <div style="font-size:0.8rem;color:var(--text);line-height:1.7;margin-bottom:16px;">
+        <p style="margin-bottom:10px;"><strong>SERVICE & PRICING:</strong> E2FitnessApp offers both free and paid subscription tiers. Certain features and services are available at no cost, while premium coaching, personalized programming, and advanced features require a paid subscription. By submitting this intake form you acknowledge the pricing structure applicable to your selected plan and agree to any applicable subscription fees.</p>
+        <p style="margin-bottom:10px;"><strong>INFORMATIONAL & EDUCATIONAL PURPOSE:</strong> E2FitnessApp is intended to serve as a learning tool for informational and guidance purposes only. The workout programs, nutrition information, and coaching content provided through this platform are educational in nature and do not constitute medical advice, physical therapy, or professional healthcare services. All actions you take based on information provided through this app — including exercise selection, intensity, frequency, and nutrition choices — are solely your responsibility. Your results, progress, or lack thereof, are solely your responsibility.</p>
+        <p style="margin-bottom:10px;"><strong>NO GUARANTEE OF RESULTS:</strong> E2FitnessApp and its coach(es) make no guarantees, expressed or implied, regarding specific fitness results, weight loss, muscle gain, or any other outcome. Individual results vary based on factors including but not limited to genetics, adherence, nutrition, sleep, and overall lifestyle.</p>
+        <p style="margin-bottom:10px;"><strong>ASSUMPTION OF RISK:</strong> Physical exercise involves inherent risks including, but not limited to, muscle strains, joint injuries, cardiovascular events, and in rare cases, death. By using this service, you voluntarily assume all risks associated with the exercise programs provided.</p>
+        <p style="margin-bottom:10px;"><strong>NO SUPERVISION — INDEPENDENT RESPONSIBILITY:</strong> E2FitnessApp provides remote programming only. Neither E2FitnessApp nor any coach, employee, or affiliate associated with E2FitnessApp is present to supervise, observe, or correct your exercise form, technique, or weight selection during your workouts. You are solely responsible for performing all exercises with proper form, appropriate weight, and within your physical capabilities. Any injury resulting from improper form, excessive weight, overexertion, or failure to follow safety guidelines is your sole responsibility.</p>
+        <p style="margin-bottom:10px;"><strong>MEDICAL CLEARANCE:</strong> You represent that you have consulted with a qualified physician prior to beginning this or any exercise program, or that you have voluntarily chosen not to do so and assume all risks thereof. If you experience chest pain, dizziness, shortness of breath, or any unusual symptoms during exercise, stop immediately and seek medical attention.</p>
+        <p style="margin-bottom:10px;"><strong>RELEASE OF LIABILITY:</strong> To the fullest extent permitted by law, you hereby release, waive, discharge, and covenant not to sue E2FitnessApp, its owners, coaches, employees, affiliates, and agents from any and all claims, damages, losses, or causes of action arising out of or related to your use of this service, including claims arising from negligence.</p>
+        <p style="margin-bottom:0;font-size:0.72rem;color:var(--muted);">This agreement shall be governed by the laws of the State of New York. Any disputes shall be resolved in Kings County, New York.</p>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:20px;">
+        <input type="checkbox" id="intake-waiver" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;cursor:pointer;">
+        <label for="intake-waiver" style="font-size:0.82rem;color:var(--text);cursor:pointer;line-height:1.5;">
+          I have read and understand the above Liability Waiver and Assumption of Risk. I voluntarily agree to its terms, acknowledge E2FitnessApp's free and paid service tiers, understand that this app is an informational and guidance tool only, and accept full responsibility for my own safety and results during all exercise activities. I am 18 years of age or older.
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label" style="color:var(--danger);">Digital Signature — Type Your Full Legal Name</label>
+        <input type="text" id="intake-signature" placeholder="e.g. John Michael Smith" oninput="const ts=document.getElementById('intake-sig-timestamp');if(this.value.trim().length>2){ts.style.display='block';ts.textContent='Will be recorded as: '+this.value.trim()+' — '+new Date().toLocaleString('en-US',{timeZone:'America/New_York'})+ ' EST';}else{ts.style.display='none';}" style="font-family:'DM Mono',monospace;font-size:1.1rem;letter-spacing:1px;border-bottom:2px solid var(--accent);background:transparent;width:100%;padding:10px 4px;">
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px;">By typing your full legal name above you are providing a binding digital signature and confirming your agreement to all terms stated in this waiver.</div>
+      </div>
+      <div id="intake-sig-timestamp" style="font-size:0.68rem;color:var(--muted);margin-top:6px;display:none;"></div>
+    </div>
+
     <button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem;letter-spacing:2px;" onclick="submitIntake()">SUBMIT — BUILD MY PLAN →</button>
     <div style="font-size:0.72rem;color:var(--muted);text-align:center;margin-top:10px;">Coach E will review your intake and build your personalized program. You'll be notified when it's ready.</div>
   </div>
@@ -3752,7 +3780,26 @@ function showPlanReadyBanner() {
 
 async function submitIntake() {
   const session = getSession();
-  
+
+  // Waiver must be checked and signed
+  const waiverBox = document.getElementById('intake-waiver');
+  const sigBox = document.getElementById('intake-signature');
+  const sigName = sigBox ? sigBox.value.trim() : '';
+  if (waiverBox && !waiverBox.checked) {
+    alert('Please read and check the Liability Waiver checkbox before submitting.');
+    waiverBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (!sigName || sigName.length < 3) {
+    alert('Please type your full legal name as your digital signature before submitting.');
+    if (sigBox) { sigBox.focus(); sigBox.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    return;
+  }
+  // Record signature timestamp
+  const sigTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' }) + ' EST';
+  const tsEl = document.getElementById('intake-sig-timestamp');
+  if (tsEl) { tsEl.style.display = 'block'; tsEl.textContent = `Signed by: ${sigName} — ${sigTimestamp}`; }
+
   // Validate required fields
   const goal = document.getElementById('intake-goal').value;
   const level = document.getElementById('intake-level').value;
@@ -3783,6 +3830,9 @@ async function submitIntake() {
     diet: document.getElementById('intake-diet').value,
     eating: document.getElementById('intake-eating').value,
     other: document.getElementById('intake-other').value,
+    waiver_signed: true,
+    waiver_signature: sigName,
+    waiver_timestamp: sigTimestamp,
     email: session.email,
     submitted_at: new Date().toISOString()
   };
