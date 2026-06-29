@@ -198,6 +198,7 @@
   <button class="coach-only" onclick="showPage('coaching')">Coaching</button>
   <button class="coach-only" onclick="showPage('transformations')">Transformations</button>
   <button onclick="showPage('settings')">Profile &amp; Goals</button>
+  <button onclick="showPage('feedback')" id="nav-feedback">Feedback</button>
 </nav>
 
 <main>
@@ -836,6 +837,77 @@
   </div>
 </div>
 
+<div id="page-feedback" class="page">
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title">💬 Beta Feedback</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;">Your feedback helps make E2Fitness better. Tell us what's working, what's broken, or what you'd like to see added.</div>
+
+    <div class="form-group">
+      <label class="form-label">Feedback Type</label>
+      <select id="feedback-type">
+        <option value="bug">🐛 Bug / Something is broken</option>
+        <option value="feature">💡 Feature Request</option>
+        <option value="ux">🎨 Design / Usability</option>
+        <option value="content">📋 Content / Exercise / Nutrition</option>
+        <option value="general">⭐ General Feedback</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Which part of the app?</label>
+      <select id="feedback-section">
+        <option value="dashboard">Dashboard</option>
+        <option value="food_log">Food Log</option>
+        <option value="my_plan">My Plan</option>
+        <option value="energy">Daily Energy Expenditure</option>
+        <option value="weekly">Weekly Overview</option>
+        <option value="video_lab">Video Lab</option>
+        <option value="exercise_db">Exercise Database</option>
+        <option value="resources">Resources</option>
+        <option value="community">Community</option>
+        <option value="messaging">Messaging</option>
+        <option value="profile">Profile & Goals</option>
+        <option value="intake">Intake Form</option>
+        <option value="other">Other / General</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Your Feedback</label>
+      <textarea id="feedback-text" rows="5" placeholder="Describe the issue, idea, or feedback in as much detail as possible. If it's a bug, tell us what you were doing when it happened..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">How would you rate your experience so far?</label>
+      <div style="display:flex;gap:12px;margin-top:8px;" id="feedback-rating-btns">
+        <button class="btn" onclick="setFeedbackRating(1)" id="rating-1" style="font-size:1.2rem;padding:8px 14px;">😞</button>
+        <button class="btn" onclick="setFeedbackRating(2)" id="rating-2" style="font-size:1.2rem;padding:8px 14px;">😐</button>
+        <button class="btn" onclick="setFeedbackRating(3)" id="rating-3" style="font-size:1.2rem;padding:8px 14px;">🙂</button>
+        <button class="btn" onclick="setFeedbackRating(4)" id="rating-4" style="font-size:1.2rem;padding:8px 14px;">😄</button>
+        <button class="btn" onclick="setFeedbackRating(5)" id="rating-5" style="font-size:1.2rem;padding:8px 14px;">🤩</button>
+      </div>
+      <div id="feedback-rating-label" style="font-size:0.78rem;color:var(--muted);margin-top:8px;"></div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;padding:14px;letter-spacing:2px;" onclick="submitFeedback()">SUBMIT FEEDBACK</button>
+  </div>
+
+  <!-- Coach view: all feedback -->
+  <div class="coach-only">
+    <div class="panel">
+      <div class="panel-title">📊 All Beta Feedback</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="btn" onclick="loadAllFeedback('all')" id="fb-filter-all" style="font-size:0.75rem;">All</button>
+        <button class="btn" onclick="loadAllFeedback('bug')" id="fb-filter-bug" style="font-size:0.75rem;">🐛 Bugs</button>
+        <button class="btn" onclick="loadAllFeedback('feature')" id="fb-filter-feature" style="font-size:0.75rem;">💡 Features</button>
+        <button class="btn" onclick="loadAllFeedback('ux')" id="fb-filter-ux" style="font-size:0.75rem;">🎨 UX</button>
+        <button class="btn" onclick="loadAllFeedback('general')" id="fb-filter-general" style="font-size:0.75rem;">⭐ General</button>
+      </div>
+      <div id="all-feedback-list"><div class="empty-state">Loading feedback...</div></div>
+    </div>
+  </div>
+</div>
+
 </main>
 
 <!-- PIN MODAL -->
@@ -1084,6 +1156,7 @@ async function showPage(id) {
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+id+"'")));
   if(id==='dashboard') { await updateExpenditureBreakdown(); refreshDashboard(); renderFoodLog(); renderWorkoutLog(); renderCardioLog(); renderExtraExerciseLog(); renderWeeklyOverview(); }
+  if(id==='feedback') { if(coachUnlocked) loadAllFeedback('all'); }
   if(id==='goals') renderGoals();
   if(id==='lab') renderVideos();
   if(id==='exercises') renderExercises();
@@ -4630,6 +4703,106 @@ async function deleteExerciseFromPlan() {
   toast('Exercise removed');
 }
 
+
+// ── FEEDBACK ─────────────────────────────────────────────────────────────────
+
+let selectedFeedbackRating = 0;
+const ratingLabels = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Great', 5: 'Amazing!' };
+
+function setFeedbackRating(val) {
+  selectedFeedbackRating = val;
+  [1,2,3,4,5].forEach(i => {
+    const btn = document.getElementById('rating-'+i);
+    if (btn) btn.style.background = i === val ? 'var(--accent)' : '';
+    if (btn) btn.style.color = i === val ? '#000' : '';
+  });
+  const lbl = document.getElementById('feedback-rating-label');
+  if (lbl) lbl.textContent = ratingLabels[val] || '';
+}
+
+async function submitFeedback() {
+  const session = getSession();
+  if (!session?.email) return;
+
+  const type = document.getElementById('feedback-type').value;
+  const section = document.getElementById('feedback-section').value;
+  const text = document.getElementById('feedback-text').value.trim();
+
+  if (!text) { toast('Please write your feedback before submitting.'); return; }
+
+  const btn = document.querySelector('#page-feedback .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+
+  try {
+    await sbInsertAuth('beta_feedback', {
+      user_email: session.email,
+      feedback_type: type,
+      app_section: section,
+      feedback_text: text,
+      rating: selectedFeedbackRating || null,
+      submitted_at: new Date().toISOString()
+    });
+
+    // Clear form
+    document.getElementById('feedback-text').value = '';
+    document.getElementById('feedback-type').value = 'bug';
+    document.getElementById('feedback-section').value = 'dashboard';
+    setFeedbackRating(0);
+    [1,2,3,4,5].forEach(i => {
+      const btn = document.getElementById('rating-'+i);
+      if (btn) { btn.style.background = ''; btn.style.color = ''; }
+    });
+    const lbl = document.getElementById('feedback-rating-label');
+    if (lbl) lbl.textContent = '';
+
+    toast('Thank you! Your feedback has been submitted. 🙏');
+  } catch(e) {
+    toast('Could not submit feedback. Please try again.');
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'SUBMIT FEEDBACK'; }
+  }
+}
+
+async function loadAllFeedback(filter = 'all') {
+  const el = document.getElementById('all-feedback-list');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-state">Loading...</div>';
+
+  // Highlight active filter
+  ['all','bug','feature','ux','general'].forEach(f => {
+    const btn = document.getElementById('fb-filter-'+f);
+    if (btn) btn.classList.toggle('btn-primary', f === filter);
+  });
+
+  try {
+    let query = 'order=submitted_at.desc&limit=100';
+    if (filter !== 'all') query += `&feedback_type=eq.${filter}`;
+    const rows = await sbGetAuth('beta_feedback', query);
+
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No feedback yet.</div>'; return; }
+
+    const typeEmoji = { bug:'🐛', feature:'💡', ux:'🎨', content:'📋', general:'⭐' };
+    const ratingEmoji = { 1:'😞', 2:'😐', 3:'🙂', 4:'😄', 5:'🤩' };
+
+    el.innerHTML = rows.map(r => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:0.75rem;background:var(--surface2);padding:3px 8px;border-radius:4px;">${typeEmoji[r.feedback_type]||'💬'} ${r.feedback_type}</span>
+            <span style="font-size:0.75rem;color:var(--muted);">${r.app_section}</span>
+            ${r.rating ? `<span style="font-size:0.9rem;">${ratingEmoji[r.rating]}</span>` : ''}
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);">${new Date(r.submitted_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text);line-height:1.6;">${r.feedback_text}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">— ${r.user_email}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">Could not load feedback.</div>';
+  }
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
