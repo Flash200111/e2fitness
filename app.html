@@ -4019,6 +4019,10 @@ async function loadTodayWorkoutFromSupabase() {
     const logs = await sbGetAuth('client_workout_logs',
       `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
     
+    // Always reset first — prevents yesterday's state bleeding into today
+    state.today.workout = [];
+    state.today.trainedToday = null;
+
     if (logs.length) {
       const allExercises = [];
       for (const log of logs) {
@@ -4042,10 +4046,10 @@ async function loadTodayWorkoutFromSupabase() {
         return true;
       });
       state.today.workout = deduped;
-      saveState();
-      // Re-render expenditure breakdown now that trainedToday is restored
-      updateExpenditureBreakdown();
     }
+    saveState();
+    // Re-render expenditure breakdown with today's correct state
+    updateExpenditureBreakdown();
   } catch(e) {
     console.log('Could not load workout from Supabase:', e);
   }
