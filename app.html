@@ -1445,9 +1445,10 @@ function getClientWeight() {
 }
 
 function stepsToCalories(steps, weightLbs) {
-  // Formula: steps × 0.57 × (weight / 154 reference weight)
-  // Scales linearly with body weight for accuracy
-  return Math.round(steps * 0.57 * (weightLbs / 154));
+  // Formula: ~0.04 kcal per step at 154lb reference weight
+  // 5000 steps at 154lbs = ~200 kcal — matches real-world data
+  // Scales linearly with body weight
+  return Math.round(steps * 0.04 * (weightLbs / 154));
 }
 
 function estimateCardioCalories(){
