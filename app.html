@@ -1121,6 +1121,15 @@ let state = {
 };
 let clientProfileCache = null;
 let lastComputedExpenditure = null; // updated by updateExpenditureBreakdown(), used by refreshDashboard()
+// Always use local date — never UTC — prevents 8pm EST midnight reset bug
+function getLocalDateStr() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getStateKey(){
   try{ const s=localStorage.getItem('e2_session'); const sess=s?JSON.parse(s):null; return sess?.email ? 'e2fitness_state_'+sess.email : 'e2fitness_state'; }catch(e){ return 'e2fitness_state'; }
 }
@@ -1205,7 +1214,7 @@ async function addFoodEntry(){
   if(!name||!cal){if(btn)btn.disabled=false;return toast('Enter food name and calories');}
 
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
 
   // Get or create the single daily row
   const existingRow = await getTodayFoodRow(session, today);
@@ -1256,7 +1265,7 @@ async function addFoodEntry(){
 async function renderFoodLog(){
   const list=document.getElementById('food-log-list');
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
 
   const row = await getTodayFoodRow(session, today);
   const combined = row ? (row.food_items || []) : [];
@@ -1282,7 +1291,7 @@ async function renderFoodLog(){
 }
 async function removeFoodEntry(id){
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   const row = await getTodayFoodRow(session, today);
   if(!row) return;
   const remaining = (row.food_items||[]).filter(f=>f.id!==id);
@@ -1305,7 +1314,7 @@ async function removeFoodEntry(id){
 // Run this once from the browser console: consolidateLegacyFoodRows()
 async function consolidateLegacyFoodRows(){
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   const logs=await sbGetAuth('client_nutrition_logs',
     `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
   if(logs.length<=1){toast('No cleanup needed ✓');return;}
@@ -1348,7 +1357,7 @@ async function addWorkoutEntry(){
   
   // Save to Supabase
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   await sbInsertAuth('client_workout_logs',{
     user_email:session.email,
     log_date:today,
@@ -1365,7 +1374,7 @@ async function renderWorkoutLog(){
   const list=document.getElementById('workout-log-list');
   if(!list) return; // workout log removed from dashboard — only in My Plan now
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   
   try {
     const logs=await sbGetAuth('client_workout_logs',
@@ -1402,7 +1411,7 @@ async function renderWorkoutLog(){
 }
 async function removeWorkout(id){
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   const logs=await sbGetAuth('client_workout_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
   for(const log of logs){
     const items=log.exercises||[];
@@ -1493,7 +1502,7 @@ async function addCardioEntry(mode) {
   if(btn) btn.disabled=true;
   try{
   const session = getSession();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   let entry;
 
   if (mode === 'steps') {
@@ -1541,7 +1550,7 @@ async function addExtraExercise() {
   if (!name) return toast('Enter exercise name');
 
   const session = getSession();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   const entry = { name, sets, reps, weight, id: Date.now() + Math.floor(Math.random() * 1000), extra: true };
 
   // Save to dedicated extra exercises table
@@ -1571,7 +1580,7 @@ async function renderExtraExerciseLog() {
   const list = document.getElementById('extra-ex-log-list');
   if (!list) return;
   const session = getSession();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   const logs = await sbGetAuth('client_extra_logs',
     `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
   if (!logs.length) { list.innerHTML = '<div class="empty-state">No extra exercises logged</div>'; return; }
@@ -1720,7 +1729,7 @@ function renderNutritionTotals(combined){
 async function renderCardioLog(){
   const list=document.getElementById('cardio-log-list');
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   const logs=await sbGetAuth('client_cardio_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
   const allCardio=[];
   for(const log of logs){
@@ -1742,7 +1751,7 @@ async function renderCardioLog(){
 }
 async function removeCardio(id){
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
   const logs=await sbGetAuth('client_cardio_logs',`user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
   for(const log of logs){
     const items=log.activities||[];
@@ -1801,7 +1810,7 @@ async function setTrainedToday(val) {
   updateExpenditureBreakdown();
   // Persist to Supabase so it survives logout/login
   const session = getSession();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   try {
     // Check if a trained-flag row already exists for today
     const existing = await sbGetAuth('client_workout_logs',
@@ -1942,7 +1951,7 @@ async function renderWeeklyOverview() {
   ]);
 
   const rows = dates.map(date => {
-    const isToday = date === new Date().toISOString().split('T')[0];
+    const isToday = date === getLocalDateStr();
 
     let cal=0, protein=0, carbs=0, fat=0;
     // Use only the first/most recent row per day (single-row architecture)
@@ -1969,7 +1978,7 @@ async function renderWeeklyOverview() {
     }
     // For today use lastComputedExpenditure if available so numbers always match
     let totalExpenditure;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateStr();
     if (isToday && typeof lastComputedExpenditure !== 'undefined' && lastComputedExpenditure > 0) {
       totalExpenditure = lastComputedExpenditure;
     } else {
@@ -2162,7 +2171,7 @@ function removeGoal(id){state.goals=state.goals.filter(g=>g.id!==id);saveState()
 // ── METRICS ───────────────────────────────────────────────────────────────────
 function saveMetrics(){
   const weight=document.getElementById('metric-weight').value, bf=document.getElementById('metric-bf').value;
-  const waist=document.getElementById('metric-waist').value, date=document.getElementById('metric-date').value||new Date().toISOString().split('T')[0];
+  const waist=document.getElementById('metric-waist').value, date=document.getElementById('metric-date').value||getLocalDateStr();
   if(!weight&&!bf)return toast('Enter at least one metric');
   state.metrics.unshift({weight,bf,waist,date,id:Date.now()});
   saveState();renderMetrics();toast('Metrics saved ✓');
@@ -2538,7 +2547,7 @@ async function loadSettings(){
   renderMetrics();
   renderGoals();
   const d=document.getElementById('metric-date');
-  if(d&&!d.value) d.value=new Date().toISOString().split('T')[0];
+  if(d&&!d.value) d.value=getLocalDateStr();
 }
 
 function saveSettings(){
@@ -2650,7 +2659,7 @@ async function renderCalculatedTargets(){
     <div style="font-size:0.65rem;color:var(--muted);line-height:1.4;">General nutrition guidance based on published research. Always consult a healthcare provider for personalized medical nutrition advice.</div>`;
 }
 function clearToday(){if(!confirm("Clear today's log?"))return;state.today={food:[],workout:[],cardio:[],trainedToday:null};saveState();renderFoodLog();renderWorkoutLog();renderCardioLog();refreshDashboard();updateExpenditureBreakdown();toast("Today's log cleared");}
-function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='e2fitness-data-'+new Date().toISOString().split('T')[0]+'.json';a.click();toast('Data exported ✓');}
+function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='e2fitness-data-'+getLocalDateStr()+'.json';a.click();toast('Data exported ✓');}
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 function toast(msg,isError){
@@ -2784,7 +2793,7 @@ async function logAiFood(){
   const entry={name,cal,protein,carbs,fat,meal,id:Date.now()+Math.floor(Math.random()*1000)};
 
   const session=getSession();
-  const today=new Date().toISOString().split('T')[0];
+  const today=getLocalDateStr();
 
   // Get or create the single daily row
   const existingRow = await getTodayFoodRow(session, today);
@@ -3358,7 +3367,7 @@ async function saveDayLog(planId, dayIndex) {
   if (!entries.length) return toast('Enter at least one set or note before saving');
 
   const session = getSession();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   await sbInsertAuth('client_workout_logs', {
     user_email: session.email,
     log_date: today,
@@ -3742,7 +3751,7 @@ async function renderCoachingPage() {
 async function syncWorkoutToSupabase() {
   const session = getSession();
   if (!session) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   if (!state.today.workout.length && !state.today.cardio.length) return;
 
   await sbInsertAuth('client_workout_logs', {
@@ -3758,7 +3767,7 @@ async function syncWorkoutToSupabase() {
 async function syncNutritionToSupabase() {
   const session = getSession();
   if (!session) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   if (!state.today.food.length) return;
 
   const totalCal = state.today.food.reduce((s,f)=>s+(f.cal||0),0);
@@ -3785,7 +3794,7 @@ async function saveMetricsToSupabase(weight, bf, waist) {
   await sbInsertAuth('client_metrics', {
     user_id: session.user_id,
     user_email: session.email,
-    log_date: new Date().toISOString().split('T')[0],
+    log_date: getLocalDateStr(),
     weight: weight || null,
     body_fat: bf || null,
     waist: waist || null
@@ -4004,7 +4013,7 @@ async function renderPendingIntakes() {
 async function loadTodayWorkoutFromSupabase() {
   const session = getSession();
   if (!session) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   
   try {
     const logs = await sbGetAuth('client_workout_logs',
@@ -4047,7 +4056,7 @@ async function loadTodayWorkoutFromSupabase() {
 async function loadTodayFoodFromSupabase() {
   const session = getSession();
   if (!session) return;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateStr();
   
   try {
     const logs = await sbGetAuth('client_nutrition_logs', 
@@ -4809,7 +4818,7 @@ async function init(){
   if(!checkAuth())return;
   loadState();
   document.getElementById('headerDate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-  document.getElementById('metric-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('metric-date').value=getLocalDateStr();
   
   // Load today's food and workout from Supabase on startup to sync across devices
   await loadTodayFoodFromSupabase();
