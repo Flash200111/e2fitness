@@ -1135,7 +1135,7 @@ function getStateKey(){
 }
 function loadState() {
   try { const s=localStorage.getItem(getStateKey()); if(s) state={...state,...JSON.parse(s)}; } catch(e){}
-  const today=new Date().toDateString(), saved=localStorage.getItem('e2fitness_date_'+(getStateKey()));
+  const today=getLocalDateStr(), saved=localStorage.getItem('e2fitness_date_'+(getStateKey()));
   if(saved!==today){state.today={food:[],workout:[],cardio:[],trainedToday:null};localStorage.setItem('e2fitness_date_'+getStateKey(),today);}
 }
 function saveState(){localStorage.setItem(getStateKey(),JSON.stringify(state));}
