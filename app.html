@@ -1969,7 +1969,8 @@ async function renderWeeklyOverview() {
       (l.activities||[]).forEach(a=>{ cardioCal+=a.cal||0; });
     });
 
-    const trained = workoutLogs.some(l=>l.log_date===date);
+    // Only show trained checkmark for real resistance training — not cardio, not TRAINED_FLAG
+    const trained = workoutLogs.some(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG' && l.exercises?.length>0);
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
