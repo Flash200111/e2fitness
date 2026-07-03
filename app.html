@@ -4299,8 +4299,8 @@ Respond ONLY with this exact JSON structure, no other text:
     "hydration": "hydration guidance",
     "goal_specific": "specific advice for their goal"
   },
-  "coach_notes": "DETAILED notes for the COACH ONLY — include here all of the following: program rationale, why specific exercises were chosen or excluded, contingency guidance (e.g. what to do if the client reports fatigue, pain, or poor sleep), how to progress or regress the program, and any other technical coaching detail. This is the field for in-depth analysis — be thorough here.",
-  "client_summary": "EXACTLY 2-3 short sentences written DIRECTLY TO THE CLIENT in a warm, simple tone (use 'you/your', no jargon). It MUST follow this structure: (1) one sentence confirming the plan was built around their age, goals, and any injuries; (2) one sentence encouraging them to keep up any cardio or sports activities they already mentioned doing; (3) one sentence briefly explaining progressive overload in plain language. Example: 'This plan was designed with your age, goals, and knee history in mind, so every exercise is safe and effective for you. Keep up your walking and pickleball — they're a great complement to this program! As exercises start to feel easier, we'll gradually increase your weight or reps so you keep making progress — that's called progressive overload.' NEVER include exercise substitution reasoning, medical/injury specifics beyond a brief acknowledgment, sleep/recovery monitoring instructions, or any other coaching strategy — all of that belongs in coach_notes instead."
+  "coach_notes": "Brief program rationale, exercise selection reasoning, and progression notes for the coach.",
+  "client_summary": "2-3 warm sentences to the client: confirm plan fits their goals/injuries, encourage their current activities, explain progressive overload simply."
 }`;
 
   try {
@@ -4308,8 +4308,8 @@ Respond ONLY with this exact JSON structure, no other text:
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 8000,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
         messages: [{role: 'user', content: prompt}]
       })
     });
@@ -4326,7 +4326,17 @@ Respond ONLY with this exact JSON structure, no other text:
     try {
       planData = JSON.parse(cleaned);
     } catch(e) {
-      throw new Error('AI response was incomplete/truncated — try again');
+      // Try to extract partial JSON up to last complete object
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (lastBrace > 0) {
+        try {
+          planData = JSON.parse(cleaned.substring(0, lastBrace + 1));
+        } catch(e2) {
+          throw new Error('AI response was incomplete/truncated — try again');
+        }
+      } else {
+        throw new Error('AI response was incomplete/truncated — try again');
+      }
     }
     planData.intake = intakeData; // preserve intake data for regeneration
 
