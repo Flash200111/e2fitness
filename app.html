@@ -4259,49 +4259,8 @@ REQUIREMENTS:
 8. Include basic nutrition guidance (no specific calories)
 9. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, and equipment lines at the top of this prompt. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions or the specific rules above. If you find a violation, replace that exercise before responding — do not explain, just fix it.
 
-Respond ONLY with this exact JSON structure, no other text:
-{
-  "name": "plan name based on their goal",
-  "plan_type": "${planType}",
-  "overview": "2-3 sentence overview of the program philosophy",
-  "days": [
-    {
-      "name": "Day 1 — [focus]",
-      "focus": "muscle groups or type",
-      "duration_mins": 60,
-      "exercises": [
-        {
-          "name": "Exercise Name",
-          "sets": "3",
-          "reps": "8-10",
-          "rest": "90s",
-          "notes": "coaching cue",
-          "superset_group": null,
-          "type": "individual"
-        }
-      ]
-    }
-  ],
-  "cardio": [
-    {
-      "day": "Day X or post-workout",
-      "type": "cardio type",
-      "duration": "20-30 mins",
-      "intensity": "moderate",
-      "notes": "guidance"
-    }
-  ],
-  "nutrition_guidance": {
-    "protein": "general protein guidance",
-    "carbs": "general carb guidance",
-    "fats": "general fat guidance",
-    "meal_timing": "pre and post workout guidance",
-    "hydration": "hydration guidance",
-    "goal_specific": "specific advice for their goal"
-  },
-  "coach_notes": "Brief program rationale, exercise selection reasoning, and progression notes for the coach.",
-  "client_summary": "2-3 warm sentences to the client: confirm plan fits their goals/injuries, encourage their current activities, explain progressive overload simply."
-}`;
+Respond ONLY with this exact JSON, no other text. Be concise — keep notes short:
+{"name":"plan name","plan_type":"${planType}","overview":"1-2 sentences","days":[{"name":"Day 1 — Focus","focus":"muscles","duration_mins":60,"exercises":[{"name":"Exercise","sets":"3","reps":"10-12","rest":"60s","notes":"cue","superset_group":null,"type":"individual"}]}],"cardio":[{"day":"Day X","type":"type","duration":"20 mins","intensity":"moderate","notes":"guidance"}],"nutrition_guidance":{"protein":"guidance","carbs":"guidance","fats":"guidance","meal_timing":"guidance","hydration":"guidance","goal_specific":"guidance"},"coach_notes":"Rationale and progression notes.","client_summary":"2-3 warm sentences to client about their plan."}`;
 
   try {
     const response = await fetch(WORKER_URL, {
@@ -4309,7 +4268,7 @@ Respond ONLY with this exact JSON structure, no other text:
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
+        max_tokens: 6000,
         messages: [{role: 'user', content: prompt}]
       })
     });
