@@ -4259,7 +4259,7 @@ REQUIREMENTS:
 8. Include basic nutrition guidance (no specific calories)
 9. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, and equipment lines at the top of this prompt. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions or the specific rules above. If you find a violation, replace that exercise before responding — do not explain, just fix it.
 
-Respond ONLY with this exact JSON, no other text. Be concise — keep notes short:
+Respond ONLY with valid JSON. No text before or after. Keep all string values SHORT — max 15 words each. Do not exceed the token limit:
 {"name":"plan name","plan_type":"${planType}","overview":"1-2 sentences","days":[{"name":"Day 1 — Focus","focus":"muscles","duration_mins":60,"exercises":[{"name":"Exercise","sets":"3","reps":"10-12","rest":"60s","notes":"cue","superset_group":null,"type":"individual"}]}],"cardio":[{"day":"Day X","type":"type","duration":"20 mins","intensity":"moderate","notes":"guidance"}],"nutrition_guidance":{"protein":"guidance","carbs":"guidance","fats":"guidance","meal_timing":"guidance","hydration":"guidance","goal_specific":"guidance"},"coach_notes":"Rationale and progression notes.","client_summary":"2-3 warm sentences to client about their plan."}`;
 
   try {
@@ -4268,7 +4268,7 @@ Respond ONLY with this exact JSON, no other text. Be concise — keep notes shor
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 6000,
+        max_tokens: 8000,
         messages: [{role: 'user', content: prompt}]
       })
     });
