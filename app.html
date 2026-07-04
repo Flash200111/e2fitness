@@ -3066,8 +3066,18 @@ async function renderClientDetail(){
         </div>`).join('')}
     </div>
 
-    ${intake.medical ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:0.8rem;">⚠️ <strong>Medical:</strong> ${intake.medical}</div>` : ''}
-    ${intake.avoid ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:16px;"><strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
+    ${intake.medical ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">⚠️ <strong>Medical:</strong> ${intake.medical}</div>` : ''}
+    ${intake.avoid ? `<div style="background:rgba(255,165,0,0.08);border:1px solid rgba(255,165,0,0.3);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">🚫 <strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
+    ${intake.notes ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">📝 <strong>Notes:</strong> ${intake.notes}</div>` : ''}
+    ${intake.height || intake.weight || intake.gender ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px;">
+      ${intake.gender ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">Gender</div><div style="font-size:0.85rem;font-weight:500;">${intake.gender}</div></div>` : ''}
+      ${intake.height ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">Height</div><div style="font-size:0.85rem;font-weight:500;">${intake.height}</div></div>` : ''}
+      ${intake.weight ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">Weight</div><div style="font-size:0.85rem;font-weight:500;">${intake.weight} lbs</div></div>` : ''}
+      ${intake.session ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">Session</div><div style="font-size:0.85rem;font-weight:500;">${intake.session} min</div></div>` : ''}
+      ${intake.activity ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;"><div style="font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;">Activity</div><div style="font-size:0.85rem;font-weight:500;">${intake.activity?.replace(/_/g,' ')}</div></div>` : ''}
+    </div>` : ''}
+    ${intake.sport ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;">🏅 <strong>Sport:</strong> ${intake.sport}</div>` : ''}
 
     <div style="margin-bottom:20px;">
       <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;display:flex;justify-content:space-between;align-items:center;">
@@ -4217,12 +4227,15 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
   
   // Build exercise list from cache to feed to AI
-  const exerciseList = Object.keys(exerciseVideosCache || {}).length > 0
-    ? 'APPROVED EXERCISES (use ONLY these): ' + Object.keys(exerciseVideosCache).join(', ')
+  const exerciseNames = Object.keys(exerciseVideosCache || {});
+  const exerciseList = exerciseNames.length > 0
+    ? exerciseNames.join(', ')
     : '';
 
   const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake.
-${exerciseList ? exerciseList + '\n\nIf an approved exercise is contraindicated for this client, skip it and use a safe alternative from the list.' : ''}
+
+⚠️ CRITICAL RULE — EXERCISE SELECTION: You MUST select exercises ONLY from this approved list. Do NOT invent, modify, or use any exercise not on this list. If an exercise is contraindicated for this client, skip it and choose another from the list instead.
+APPROVED EXERCISE LIST: ${exerciseList}
 
 ⚠️⚠️⚠️ CRITICAL SAFETY REQUIREMENTS — READ FIRST, NON-NEGOTIABLE ⚠️⚠️⚠️
 THE CLIENT HAS THE FOLLOWING MEDICAL CONDITIONS / INJURIES: "${intakeData.medical || 'none reported'}"
@@ -4255,6 +4268,7 @@ PLAN STYLE: ${planTypeLabel} — THIS IS MANDATORY. Every single training day MU
 ${planType === 'full_body' ? '⚠️ FULL BODY: Every workout day must train upper AND lower body together. No push/pull splits, no muscle group isolation days.' : ''}
 ${planType === 'push_pull_legs' ? '⚠️ PUSH/PULL/LEGS: Strict separation — push days (chest/shoulders/triceps), pull days (back/biceps), leg days only.' : ''}
 ${planType === 'upper_lower' ? '⚠️ UPPER/LOWER: Strict alternation — upper body days and lower body days only.' : ''}
+${planType === 'circuit' ? '⚠️ FULL BODY CIRCUIT: Each circuit must include exactly ONE exercise per major muscle group (chest, back, shoulders, legs, core, arms). All exercises in a circuit are performed back-to-back with minimal rest. This is full body circuit training — every circuit hits every muscle group.' : ''}
 ${planType === 'sport_specific' && intakeData.sport ? `SPORT: ${intakeData.sport} — design around demands of ${intakeData.sport}.` : ''}
 
 REQUIREMENTS:
