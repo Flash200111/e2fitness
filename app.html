@@ -1686,74 +1686,84 @@ function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase) 
   const protLeft = Math.max(0, protTarget - totals.protein);
   const calLeft = Math.max(0, calTarget - totals.cal);
   const calOver = Math.max(0, totals.cal - calTarget);
+  const fatPct = totals.cal > 0 ? Math.round((totals.fat * 9 / totals.cal) * 100) : 0;
+  const carbPct = totals.cal > 0 ? Math.round((totals.carbs * 4 / totals.cal) * 100) : 0;
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
 
-  // Age bracket label for tip context
-  const ageTip = age >= 60
-    ? 'At 60+ your muscles are less efficient at using protein, so hitting your target is especially important.'
+  // Age-specific context
+  const ageContext = age >= 60
+    ? `At ${age}, muscle protein synthesis is reduced — spreading protein across 3-4 meals (30-40g each) is more effective than front-loading it.`
     : age >= 40
-    ? 'After 40 protein synthesis becomes less efficient — consistency with your protein target matters more.'
-    : 'Your body synthesizes protein efficiently at your age — hitting your daily target is the key factor.';
+    ? `At ${age}, anabolic sensitivity to protein begins declining — aim for 3-4 protein-rich meals per day rather than one or two large ones.`
+    : `At ${age}, your body synthesizes protein efficiently — consistency with your daily total is what matters most.`;
 
   // ── PROTEIN TIP ──────────────────────────────────────────────────────────
   if (totals.protein === 0) {
-    tips.push({ icon: '💪', label: 'Protein', text: `Your target is ${protTarget}g today. ${ageTip} Start adding protein-rich foods like chicken, eggs, fish, or Greek yogurt.` });
+    tips.push({ icon: '💪', label: 'Protein — Not Started', text: `You haven't logged any protein yet today. Your target is ${protTarget}g. ${ageContext} Great first choices: 6oz chicken breast (~54g), 3 eggs + 1oz cheese (~25g), or a cup of Greek yogurt (~17g).` });
+  } else if (protLeft > 60) {
+    tips.push({ icon: '💪', label: `Protein — ${totals.protein}g of ${protTarget}g`, text: `You still need ${protLeft}g of protein today — that's ${Math.ceil(protLeft/30)} more solid protein servings. ${ageContext} Options to close the gap: chicken, turkey, eggs, cottage cheese, fish, or Greek yogurt. Don't leave it all for one meal.` });
   } else if (protLeft > 20) {
-    const foods = protLeft > 80
-      ? 'Consider spreading it across 2-3 more meals — chicken breast, eggs, cottage cheese, or a protein shake are great options.'
-      : protLeft > 40
-      ? 'A serving of chicken, fish, or Greek yogurt would make a big dent in the remainder.'
-      : 'A small protein snack like cottage cheese, eggs, or a shake will get you there.';
-    tips.push({ icon: '💪', label: 'Protein', text: `You've hit ${totals.protein}g of your ${protTarget}g target — ${protLeft}g to go. ${ageTip} ${foods}` });
+    tips.push({ icon: '💪', label: `Protein — ${totals.protein}g of ${protTarget}g`, text: `You're ${protLeft}g short of your ${protTarget}g target. ${ageContext} A 4-6oz serving of chicken, fish, or a protein shake will get you there.` });
+  } else if (protLeft > 0) {
+    tips.push({ icon: '💪', label: `Protein — Almost There!`, text: `Just ${protLeft}g to go to hit your ${protTarget}g target! A small snack like cottage cheese, 2 eggs, or a half scoop of protein will finish the job. ${ageContext}` });
   } else {
-    tips.push({ icon: '✅', label: 'Protein', text: `Great work — you've hit ${totals.protein}g of your ${protTarget}g protein target. ${ageTip}` });
+    tips.push({ icon: '✅', label: `Protein — Target Hit!`, text: `You've hit your ${protTarget}g protein target — excellent work! ${ageContext} Consistent daily protein is the single most important nutrition habit for your goals.` });
   }
 
   // ── CALORIE TIP ──────────────────────────────────────────────────────────
   if (phase === 'cut' || phase === 'weight_loss') {
     if (totals.cal === 0) {
-      tips.push({ icon: '🔥', label: 'Calories', text: `Your target is ${calTarget} calories today. Don't skip meals — eating too little slows your metabolism and causes muscle loss, making fat loss harder long term.` });
-    } else if (calLeft > 200) {
-      tips.push({ icon: '🔥', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target — ${calLeft} calories left. Stay close to your target; a large deficit slows your metabolism and accelerates muscle loss.` });
-    } else if (calOver > 150) {
-      tips.push({ icon: '⚠️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} target today. One over day won't derail progress — just aim to stay consistent the rest of the week.` });
+      tips.push({ icon: '🔥', label: 'Calories — Fat Loss Mode', text: `Your calorie target is ${calTarget} today. Don't skip meals — a large deficit slows your metabolism and causes muscle loss, making fat loss harder long-term. Aim for 3 balanced meals within your target.` });
+    } else if (calLeft > 400) {
+      tips.push({ icon: '🔥', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You have ${calLeft} calories left for the ${timeOfDay}. Spread them across ${timeOfDay === 'morning' ? '2-3 more meals' : timeOfDay === 'afternoon' ? '1-2 more meals' : 'dinner and/or a snack'}. Protein-forward meals will help you stay full and protect muscle on a deficit.` });
+    } else if (calOver > 200) {
+      tips.push({ icon: '⚠️', label: `Calories — ${calOver} Over Target`, text: `You're ${calOver} calories over your ${calTarget} target today. One over day won't derail your progress — fat loss happens over weeks, not single days. Just get back on track tomorrow and don't compensate by under-eating.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories', text: `You're right on target at ${totals.cal} of ${calTarget} calories. Consistent daily deficits are what drive fat loss — great job staying on track.` });
+      tips.push({ icon: '✅', label: 'Calories — On Target', text: `You're right on track at ${totals.cal} of ${calTarget} calories. This is exactly how fat loss is made — consistent daily deficits over time. Your fat-to-protein macro split looks ${fatPct > 35 ? 'a bit fat-heavy today — try to shift more calories to protein' : 'solid'}.` });
     }
-    // TEF tip for weight loss
-    tips.push({ icon: '🔬', label: 'Fat Loss Tip', text: `Protein has a 20-30% thermic effect — your body burns more calories just digesting protein compared to carbs (5-10%) or fat (0-3%). Prioritizing protein gives you a metabolic edge on your weight loss goal.` });
+    tips.push({ icon: '🔬', label: 'Fat Loss Science', text: `Protein has a 20-30% thermic effect — your body burns extra calories just digesting it. Carbs cost 5-10% and fat only 0-3%. This means a 200g protein day burns ~100 more calories than the same calories from carbs or fat. Protein is your metabolic edge.` });
 
   } else if (phase === 'bulk' || phase === 'muscle_gain') {
     if (totals.cal === 0) {
-      tips.push({ icon: '📈', label: 'Calories', text: `Your target is ${calTarget} calories today. To build muscle you need a consistent 200-300 calorie surplus — without it your body won't have the energy needed for muscle growth.` });
-    } else if (calLeft > 300) {
-      tips.push({ icon: '📈', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target — ${calLeft} calories to go. Building muscle requires a consistent surplus of 200-300 calories. Add a meal or snack to hit your target.` });
-    } else if (calOver > 400) {
-      tips.push({ icon: '⚠️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} target. A moderate surplus of 200-300 calories is ideal for muscle gain — a large surplus mostly adds fat rather than muscle.` });
+      tips.push({ icon: '📈', label: 'Calories — Muscle Building Mode', text: `Your target is ${calTarget} calories today. To build muscle you need a consistent 200-300 calorie surplus — without it your body won't have the fuel for new muscle tissue. Don't skip meals or under-eat on training days.` });
+    } else if (calLeft > 400) {
+      tips.push({ icon: '📈', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You have ${calLeft} calories left today. On a lean bulk, consistent surpluses drive muscle growth over time. If your appetite is low, calorie-dense foods like oats with peanut butter, rice with olive oil, or a banana with a protein shake can help you hit your target without feeling stuffed.` });
+    } else if (calOver > 500) {
+      tips.push({ icon: '⚠️', label: `Calories — Large Surplus`, text: `You're ${calOver} calories over your ${calTarget} target today. A 200-300 calorie surplus is the sweet spot for muscle gain — beyond that, excess calories tend to be stored as fat rather than built into muscle. Keep your surplus moderate and consistent.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories', text: `You're in your target surplus range at ${totals.cal} of ${calTarget} calories. Consistent daily surpluses over weeks and months drive muscle growth — stay the course.` });
+      tips.push({ icon: '✅', label: 'Calories — Perfect Surplus', text: `You're in your ideal surplus range at ${totals.cal} of ${calTarget} calories. Muscle is built slowly — this kind of consistency over weeks and months is what produces real results. Carbs are ${carbPct}% of your intake today, which ${carbPct < 35 ? 'is on the lower side — carbs fuel your workouts and spare protein for muscle building' : 'looks solid for fueling your training'}.` });
     }
 
   } else {
-    // Maintenance
-    if (calOver > 200) {
-      tips.push({ icon: '⚖️', label: 'Calories', text: `You're ${calOver} calories over your ${calTarget} maintenance target today. Occasional over days are fine — aim to balance it out across the week.` });
-    } else if (calLeft > 300) {
-      tips.push({ icon: '⚖️', label: 'Calories', text: `You're at ${totals.cal} of your ${calTarget} calorie target. Consistently eating well below maintenance can lead to muscle loss over time — try to stay close to your target.` });
+    // Maintenance / Recomp
+    if (calOver > 300) {
+      tips.push({ icon: '⚖️', label: `Calories — ${calOver} Over Maintenance`, text: `You're ${calOver} over your ${calTarget} maintenance target. For recomposition, staying close to maintenance is key — significant surpluses add fat, significant deficits cost muscle. Aim to balance this out over the next day or two.` });
+    } else if (calLeft > 400) {
+      tips.push({ icon: '⚖️', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You're well under your ${calTarget} maintenance target with ${calLeft} calories remaining. Consistently eating too little on a recomp phase can lead to muscle loss over time — try to stay within 200 calories of your target daily.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories', text: `You're on track at ${totals.cal} of ${calTarget} calories. Staying consistent with your maintenance target supports energy, performance, and body composition.` });
+      tips.push({ icon: '✅', label: 'Calories — On Track', text: `You're right around your ${calTarget} maintenance target at ${totals.cal} calories. For body recomposition, this consistency is exactly right — the key is pairing it with your training and hitting your protein target every day.` });
     }
   }
 
-  // ── CARB / TIMING TIP ───────────────────────────────────────────────────
-  if (hour >= 6 && hour <= 14) {
-    tips.push({ icon: '🌾', label: 'Pre-Workout Carbs', text: `If you're training later today, a meal with quality carbohydrates — oats, rice, sweet potato, or fruit — before your workout will improve your energy and performance. Carbs are your muscles' preferred fuel source during exercise.` });
-  } else if (phase === 'bulk' || phase === 'muscle_gain') {
-    tips.push({ icon: '🌾', label: 'Carbs & Muscle', text: `Don't shy away from carbohydrates on training days — they fuel your workouts, support performance, and spare muscle protein. Rice, oats, potatoes, and fruit are excellent choices.` });
-  } else if (phase === 'cut' || phase === 'weight_loss') {
-    tips.push({ icon: '🌾', label: 'Smart Carbs', text: `Focus on fiber-rich carbohydrates — vegetables, legumes, oats, and fruit. High-fiber carbs keep you fuller longer, support gut health, and help you stay within your calorie target more easily.` });
+  // ── TIME-AWARE TIP ───────────────────────────────────────────────────────
+  if (hour >= 5 && hour <= 10) {
+    tips.push({ icon: '🌅', label: 'Morning Fuel', text: `Starting the day with 30-40g of protein at breakfast is one of the highest-leverage nutrition habits you can build. It reduces hunger throughout the day, supports muscle protein synthesis from the morning, and makes hitting your daily protein target much easier.` });
+  } else if (hour >= 11 && hour <= 14) {
+    const trainedToday = state?.today?.trainedToday;
+    if (trainedToday) {
+      tips.push({ icon: '🌾', label: 'Post-Workout Nutrition', text: `You trained today — your muscles are primed to absorb nutrients right now. Make sure your next meal is protein-forward (30-50g) with some quality carbohydrates to replenish glycogen. Rice, potatoes, or fruit alongside chicken or fish is ideal.` });
+    } else {
+      tips.push({ icon: '🌾', label: 'Pre-Workout Fuel', text: `If you're training this afternoon or evening, have a carb-forward meal 60-90 minutes before your workout. Rice, oats, sweet potato, or fruit will fuel your performance. Add some protein to support muscle during training.` });
+    }
+  } else if (hour >= 19 && hour <= 23) {
+    if (protLeft > 20) {
+      tips.push({ icon: '🌙', label: 'Evening Protein', text: `You still have ${protLeft}g of protein to hit before the day ends. A casein-rich evening snack — cottage cheese, Greek yogurt, or a glass of milk — digests slowly overnight and supports muscle recovery and growth while you sleep.` });
+    } else {
+      tips.push({ icon: '🌙', label: 'Recovery Nutrition', text: `Good work today on your nutrition. For overnight recovery, a small casein-rich snack before bed — cottage cheese, Greek yogurt, or milk — provides a slow release of amino acids that support muscle repair while you sleep.` });
+    }
   }
 
-  return tips.slice(0, 3); // max 3 tips
+  return tips.slice(0, 3);
 }
 
 function renderNutritionTotals(combined){
@@ -2803,7 +2813,19 @@ async function analyzeFood(){
   if(!checkAiLimit()) return;
   showAiLoading(true);
   try {
-    const basePrompt = 'You are a precise nutrition analyst using standard USDA nutrition data. If the food description mentions a specific brand name (e.g. "Whole Foods 365", "Trader Joe\'s", "Kirkland", or any named product), use the web_search tool to look up that exact product\'s real nutrition facts before answering — search for "[brand] [product name] nutrition facts" and use the verified numbers from the search results. For generic/unbranded foods, do not search — use the standard reference portions below. For consistency on ambiguous generic portions, ALWAYS use these standard reference values: "a serving/order of fries" = 4oz (365 kcal); "half order fries" = 2oz (183 kcal); "a sandwich/sub roll or hero roll" = 6-inch roll (~220 kcal); "a cheesesteak/sub filling" (meat+cheese+veg, no bread) for a 6-inch sub = approximately 6oz meat (350 kcal/35g protein), 1.5oz cheese (150 kcal), vegetables (negligible); "half a [sandwich/cheesesteak]" = exactly half the full-portion numbers. When the user says "half" of something, always compute it as precisely half of your full-portion estimate for that exact item. Identify each distinct food item, assign it a standard portion using the reference rules above (or verified brand data from search, or closest USDA equivalent), and calculate nutrition from those values. Sum all items into one combined total. After any searching is complete, reply ONLY with this JSON as your final message, no other text: {"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number}';
+    const basePrompt = `You are a precise nutrition analyst using standard USDA nutrition data.
+
+PORTION ESTIMATION FROM PHOTOS:
+- Use visual cues: plate size (standard dinner plate = 10-11 inches), utensil size, container size, hand if visible
+- Estimate each component separately with specific weight/volume (e.g. "6oz grilled chicken", "1 cup rice")
+- Be slightly conservative on portions — people tend to underestimate
+
+BRAND SEARCH: If a specific brand is mentioned, use web_search to find exact nutrition facts.
+
+STANDARD REFERENCES: fries serving = 4oz (365 kcal); sandwich roll = 6-inch (~220 kcal); cheesesteak filling = 6oz meat (350 kcal/35g protein) + 1.5oz cheese (150 kcal). When user says "half" compute exactly half.
+
+Reply ONLY with this JSON, no other text:
+{"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number,"portion_breakdown":"e.g. 6oz chicken, 1 cup rice","confidence":"high/medium/low","confidence_note":"brief reason if not high"}`;
     let messages;
     if (hasPhoto && hasDesc) {
       messages = [{role:"user", content:[
@@ -2863,11 +2885,86 @@ async function analyzeFood(){
     }
 
     if(!parsed.calories && parsed.cal) parsed.calories = parsed.cal;
-    incrementAiUsage(); fillAiResult(parsed);
+    incrementAiUsage();
+    // Show confirmation step before logging
+    showFoodConfirmation(parsed);
   } catch(e){toast("Analysis failed: "+e.message,true);}
   showAiLoading(false);
 }
 async function analyzePhotoNow(){ analyzeFood(); }
+
+function showFoodConfirmation(parsed) {
+  const existing = document.getElementById('food-confirm-panel');
+  if (existing) existing.remove();
+
+  const confidenceColor = parsed.confidence === 'high' ? 'var(--success)' : parsed.confidence === 'low' ? 'var(--danger)' : 'var(--accent)';
+  const confidenceIcon = parsed.confidence === 'high' ? '✅' : parsed.confidence === 'low' ? '⚠️' : '🔍';
+
+  const panel = document.createElement('div');
+  panel.id = 'food-confirm-panel';
+  panel.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px;';
+  panel.innerHTML = `
+    <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">AI DETECTED</div>
+    <div style="font-size:1rem;font-weight:600;margin-bottom:12px;">${parsed.name}</div>
+
+    ${parsed.portion_breakdown ? `
+    <div style="background:rgba(232,255,71,0.06);border:1px solid rgba(232,255,71,0.2);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+      <div style="font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">ESTIMATED PORTIONS</div>
+      <div style="font-size:0.82rem;line-height:1.6;">${parsed.portion_breakdown}</div>
+    </div>` : ''}
+
+    ${parsed.confidence_note ? `
+    <div style="font-size:0.75rem;color:${confidenceColor};margin-bottom:12px;">${confidenceIcon} ${parsed.confidence_note}</div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;">CALORIES</label>
+        <input type="number" id="confirm-cal" value="${parsed.calories}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text);font-size:0.9rem;">
+      </div>
+      <div>
+        <label style="font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;">PROTEIN (g)</label>
+        <input type="number" id="confirm-protein" value="${parsed.protein}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text);font-size:0.9rem;">
+      </div>
+      <div>
+        <label style="font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;">CARBS (g)</label>
+        <input type="number" id="confirm-carbs" value="${parsed.carbs}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text);font-size:0.9rem;">
+      </div>
+      <div>
+        <label style="font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;">FAT (g)</label>
+        <input type="number" id="confirm-fat" value="${parsed.fat}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text);font-size:0.9rem;">
+      </div>
+    </div>
+
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">✏️ Adjust any values if the portion estimate looks off, then confirm to log.</div>
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;padding:12px;" onclick="confirmAndLogFood('${parsed.name.replace(/'/g, "\'")}')">✅ Confirm & Log</button>
+      <button class="btn" style="padding:12px;" onclick="document.getElementById('food-confirm-panel').remove()">✕ Redo</button>
+    </div>
+  `;
+
+  // Insert after the analyze button
+  const analyzeBtn = document.querySelector('#page-food .btn-primary');
+  if (analyzeBtn && analyzeBtn.parentNode) {
+    analyzeBtn.parentNode.insertBefore(panel, analyzeBtn.nextSibling);
+  } else {
+    document.getElementById('ai-food-result')?.appendChild(panel);
+  }
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function confirmAndLogFood(name) {
+  const cal = parseInt(document.getElementById('confirm-cal').value) || 0;
+  const protein = parseInt(document.getElementById('confirm-protein').value) || 0;
+  const carbs = parseInt(document.getElementById('confirm-carbs').value) || 0;
+  const fat = parseInt(document.getElementById('confirm-fat').value) || 0;
+
+  const confirmed = { name, calories: cal, cal, protein, carbs, fat };
+  fillAiResult(confirmed);
+
+  document.getElementById('food-confirm-panel')?.remove();
+  toast('Food logged! ✅');
+}
 async function analyzeByDescription(){ analyzeFood(); }
 function showAiLoading(show){document.getElementById('ai-loading').style.display=show?'block':'none';if(show)document.getElementById('ai-result').style.display='none';}
 function fillAiResult(data){document.getElementById('ai-food-name').value=data.name||'';document.getElementById('ai-food-cal').value=data.calories||'';document.getElementById('ai-food-protein').value=data.protein||'';document.getElementById('ai-food-carbs').value=data.carbs||'';document.getElementById('ai-food-fat').value=data.fat||'';document.getElementById('ai-result').style.display='block';}
