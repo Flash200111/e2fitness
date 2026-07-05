@@ -2779,7 +2779,7 @@ function closePinOverlay(){}
 
 // ── AI FOOD ANALYZER ──────────────────────────────────────────────────────────
 const WORKER_URL='https://bold-tooth-7ce6.flash2001.workers.dev';
-const AI_DAILY_LIMIT=20;
+const AI_DAILY_LIMIT=6;
 function getAiUsageToday(){const today=new Date().toDateString(),usage=JSON.parse(localStorage.getItem('ai_usage')||'{}');if(usage.date!==today)return 0;return usage.count||0;}
 function incrementAiUsage(){const today=new Date().toDateString(),count=getAiUsageToday()+1;localStorage.setItem('ai_usage',JSON.stringify({date:today,count}));}
 function checkAiLimit(){
