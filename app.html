@@ -2943,12 +2943,13 @@ function showFoodConfirmation(parsed) {
     </div>
   `;
 
-  // Insert after the analyze button
-  const analyzeBtn = document.querySelector('#page-food .btn-primary');
-  if (analyzeBtn && analyzeBtn.parentNode) {
-    analyzeBtn.parentNode.insertBefore(panel, analyzeBtn.nextSibling);
+  // Insert before the ai-result div
+  const aiResult = document.getElementById('ai-result');
+  if (aiResult && aiResult.parentNode) {
+    aiResult.parentNode.insertBefore(panel, aiResult);
+    aiResult.style.display = 'none'; // hide old result while confirming
   } else {
-    document.getElementById('ai-food-result')?.appendChild(panel);
+    document.querySelector('#page-food .panel')?.appendChild(panel);
   }
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
