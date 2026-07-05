@@ -294,6 +294,7 @@
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-style:italic;">💡 Use both photo and description together for the most accurate estimate</div>
         <button class="btn btn-primary" onclick="analyzeFood()" style="width:100%;margin-bottom:10px;">⚡ Analyze</button>
         <div id="ai-loading" style="display:none;text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);"><span style="color:var(--accent);">⚡</span> Analyzing...</div>
+        <div id="food-confirm-container"></div>
         <div id="ai-result" style="display:none;">
           <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">AI Estimate — Edit if needed</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
@@ -2939,18 +2940,17 @@ function showFoodConfirmation(parsed) {
 
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;padding:12px;" onclick="confirmAndLogFood('${parsed.name.replace(/'/g, "\'")}')">✅ Confirm & Log</button>
-      <button class="btn" style="padding:12px;" onclick="document.getElementById('food-confirm-panel').remove()">✕ Redo</button>
+      <button class="btn" style="padding:12px;" onclick="document.getElementById('food-confirm-container').innerHTML='';document.getElementById('ai-food-desc').value='';document.getElementById('ai-photo-preview').style.display='none';">✕ Redo</button>
     </div>
   `;
 
-  // Insert before the ai-result div
-  const aiResult = document.getElementById('ai-result');
-  if (aiResult && aiResult.parentNode) {
-    aiResult.parentNode.insertBefore(panel, aiResult);
-    aiResult.style.display = 'none'; // hide old result while confirming
-  } else {
-    document.querySelector('#page-food .panel')?.appendChild(panel);
+  // Insert into dedicated confirmation container
+  const container = document.getElementById('food-confirm-container');
+  if (container) {
+    container.innerHTML = '';
+    container.appendChild(panel);
   }
+  document.getElementById('ai-result').style.display = 'none';
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
