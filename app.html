@@ -2903,7 +2903,10 @@ Reply ONLY with this JSON, no other text:
 }
 async function analyzePhotoNow(){ analyzeFood(); }
 
+let currentParsedFood = null;
+
 function showFoodConfirmation(parsed) {
+  currentParsedFood = parsed;
   const existing = document.getElementById('food-confirm-panel');
   if (existing) existing.remove();
 
@@ -2948,7 +2951,7 @@ function showFoodConfirmation(parsed) {
     <div style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">✏️ Adjust any values if the portion estimate looks off, then confirm to log.</div>
 
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" id="confirm-log-btn" style="flex:1;padding:12px;" onclick="confirmAndLogFood('${parsed.name.replace(/'/g, "\'")}')">✅ Confirm & Log</button>
+      <button class="btn btn-primary" id="confirm-log-btn" style="flex:1;padding:12px;" onclick="confirmAndLogFood()">✅ Confirm & Log</button>
       <button class="btn" style="padding:12px;" onclick="document.getElementById('food-confirm-container').innerHTML='';document.getElementById('ai-food-desc').value='';document.getElementById('ai-photo-preview').style.display='none';">✕ Redo</button>
     </div>
   `;
@@ -2963,63 +2966,69 @@ function showFoodConfirmation(parsed) {
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function confirmAndLogFood(name) {
+async function confirmAndLogFood() {
   const btn = document.getElementById('confirm-log-btn');
   if (btn && btn.disabled) return; // prevent double-submit
   if (btn) btn.disabled = true;
 
-  const cal = parseInt(document.getElementById('confirm-cal').value) || 0;
-  const protein = parseInt(document.getElementById('confirm-protein').value) || 0;
-  const carbs = parseInt(document.getElementById('confirm-carbs').value) || 0;
-  const fat = parseInt(document.getElementById('confirm-fat').value) || 0;
-  const meal = document.getElementById('ai-food-meal')?.value || 'snack';
+  try {
+    const name = (currentParsedFood?.name || '').trim();
+    const cal = parseInt(document.getElementById('confirm-cal').value) || 0;
+    const protein = parseInt(document.getElementById('confirm-protein').value) || 0;
+    const carbs = parseInt(document.getElementById('confirm-carbs').value) || 0;
+    const fat = parseInt(document.getElementById('confirm-fat').value) || 0;
+    const meal = document.getElementById('ai-food-meal')?.value || 'snack';
 
-  if (!name || !cal) { if (btn) btn.disabled = false; return toast('Need at least a name and calories', true); }
+    if (!name || !cal) { return toast('Need at least a name and calories', true); }
 
-  const entry = { name, cal, protein, carbs, fat, meal, id: Date.now() + Math.floor(Math.random() * 1000) };
+    const entry = { name, cal, protein, carbs, fat, meal, id: Date.now() + Math.floor(Math.random() * 1000) };
 
-  const session = getSession();
-  const today = getLocalDateStr();
+    const session = getSession();
+    const today = getLocalDateStr();
 
-  // Get or create the single daily row
-  const existingRow = await getTodayFoodRow(session, today);
-  const currentItems = existingRow ? (existingRow.food_items || []) : [];
+    // Get or create the single daily row
+    const existingRow = await getTodayFoodRow(session, today);
+    const currentItems = existingRow ? (existingRow.food_items || []) : [];
 
-  // Prevent duplicate
-  const alreadyExists = currentItems.some(f =>
-    f.name.toLowerCase() === name.toLowerCase() && f.cal === cal && f.meal === meal);
-  if (alreadyExists) { toast('Already logged today — check your food log', true); if (btn) btn.disabled = false; return; }
+    // Prevent duplicate
+    const alreadyExists = currentItems.some(f =>
+      f.name.toLowerCase() === name.toLowerCase() && f.cal === cal && f.meal === meal);
+    if (alreadyExists) { return toast('Already logged today — check your food log', true); }
 
-  const updatedItems = [...currentItems, entry];
-  const totals = calcFoodTotals(updatedItems);
+    const updatedItems = [...currentItems, entry];
+    const totals = calcFoodTotals(updatedItems);
 
-  if (existingRow) {
-    await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
-      food_items: updatedItems,
-      total_calories: totals.cal,
-      total_protein: totals.protein,
-      total_carbs: totals.carbs,
-      total_fat: totals.fat
-    });
-  } else {
-    await sbInsertAuth('client_nutrition_logs', {
-      user_email: session.email,
-      log_date: today,
-      food_items: updatedItems,
-      total_calories: totals.cal,
-      total_protein: totals.protein,
-      total_carbs: totals.carbs,
-      total_fat: totals.fat
-    });
+    if (existingRow) {
+      await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
+        food_items: updatedItems,
+        total_calories: totals.cal,
+        total_protein: totals.protein,
+        total_carbs: totals.carbs,
+        total_fat: totals.fat
+      });
+    } else {
+      await sbInsertAuth('client_nutrition_logs', {
+        user_email: session.email,
+        log_date: today,
+        food_items: updatedItems,
+        total_calories: totals.cal,
+        total_protein: totals.protein,
+        total_carbs: totals.carbs,
+        total_fat: totals.fat
+      });
+    }
+
+    // Supabase is source of truth — renderFoodLog will sync state
+    await renderFoodLog(); refreshDashboard();
+    document.getElementById('food-confirm-panel')?.remove();
+    document.getElementById('ai-food-desc') && (document.getElementById('ai-food-desc').value = '');
+    clearFoodPhoto();
+    toast('Food logged ✓');
+  } catch (e) {
+    toast('Log failed: ' + e.message, true);
+  } finally {
+    if (btn) btn.disabled = false;
   }
-
-  // Supabase is source of truth — renderFoodLog will sync state
-  await renderFoodLog(); refreshDashboard();
-  document.getElementById('food-confirm-panel')?.remove();
-  document.getElementById('ai-food-desc') && (document.getElementById('ai-food-desc').value = '');
-  clearFoodPhoto();
-  if (btn) btn.disabled = false;
-  toast('Food logged ✓');
 }
 async function analyzeByDescription(){ analyzeFood(); }
 function showAiLoading(show){document.getElementById('ai-loading').style.display=show?'block':'none';if(show)document.getElementById('ai-result').style.display='none';}
