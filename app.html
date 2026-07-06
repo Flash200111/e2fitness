@@ -4331,16 +4331,55 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   if(btn) { btn.disabled=true; btn.textContent='⏳ Generating...'; }
   
   const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
-  
-  // Build exercise list from cache to feed to AI
-  const exerciseNames = Object.keys(exerciseVideosCache || {});
+
+  // Build exercise list from cache to feed to AI, HARD-FILTERED by available equipment
+  // so the AI physically cannot select equipment the client doesn't have.
+  const allExerciseNames = Object.keys(exerciseVideosCache || {});
+  const equipTier = intakeData.equipment || '';
+  const equipDetailLower = (intakeData.equipment_detail || '').toLowerCase();
+  const MACHINE_CABLE_KEYWORDS = ['cable','machine','lat pulldown','pulldown','leg press','hack squat','pec deck','smith','seated row','leg extension','leg curl','chest press machine','shoulder press machine','assisted pull-up','pull-up machine','hyperextension'];
+  const BARBELL_KEYWORDS = ['barbell','ez bar','ez-bar'];
+  const overrideAllows = (keywords) => keywords.some(k => equipDetailLower.includes(k));
+  const exerciseNames = allExerciseNames.filter(name => {
+    const n = name.toLowerCase();
+    const isMachineCable = MACHINE_CABLE_KEYWORDS.some(k => n.includes(k));
+    const isBarbell = BARBELL_KEYWORDS.some(k => n.includes(k));
+    if (equipTier === 'full_gym' || equipTier === 'mixed') return true; // everything available
+    if (equipTier === 'home_full') {
+      // barbell/rack/full weights, but no cable/machine equipment unless stated
+      if (isMachineCable && !overrideAllows(['cable','machine','pulldown','smith'])) return false;
+      return true;
+    }
+    if (equipTier === 'home_partial') {
+      if (isMachineCable && !overrideAllows(['cable','machine','pulldown','smith'])) return false;
+      if (isBarbell && !overrideAllows(['barbell'])) return false;
+      return true;
+    }
+    if (equipTier === 'bands_only') {
+      if (isMachineCable || isBarbell) return false;
+      if (n.includes('dumbbell') && !overrideAllows(['dumbbell'])) return false;
+      return true;
+    }
+    if (equipTier === 'bodyweight') {
+      if (isMachineCable || isBarbell) return false;
+      if (n.includes('dumbbell') || n.includes('band')) return false;
+      return true;
+    }
+    return true; // equipment not specified — don't over-restrict
+  });
   const exerciseList = exerciseNames.length > 0
     ? exerciseNames.join(', ')
-    : '';
+    : allExerciseNames.join(', '); // fallback if filter removed everything (misconfigured data)
+
+  // Time-budget guidance: roughly estimate how many exercise "slots" fit a session.
+  // Rule of thumb: each individual exercise slot (all its sets + rest) takes ~8-10 min;
+  // each superset/triset slot (both/all exercises together) takes ~10-12 min.
+  const sessionMins = intakeData.duration || 60;
+  const maxSlots = Math.max(3, Math.round(sessionMins / 9));
 
   const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake.
 
-⚠️ CRITICAL RULE — EXERCISE SELECTION: You MUST select exercises ONLY from this approved list. Do NOT invent, modify, or use any exercise not on this list. If an exercise is contraindicated for this client, skip it and choose another from the list instead.
+⚠️ CRITICAL RULE — EXERCISE SELECTION: You MUST select exercises ONLY from this approved list. This list has ALREADY been filtered to only include exercises the client can perform with their available equipment — do NOT invent, modify, or use any exercise not on this list, and do NOT add equipment-based exclusions on top of it (that filtering is already done).
 APPROVED EXERCISE LIST: ${exerciseList}
 
 ⚠️⚠️⚠️ CRITICAL SAFETY REQUIREMENTS — READ FIRST, NON-NEGOTIABLE ⚠️⚠️⚠️
@@ -4353,9 +4392,13 @@ These three lines override every other instruction in this prompt. Before writin
 SPECIFIC RULES (apply on top of the client's own stated restrictions above):
 - If the client has ANY knee issue, knee surgery, or knee replacement mentioned: NEVER include Barbell Back Squat, Front Squat, Bulgarian Split Squats, Walking Lunges, Leg Press, Hack Squat, or any loaded/weighted squat or lunge variation.
 - If the client has ANY back issue (lower back pain, disc, sciatica, spinal surgery): NEVER include Barbell Deadlift, Romanian Deadlift, Good Morning, Bent-Over Row, or any axially-loaded spinal flexion/loading movement, REGARDLESS of weight.
-- If equipment is "bodyweight" or "bands only": NEVER include any exercise that requires a barbell, dumbbell, machine, or cable — bodyweight/band variations only.
-- If equipment is "home partial" / "home gym (dumbbells, bands, some equipment)": NEVER include barbell-only movements (Barbell Squat, Barbell Deadlift, Barbell Bench Press) unless the equipment details explicitly mention a barbell.
 - When in doubt, choose the SAFER, more conservative exercise. It is always better to under-program than to include a contraindicated movement.
+
+⚠️ SESSION LENGTH / EXERCISE COUNT — NON-NEGOTIABLE:
+The session is ${sessionMins} minutes. A realistic session fits about ${maxSlots} total exercise "slots," where an individual exercise = 1 slot and a full superset or tri-set (all exercises in the group together) = 1 slot. DO NOT exceed ${maxSlots} slots per day. It is better to include fewer, higher-quality exercises than to overcrowd the session — an unrealistic plan the client can't finish is worse than a shorter, complete one.
+
+⚠️ NO REPEATED EXERCISES ACROSS DAYS:
+Unless the plan has 5 or more training days per week, DO NOT use the same exercise on more than one day in the plan. Each exercise should appear on exactly one day. If two days train a similar muscle group (e.g. two pull days), use DIFFERENT exercise variations on each (e.g. Seated Cable Row on one day, Dumbbell Row on another — never the same exercise twice). Only repeat an exercise across days if the plan has 5+ training days per week and variety within the approved list is genuinely exhausted.
 
 CLIENT PROFILE:
 - Goal: ${intakeData.goal?.replace('_',' ')}
@@ -4365,7 +4408,7 @@ CLIENT PROFILE:
 - Experience Level: ${intakeData.level || 'beginner'}
 - Current Activity: ${intakeData.current_activity || 'not specified'}
 - Days Per Week: ${intakeData.days || 3}
-- Session Length: ${intakeData.duration || 60} minutes
+- Session Length: ${sessionMins} minutes
 - Cardio Preference: ${intakeData.cardio_pref || 'neutral'}, Type: ${intakeData.cardio_type || 'any'}
 - Eating Habits: ${intakeData.eating || 'average'}
 - Additional Notes: ${intakeData.other || 'none'}
@@ -4379,14 +4422,15 @@ ${planType === 'sport_specific' && intakeData.sport ? `SPORT: ${intakeData.sport
 
 REQUIREMENTS:
 1. Create exactly ${intakeData.days || 3} training days
-2. Each day must fit within ${intakeData.duration || 60} minutes
+2. Each day must contain no more than ${maxSlots} exercise slots (see session length rule above) and fit within ${sessionMins} minutes
 3. Include sets, reps, and rest periods for every exercise
 4. For supersets set superset_group to a letter like "A" for both exercises in the superset, and set "type" to "superset" for both
 5. For tri-sets set superset_group to "A" for all three exercises in the group, and set "type" to "triset" for all three
 6. Individual exercises should have superset_group as null and "type" as "individual"
 7. Include 1-2 cardio sessions appropriate for their goal
 8. Include basic nutrition guidance (no specific calories)
-9. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, and equipment lines at the top of this prompt. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions or the specific rules above. If you find a violation, replace that exercise before responding — do not explain, just fix it.
+9. No exercise may appear on more than one day unless the plan has 5+ training days per week (see no-repeat rule above)
+10. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, session-length/slot-count limit, and no-repeat rule above. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions. If you find a violation — including too many slots in a day or a repeated exercise — fix it before responding; do not explain, just fix it.
 
 Respond ONLY with valid JSON. No text before or after. Keep all string values SHORT — max 15 words each. Do not exceed the token limit:
 {"name":"plan name","plan_type":"${planType}","overview":"1-2 sentences","days":[{"name":"Day 1 — Focus","focus":"muscles","duration_mins":60,"exercises":[{"name":"Exercise","sets":"3","reps":"10-12","rest":"60s","notes":"cue","superset_group":null,"type":"individual"}]}],"cardio":[{"day":"Day X","type":"type","duration":"20 mins","intensity":"moderate","notes":"guidance"}],"nutrition_guidance":{"protein":"guidance","carbs":"guidance","fats":"guidance","meal_timing":"guidance","hydration":"guidance","goal_specific":"guidance"},"coach_notes":"Rationale and progression notes.","client_summary":"2-3 warm sentences to client about their plan."}`;
@@ -4479,6 +4523,33 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
     }));
     if (violations.length) {
       throw new Error('AI included contraindicated exercise(s): ' + [...new Set(violations)].join(', ') + '. Click Generate/Regenerate to try again.');
+    }
+
+    // HARD SAFETY NET: equipment — reject if the AI included any exercise
+    // outside the filtered approved list (belt-and-suspenders on top of the
+    // pre-filtered exerciseList already sent to it).
+    const approvedSet = new Set(exerciseNames.map(n => n.toLowerCase()));
+    const equipViolations = [];
+    (planData.days || []).forEach(day => (day.exercises || []).forEach(ex => {
+      const nameLower = (ex.name || '').toLowerCase();
+      if (approvedSet.size > 0 && !approvedSet.has(nameLower)) equipViolations.push(ex.name);
+    }));
+    if (equipViolations.length) {
+      throw new Error('AI included exercise(s) not available with this client\'s equipment: ' + [...new Set(equipViolations)].join(', ') + '. Click Generate/Regenerate to try again.');
+    }
+
+    // SAFETY NET: repeated exercises across days (unless 5+ training days/week)
+    if ((intakeData.days || 3) < 5) {
+      const seen = new Set();
+      const repeats = new Set();
+      (planData.days || []).forEach(day => (day.exercises || []).forEach(ex => {
+        const nameLower = (ex.name || '').toLowerCase();
+        if (seen.has(nameLower)) repeats.add(ex.name);
+        seen.add(nameLower);
+      }));
+      if (repeats.size) {
+        throw new Error('AI repeated exercise(s) across multiple days: ' + [...repeats].join(', ') + '. Click Generate/Regenerate to try again.');
+      }
     }
 
     // Save generated plan back to Supabase
@@ -4713,7 +4784,10 @@ async function triggerPlanUpdate(planId, clientEmail) {
 MEDICAL CONDITIONS / INJURIES: "${intake.medical || 'none reported'}"
 MOVEMENTS TO NEVER INCLUDE: "${intake.avoid || 'none specified'}"
 EQUIPMENT AVAILABLE: "${intake.equipment?.replace(/_/g,' ') || 'not specified'}" (details: ${intake.equipment_detail || 'none'})
-Apply the same specific rules as a fresh plan: no loaded squats/lunges/leg press for knee issues, no deadlift/RDL/good morning/bent-over row for back issues, and only use exercises possible with the equipment listed above. Double-check every exercise against these before responding.
+Apply the same specific rules as a fresh plan: no loaded squats/lunges/leg press for knee issues, no deadlift/RDL/good morning/bent-over row for back issues, and ONLY use exercises genuinely possible with the equipment listed above — no cable/machine exercises unless the client has gym or explicitly mentioned that equipment, no barbell exercises unless equipment includes a barbell or full gym. Double-check every exercise against these before responding.
+
+⚠️ SESSION LENGTH: ${intake.duration || 60} minutes per day. Roughly ${Math.max(3, Math.round((intake.duration||60)/9))} exercise slots max per day (a superset/tri-set counts as ONE slot). Do not overcrowd the session.
+⚠️ NO REPEATS: Unless training ${intake.days || 4} days is 5 or more, do not repeat the same exercise across multiple days — use different variations for similar muscle groups.
 
 CURRENT PLAN: ${currentPlanData.name || 'Unknown'}
 PLAN TYPE: ${currentPlanData.plan_type || 'Unknown'}
