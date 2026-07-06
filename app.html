@@ -2426,6 +2426,8 @@ const exercises=[
   {name:'Deadlift',muscle:'Full Posterior Chain',type:'back',note:'⚠️ HIGH RISK: Most technical barbell movement. High spinal compressive load. Requires proper hip hinge mechanics. Avoid with back pain. Never round the lower back under load.',tags:['highrisk'],equip:['barbell']},
   {name:'Trap Bar Deadlift',muscle:'Legs / Back / Traps',type:'back',note:'More upright torso than conventional deadlift. Reduced lower back stress. Excellent alternative for those with back sensitivity.',tags:['caution'],equip:['barbell']},
   {name:'Hyperextension / Back Extension',muscle:'Erectors / Glutes / Hamstrings',type:'back',note:'⚠️ CAUTION: Avoid hyperextending at the top. Stop at neutral spine. Do not load heavily if you have disc issues. Bodyweight is often sufficient.',tags:['caution'],equip:['machine','bodyweight']},
+  {name:'Band Lat Pulldown',muscle:'Lats / Biceps',type:'back',note:'Band anchored overhead, pulled down to chest — replicates the lat pulldown pattern for clients without a machine. Keep chest up, pull elbows down and back.',tags:['safe'],equip:['bands']},
+  {name:'Band Seated Row',muscle:'Mid Back / Lats / Biceps',type:'back',note:'Band anchored at chest height, seated or standing row pattern replicating a cable row for clients without a cable machine. Squeeze shoulder blades together at the finish.',tags:['safe'],equip:['bands']},
 
   // ── SHOULDERS ──
   {name:'Overhead Press (Barbell)',muscle:'Shoulders / Triceps / Upper Traps',type:'shoulders',note:'⚠️ CAUTION: High lumbar demand. Brace core and avoid arching excessively. Not suitable during active lower back flare-ups.',tags:['caution'],equip:['barbell']},
@@ -2437,6 +2439,7 @@ const exercises=[
   {name:'Arnold Press',muscle:'Shoulders / Triceps',type:'shoulders',note:'Rotational pressing movement hits all three delt heads. Slower and more technical than standard press. Excellent for shoulder development.',tags:['safe'],equip:['dumbbell']},
   {name:'Cable Lateral Raise',muscle:'Side Delts',type:'shoulders',note:'Constant tension throughout the movement. Excellent complement or alternative to dumbbell lateral raises.',tags:['safe'],equip:['cable']},
   {name:'Behind-the-Neck Press',muscle:'Shoulders',type:'shoulders',note:'⚠️ HIGH RISK: Places cervical spine and rotator cuff in a vulnerable position. High injury risk. Not recommended for most people.',tags:['highrisk'],equip:['barbell']},
+  {name:'Band Lateral Raise',muscle:'Side Delts',type:'shoulders',note:'Band under the standing foot or anchored low, raised out to the side — replicates cable lateral raise tension curve for clients without a cable machine.',tags:['safe'],equip:['bands']},
 
   // ── ARMS ──
   {name:'Barbell Curl',muscle:'Biceps',type:'arms',note:'Primary bicep mass builder. Keep elbows at sides. Avoid swinging the torso — use a wall or preacher bench to isolate if needed.',tags:['safe'],equip:['barbell']},
@@ -2452,6 +2455,9 @@ const exercises=[
   {name:'Close-Grip Bench Press',muscle:'Triceps / Chest',type:'arms',note:'Compound tricep movement. Keep elbows close to torso. Slightly wider than shoulder width grip reduces wrist stress.',tags:['safe'],equip:['barbell']},
   {name:'Tricep Dips',muscle:'Triceps / Chest / Shoulders',type:'arms',note:'⚠️ CAUTION: High shoulder stress. Keep torso upright to emphasize triceps. Avoid if you have shoulder impingement or instability.',tags:['caution'],equip:['bodyweight']},
   {name:'Wrist Curls / Forearm Work',muscle:'Forearms',type:'arms',note:'Often neglected. Strong forearms improve grip for all pulling movements. Include 2-3 sets of wrist curls or farmer carries weekly.',tags:['safe'],equip:['dumbbell']},
+  {name:'Band Curl',muscle:'Biceps',type:'arms',note:'Band anchored under the feet, standard curl pattern — replicates cable curl tension for clients without a cable machine.',tags:['safe'],equip:['bands']},
+  {name:'Band Behind-the-Back Curl',muscle:'Biceps (Long Head)',type:'arms',note:'Band anchored behind the body at low height, curled with arm extended behind the torso — replicates the Bayesian curl stretch position for clients without a cable machine.',tags:['safe'],equip:['bands']},
+  {name:'Band Tricep Pushdown',muscle:'Triceps',type:'arms',note:'Band anchored overhead, pushed down in the tricep pushdown pattern — replicates cable pushdown for clients without a cable machine.',tags:['safe'],equip:['bands']},
 
   // ── LEGS ──
   {name:'Barbell Back Squat',muscle:'Quads / Glutes / Hamstrings / Core',type:'legs',note:'⚠️ CAUTION: High compressive load on knees and lumbar spine. Requires excellent mobility and technique. Keep chest up, knees tracking over toes. Avoid with active knee or back pain.',tags:['caution'],equip:['barbell']},
@@ -2471,6 +2477,8 @@ const exercises=[
   {name:'Calf Raises',muscle:'Gastrocnemius / Soleus',type:'legs',note:'Standing calf raise targets gastrocnemius; seated targets soleus. Full range of motion important — stretch at bottom, pause at top.',tags:['safe'],equip:['bodyweight','dumbbell']},
   {name:'Spanish Squat',muscle:'Quads / Knee (Rehab)',type:'legs',note:'Isometric quad loading with minimal knee shear. Excellent for quad strengthening without joint stress. Highly recommended for patellofemoral issues.',tags:['safe'],equip:['bands','bodyweight']},
   {name:'Wall Sit',muscle:'Quads / Glutes',type:'legs',note:'Isometric quad hold. Good for building endurance and knee stability with minimal injury risk. Great for beginners and rehab.',tags:['safe'],equip:['bodyweight']},
+  {name:'Band Leg Curl',muscle:'Hamstrings',type:'legs',note:'Band anchored low and looped around the ankle, curling heel toward glutes — replicates machine leg curl for clients without one.',tags:['safe'],equip:['bands']},
+  {name:'Band Leg Extension',muscle:'Quads',type:'legs',note:'Band anchored low and looped around the ankle, extending the knee from a seated position — replicates machine leg extension for clients without one.',tags:['safe'],equip:['bands']},
 
   // ── CORE ──
   {name:'Plank',muscle:'Core / Anterior Chain',type:'core',note:'Fundamental core stability exercise. Maintain neutral spine — do not let hips sag or pike. Progress to RKC plank or add movement for increased difficulty.',tags:['safe'],equip:['bodyweight']},
@@ -3166,6 +3174,7 @@ async function renderClientDetail(){
         </div>`).join('')}
     </div>
 
+    ${intake.equipment_detail ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">🏋️ <strong>Equipment Details:</strong> ${intake.equipment_detail}</div>` : ''}
     ${intake.medical ? `<div style="background:rgba(255,69,69,0.08);border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">⚠️ <strong>Medical:</strong> ${intake.medical}</div>` : ''}
     ${intake.avoid ? `<div style="background:rgba(255,165,0,0.08);border:1px solid rgba(255,165,0,0.3);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">🚫 <strong>Avoid:</strong> ${intake.avoid}</div>` : ''}
     ${intake.notes ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.8rem;line-height:1.6;">📝 <strong>Notes:</strong> ${intake.notes}</div>` : ''}
@@ -3191,6 +3200,7 @@ async function renderClientDetail(){
       ${planDays.length ? planDays.map((day, di) => `
         <div style="margin-bottom:10px;">
           <div style="font-size:0.72rem;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">${day.name}</div>
+          ${day.warmup ? `<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">🔥 Warm-up: ${day.warmup}</div>` : ''}
           ${(day.exercises||[]).map((e,ei)=>`<div style="display:flex;gap:12px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><button class="btn" style="font-size:0.65rem;padding:3px 8px;" onclick="editPlanExercise('${approvedPlan.id}', ${di}, ${ei})">✏️</button></div>`).join('')}
         </div>
       `).join('') : '<div class="empty-state">No approved plan yet</div>'}
@@ -3460,6 +3470,7 @@ async function renderMyPlan() {
               <span>${day.name}</span>
               ${isDone ? '<span style="font-size:0.7rem;background:rgba(71,255,138,0.15);color:var(--success);padding:2px 10px;border-radius:2px;letter-spacing:1px;">✅ DONE THIS WEEK</span>' : ''}
             </div>
+            ${day.warmup ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;">🔥 <strong style="color:var(--text);">Warm-up:</strong> ${day.warmup}</div>` : ''}
             ${isDone ? `
             <div style="text-align:center;padding:16px;color:var(--success);font-size:0.8rem;background:rgba(71,255,138,0.04);border-radius:6px;border:1px solid rgba(71,255,138,0.2);">
               ✅ You've already logged ${day.name} this week.<br>
@@ -4182,6 +4193,7 @@ async function renderPendingIntakes() {
           <div><span style="color:var(--muted);">Age:</span> ${intake.age || '—'}</div>
           <div><span style="color:var(--muted);">Session:</span> ${intake.duration || '—'} min</div>
         </div>
+        ${intake.equipment_detail ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">🏋️ Equipment details: ${intake.equipment_detail}</div>` : ''}
         ${intake.medical ? `<div style="font-size:0.75rem;color:var(--danger);margin-bottom:8px;">⚠️ Medical: ${intake.medical}</div>` : ''}
         ${intake.avoid ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Avoid: ${intake.avoid}</div>` : ''}
         ${intake.other ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Notes: ${intake.other}</div>` : ''}
@@ -4365,7 +4377,8 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   // Rule of thumb: each individual exercise slot (all its sets + rest) takes ~8-10 min;
   // each superset/triset slot (both/all exercises together) takes ~10-12 min.
   const sessionMins = intakeData.duration || 60;
-  const maxSlots = Math.max(3, Math.round(sessionMins / 9));
+  const maxExercises = Math.max(2, Math.round(6 * sessionMins / 60));
+  const maxSets = Math.max(6, Math.round(20 * sessionMins / 60));
 
   const prompt = `You are an expert certified personal trainer and strength coach. Generate a complete, detailed ${planTypeLabel} workout plan based on this client intake.
 
@@ -4385,7 +4398,7 @@ SPECIFIC RULES (apply on top of the client's own stated restrictions above):
 - When in doubt, choose the SAFER, more conservative exercise. It is always better to under-program than to include a contraindicated movement.
 
 ⚠️ SESSION LENGTH / EXERCISE COUNT — NON-NEGOTIABLE:
-The session is ${sessionMins} minutes. A realistic session fits about ${maxSlots} total exercise "slots," where an individual exercise = 1 slot and a full superset or tri-set (all exercises in the group together) = 1 slot. DO NOT exceed ${maxSlots} slots per day. It is better to include fewer, higher-quality exercises than to overcrowd the session — an unrealistic plan the client can't finish is worse than a shorter, complete one.
+The session is ${sessionMins} minutes. As a hard rule: no more than ${maxExercises} total exercises per day, AND no more than ${maxSets} total sets per day (sum of sets across every exercise that day) — whichever limit is hit first. This is based on a 60-minute session fitting ~6 exercises / ~20 sets, scaled to this session length. It is better to include fewer, higher-quality exercises than to overcrowd the session — an unrealistic plan the client can't finish is worse than a shorter, complete one.
 
 ⚠️ NO REPEATED EXERCISES ACROSS DAYS:
 Unless the plan has 5 or more training days per week, DO NOT use the same exercise on more than one day in the plan. Each exercise should appear on exactly one day. If two days train a similar muscle group (e.g. two pull days), use DIFFERENT exercise variations on each (e.g. Seated Cable Row on one day, Dumbbell Row on another — never the same exercise twice). Only repeat an exercise across days if the plan has 5+ training days per week and variety within the approved list is genuinely exhausted.
@@ -4412,18 +4425,19 @@ ${planType === 'sport_specific' && intakeData.sport ? `SPORT: ${intakeData.sport
 
 REQUIREMENTS:
 1. Create exactly ${intakeData.days || 3} training days
-2. Each day must contain no more than ${maxSlots} exercise slots (see session length rule above) and fit within ${sessionMins} minutes
-3. Include sets, reps, and rest periods for every exercise
-4. For supersets set superset_group to a letter like "A" for both exercises in the superset, and set "type" to "superset" for both
-5. For tri-sets set superset_group to "A" for all three exercises in the group, and set "type" to "triset" for all three
-6. Individual exercises should have superset_group as null and "type" as "individual"
-7. Include 1-2 cardio sessions appropriate for their goal
-8. Include basic nutrition guidance (no specific calories)
-9. No exercise may appear on more than one day unless the plan has 5+ training days per week (see no-repeat rule above)
-10. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, session-length/slot-count limit, and no-repeat rule above. Go through EVERY exercise in EVERY day one by one and confirm none of them violate those restrictions. If you find a violation — including too many slots in a day or a repeated exercise — fix it before responding; do not explain, just fix it.
+2. Each day must contain no more than ${maxExercises} exercises and no more than ${maxSets} total sets (see session length rule above), and fit within ${sessionMins} minutes
+3. EVERY day must include a specific ~5-minute warm-up in the "warmup" field — either a named warm-up exercise/activity (e.g. "5 min light bike or brisk walk" or "Band Pull-Aparts x 15, Arm Circles x 10 each direction") or a note about warm-up sets before the first working exercise (e.g. "2 light warm-up sets before your first exercise, building to working weight"). This is separate from and in addition to the ${maxExercises}/${maxSets} limits above — do not count it toward those limits.
+4. Include sets, reps, and rest periods for every exercise
+5. For supersets set superset_group to a letter like "A" for both exercises in the superset, and set "type" to "superset" for both
+6. For tri-sets set superset_group to "A" for all three exercises in the group, and set "type" to "triset" for all three
+7. Individual exercises should have superset_group as null and "type" as "individual"
+8. Include 1-2 cardio sessions appropriate for their goal
+9. Include basic nutrition guidance (no specific calories)
+10. No exercise may appear on more than one day unless the plan has 5+ training days per week (see no-repeat rule above)
+11. FINAL DOUBLE CHECK BEFORE RESPONDING: Re-read the medical conditions, avoid list, session-length exercise/set limit, warm-up requirement, and no-repeat rule above. Go through EVERY day and count its total exercises and total sets — confirm neither exceeds the limits above, and confirm every day has a "warmup" field filled in. If you find a violation — too many exercises, too many sets, a missing warm-up, or a repeated exercise — fix it before responding; do not explain, just fix it.
 
 Respond ONLY with valid JSON. No text before or after. Keep all string values SHORT — max 15 words each. Do not exceed the token limit:
-{"name":"plan name","plan_type":"${planType}","overview":"1-2 sentences","days":[{"name":"Day 1 — Focus","focus":"muscles","duration_mins":60,"exercises":[{"name":"Exercise","sets":"3","reps":"10-12","rest":"60s","notes":"cue","superset_group":null,"type":"individual"}]}],"cardio":[{"day":"Day X","type":"type","duration":"20 mins","intensity":"moderate","notes":"guidance"}],"nutrition_guidance":{"protein":"guidance","carbs":"guidance","fats":"guidance","meal_timing":"guidance","hydration":"guidance","goal_specific":"guidance"},"coach_notes":"Rationale and progression notes.","client_summary":"2-3 warm sentences to client about their plan."}`;
+{"name":"plan name","plan_type":"${planType}","overview":"1-2 sentences","days":[{"name":"Day 1 — Focus","focus":"muscles","duration_mins":60,"warmup":"Specific 5-minute warm-up description (e.g. exercise name + duration/reps, or 'X warm-up sets before first exercise')","exercises":[{"name":"Exercise","sets":"3","reps":"10-12","rest":"60s","notes":"cue","superset_group":null,"type":"individual"}]}],"cardio":[{"day":"Day X","type":"type","duration":"20 mins","intensity":"moderate","notes":"guidance"}],"nutrition_guidance":{"protein":"guidance","carbs":"guidance","fats":"guidance","meal_timing":"guidance","hydration":"guidance","goal_specific":"guidance"},"coach_notes":"Rationale and progression notes.","client_summary":"2-3 warm sentences to client about their plan."}`;
 
   try {
     const response = await fetch(WORKER_URL, {
@@ -4461,6 +4475,13 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
       }
     }
     planData.intake = intakeData; // preserve intake data for regeneration
+
+    // SAFETY NET: ensure every day has a warm-up — if the AI omitted one, add a sensible default
+    (planData.days || []).forEach(day => {
+      if (!day.warmup || !day.warmup.trim()) {
+        day.warmup = '5 minutes light cardio (walk, bike, or jog in place) plus dynamic stretching for the muscles trained today.';
+      }
+    });
 
     // HARD SAFETY NET: scan every exercise name for banned-movement keywords
     // derived from the client's avoid list and medical conditions, regardless
@@ -4542,6 +4563,24 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
       }
     }
 
+    // SAFETY NET: exercise count and total sets per day, scaled from the
+    // 6-exercise / 20-set-per-60-min rule used in the prompt.
+    const dayOverages = [];
+    (planData.days || []).forEach(day => {
+      const exList = day.exercises || [];
+      const exCount = exList.length;
+      const setCount = exList.reduce((sum, ex) => {
+        const n = parseInt(ex.sets, 10);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      if (exCount > maxExercises || setCount > maxSets) {
+        dayOverages.push(`${day.name || 'a day'} (${exCount} exercises, ${setCount} sets — limit is ${maxExercises} exercises / ${maxSets} sets)`);
+      }
+    });
+    if (dayOverages.length) {
+      throw new Error('AI overcrowded the session: ' + dayOverages.join('; ') + '. Click Generate/Regenerate to try again.');
+    }
+
     // Save generated plan back to Supabase
     await sbUpdate('workout_plans', planId, {
       plan_data: planData,
@@ -4592,6 +4631,7 @@ async function renderPendingPlans() {
           </div>
           ${pd.intake?.medical ? `<div style="color:var(--danger);margin-bottom:4px;">⚠️ Medical: ${pd.intake.medical}</div>` : ''}
           ${pd.intake?.avoid ? `<div style="color:var(--muted);margin-bottom:4px;">Avoid: ${pd.intake.avoid}</div>` : ''}
+          ${pd.intake?.equipment_detail ? `<div style="color:var(--muted);margin-bottom:4px;">🏋️ Equipment details: ${pd.intake.equipment_detail}</div>` : ''}
           ${pd.intake?.other ? `<div style="color:var(--muted);">Notes: ${pd.intake.other}</div>` : ''}
         </div>
         ${pd.overview ? `<div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;font-style:italic;">${pd.overview}</div>` : ''}
@@ -4600,6 +4640,7 @@ async function renderPendingPlans() {
           ${days.map((day, di) => `
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;">
               <div style="font-size:0.8rem;font-weight:600;color:var(--accent);margin-bottom:10px;">${day.name}</div>
+              ${day.warmup ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px;">🔥 Warm-up: ${day.warmup}</div>` : ''}
               <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
                 <span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span><span>Type</span><span></span>
               </div>
@@ -4776,7 +4817,7 @@ MOVEMENTS TO NEVER INCLUDE: "${intake.avoid || 'none specified'}"
 EQUIPMENT AVAILABLE: "${intake.equipment?.replace(/_/g,' ') || 'not specified'}" (details: ${intake.equipment_detail || 'none'})
 Apply the same specific rules as a fresh plan: no loaded squats/lunges/leg press for knee issues, no deadlift/RDL/good morning/bent-over row for back issues, and ONLY use exercises genuinely possible with the equipment listed above — no cable/machine exercises unless the client has gym or explicitly mentioned that equipment, no barbell exercises unless equipment includes a barbell or full gym. Double-check every exercise against these before responding.
 
-⚠️ SESSION LENGTH: ${intake.duration || 60} minutes per day. Roughly ${Math.max(3, Math.round((intake.duration||60)/9))} exercise slots max per day (a superset/tri-set counts as ONE slot). Do not overcrowd the session.
+⚠️ SESSION LENGTH: ${intake.duration || 60} minutes per day. Hard limit: no more than ${Math.max(2, Math.round(6 * (intake.duration||60) / 60))} total exercises AND no more than ${Math.max(6, Math.round(20 * (intake.duration||60) / 60))} total sets per day (based on 6 exercises / 20 sets at 60 minutes, scaled to this session length). Do not overcrowd the session.
 ⚠️ NO REPEATS: Unless training ${intake.days || 4} days is 5 or more, do not repeat the same exercise across multiple days — use different variations for similar muscle groups.
 
 CURRENT PLAN: ${currentPlanData.name || 'Unknown'}
@@ -4812,6 +4853,7 @@ Respond ONLY with this exact JSON (no other text):
       "name": "Day 1 — focus",
       "focus": "muscle groups",
       "duration_mins": ${intake.duration || 60},
+      "warmup": "Specific 5-minute warm-up (exercise/activity + duration, or warm-up sets before first exercise)",
       "exercises": [
         {
           "name": "Exercise",
@@ -4863,6 +4905,11 @@ Respond ONLY with this exact JSON (no other text):
     const text = data.content.map(c => c.text || '').join('');
     const planData = JSON.parse(text.replace(/```json|```/g, '').trim());
     planData.intake = intake; // preserve intake data
+    (planData.days || []).forEach(day => {
+      if (!day.warmup || !day.warmup.trim()) {
+        day.warmup = '5 minutes light cardio (walk, bike, or jog in place) plus dynamic stretching for the muscles trained today.';
+      }
+    });
 
     // Archive old plan and create new pending review plan
     await sbUpdate('workout_plans', planId, {status: 'archived'});
