@@ -2402,101 +2402,101 @@ async function removeVideo(id){
 // ── EXERCISES ─────────────────────────────────────────────────────────────────
 const exercises=[
   // ── CHEST ──
-  {name:'Barbell Bench Press',muscle:'Chest / Triceps / Front Delts',type:'chest',note:'The gold standard chest exercise. Keep shoulder blades retracted and feet flat on floor. Control the descent — do not bounce off chest.',tags:['safe']},
-  {name:'Incline Barbell Press',muscle:'Upper Chest / Shoulders',type:'chest',note:'30-45° incline targets upper chest. Heavy loading possible but shoulder impingement risk increases at steep angles.',tags:['safe']},
-  {name:'Dumbbell Bench Press',muscle:'Chest / Triceps / Front Delts',type:'chest',note:'Greater range of motion than barbell bench press. Allows each arm to move independently which can correct strength imbalances. Excellent for chest development and hypertrophy.',tags:['safe']},
-  {name:'Incline Dumbbell Press',muscle:'Upper Chest',type:'chest',note:'Greater range of motion than barbell variation. Excellent for upper chest development and hypertrophy.',tags:['safe']},
-  {name:'Decline Bench Press',muscle:'Lower Chest',type:'chest',note:'Emphasizes lower chest fibers. Reduced shoulder stress compared to flat press for some individuals.',tags:['safe']},
-  {name:'Dumbbell Flyes',muscle:'Chest / Pec Minor',type:'chest',note:'⚠️ CAUTION: Deep stretch position places high stress on shoulder capsule. Use light-moderate weight only. Stop if you feel shoulder joint pain.',tags:['caution']},
-  {name:'Cable Flyes',muscle:'Chest',type:'chest',note:'Constant tension throughout the movement. Safer than dumbbell flyes as resistance stays consistent. Excellent for chest isolation and peak contraction.',tags:['safe']},
-  {name:'Push-Ups',muscle:'Chest / Triceps / Shoulders',type:'chest',note:'Fundamental bodyweight movement. Scalable for all levels. Elevate hands to decrease difficulty, elevate feet to increase it.',tags:['safe']},
-  {name:'Chest Dips',muscle:'Lower Chest / Triceps',type:'chest',note:'⚠️ CAUTION: High shoulder stress. Lean forward to emphasize chest. Avoid if you have shoulder impingement or rotator cuff issues.',tags:['caution']},
-  {name:'Machine Chest Press',muscle:'Chest / Triceps',type:'chest',note:'Guided path reduces injury risk. Good option for beginners or those returning from injury. Allows heavier loading with less stabilizer demand.',tags:['safe']},
-  {name:'Pec Deck / Chest Fly Machine',muscle:'Chest',type:'chest',note:'⚠️ CAUTION: Avoid full stretch if you have shoulder instability. Keep slight bend in elbows. Do not go past the point of shoulder discomfort.',tags:['caution']},
+  {name:'Barbell Bench Press',muscle:'Chest / Triceps / Front Delts',type:'chest',note:'The gold standard chest exercise. Keep shoulder blades retracted and feet flat on floor. Control the descent — do not bounce off chest.',tags:['safe'],equip:['barbell']},
+  {name:'Incline Barbell Press',muscle:'Upper Chest / Shoulders',type:'chest',note:'30-45° incline targets upper chest. Heavy loading possible but shoulder impingement risk increases at steep angles.',tags:['safe'],equip:['barbell']},
+  {name:'Dumbbell Bench Press',muscle:'Chest / Triceps / Front Delts',type:'chest',note:'Greater range of motion than barbell bench press. Allows each arm to move independently which can correct strength imbalances. Excellent for chest development and hypertrophy.',tags:['safe'],equip:['dumbbell']},
+  {name:'Incline Dumbbell Press',muscle:'Upper Chest',type:'chest',note:'Greater range of motion than barbell variation. Excellent for upper chest development and hypertrophy.',tags:['safe'],equip:['dumbbell']},
+  {name:'Decline Bench Press',muscle:'Lower Chest',type:'chest',note:'Emphasizes lower chest fibers. Reduced shoulder stress compared to flat press for some individuals.',tags:['safe'],equip:['barbell','dumbbell']},
+  {name:'Dumbbell Flyes',muscle:'Chest / Pec Minor',type:'chest',note:'⚠️ CAUTION: Deep stretch position places high stress on shoulder capsule. Use light-moderate weight only. Stop if you feel shoulder joint pain.',tags:['caution'],equip:['dumbbell']},
+  {name:'Cable Flyes',muscle:'Chest',type:'chest',note:'Constant tension throughout the movement. Safer than dumbbell flyes as resistance stays consistent. Excellent for chest isolation and peak contraction.',tags:['safe'],equip:['cable']},
+  {name:'Push-Ups',muscle:'Chest / Triceps / Shoulders',type:'chest',note:'Fundamental bodyweight movement. Scalable for all levels. Elevate hands to decrease difficulty, elevate feet to increase it.',tags:['safe'],equip:['bodyweight']},
+  {name:'Chest Dips',muscle:'Lower Chest / Triceps',type:'chest',note:'⚠️ CAUTION: High shoulder stress. Lean forward to emphasize chest. Avoid if you have shoulder impingement or rotator cuff issues.',tags:['caution'],equip:['bodyweight']},
+  {name:'Machine Chest Press',muscle:'Chest / Triceps',type:'chest',note:'Guided path reduces injury risk. Good option for beginners or those returning from injury. Allows heavier loading with less stabilizer demand.',tags:['safe'],equip:['machine']},
+  {name:'Pec Deck / Chest Fly Machine',muscle:'Chest',type:'chest',note:'⚠️ CAUTION: Avoid full stretch if you have shoulder instability. Keep slight bend in elbows. Do not go past the point of shoulder discomfort.',tags:['caution'],equip:['machine']},
 
   // ── BACK ──
-  {name:'Inverted Bodyweight Row',muscle:'Upper Back / Lats / Biceps',type:'back',note:'Excellent beginner pulling exercise. Lie under a bar or TRX straps and pull chest up to it. Easier than pull-ups — great stepping stone. Elevate feet to increase difficulty.',tags:['safe']},
-  {name:'Pull-Ups / Chin-Ups',muscle:'Lats / Biceps / Rear Delts',type:'back',note:'Best vertical pulling exercise. Full dead hang to chin over bar. Chin-ups (supinated) are generally easier and place more bicep emphasis.',tags:['safe']},
-  {name:'Lat Pulldown',muscle:'Lats / Biceps',type:'back',note:'Great lat builder for those who cannot yet do pull-ups. Pull to upper chest — never behind the neck. Behind-neck variation risks cervical spine injury.',tags:['safe']},
-  {name:'Seated Cable Row',muscle:'Mid Back / Lats / Biceps',type:'back',note:'Excellent for back thickness. Squeeze shoulder blades together at the end of each rep. Avoid excessive trunk movement.',tags:['safe']},
-  {name:'Barbell Row',muscle:'Upper Back / Lats / Erectors',type:'back',note:'⚠️ CAUTION: High lumbar demand. Requires a flat back and hip hinge position. Avoid with lower back pain. Start with moderate weight and perfect form.',tags:['caution']},
-  {name:'Dumbbell Row',muscle:'Lats / Mid Back',type:'back',note:'Single-arm variation allows full range of motion and reduced spinal loading compared to barbell row. Support yourself with opposite hand.',tags:['safe']},
-  {name:'T-Bar Row',muscle:'Mid/Upper Back',type:'back',note:'⚠️ CAUTION: Compressive load on spine similar to barbell row. Avoid with active back issues. Chest-supported version is safer option.',tags:['caution']},
-  {name:'Face Pulls',muscle:'Rear Delts / Rotator Cuff / Traps',type:'back',note:'Critical for shoulder health and posture. Pull to face height, elbows high. Include in every training week for joint longevity.',tags:['safe']},
-  {name:'Deadlift',muscle:'Full Posterior Chain',type:'back',note:'⚠️ HIGH RISK: Most technical barbell movement. High spinal compressive load. Requires proper hip hinge mechanics. Avoid with back pain. Never round the lower back under load.',tags:['highrisk']},
-  {name:'Trap Bar Deadlift',muscle:'Legs / Back / Traps',type:'back',note:'More upright torso than conventional deadlift. Reduced lower back stress. Excellent alternative for those with back sensitivity.',tags:['caution']},
-  {name:'Hyperextension / Back Extension',muscle:'Erectors / Glutes / Hamstrings',type:'back',note:'⚠️ CAUTION: Avoid hyperextending at the top. Stop at neutral spine. Do not load heavily if you have disc issues. Bodyweight is often sufficient.',tags:['caution']},
+  {name:'Inverted Bodyweight Row',muscle:'Upper Back / Lats / Biceps',type:'back',note:'Excellent beginner pulling exercise. Lie under a bar or TRX straps and pull chest up to it. Easier than pull-ups — great stepping stone. Elevate feet to increase difficulty.',tags:['safe'],equip:['bodyweight']},
+  {name:'Pull-Ups / Chin-Ups',muscle:'Lats / Biceps / Rear Delts',type:'back',note:'Best vertical pulling exercise. Full dead hang to chin over bar. Chin-ups (supinated) are generally easier and place more bicep emphasis.',tags:['safe'],equip:['bodyweight']},
+  {name:'Lat Pulldown',muscle:'Lats / Biceps',type:'back',note:'Great lat builder for those who cannot yet do pull-ups. Pull to upper chest — never behind the neck. Behind-neck variation risks cervical spine injury.',tags:['safe'],equip:['machine']},
+  {name:'Seated Cable Row',muscle:'Mid Back / Lats / Biceps',type:'back',note:'Excellent for back thickness. Squeeze shoulder blades together at the end of each rep. Avoid excessive trunk movement.',tags:['safe'],equip:['cable']},
+  {name:'Barbell Row',muscle:'Upper Back / Lats / Erectors',type:'back',note:'⚠️ CAUTION: High lumbar demand. Requires a flat back and hip hinge position. Avoid with lower back pain. Start with moderate weight and perfect form.',tags:['caution'],equip:['barbell']},
+  {name:'Dumbbell Row',muscle:'Lats / Mid Back',type:'back',note:'Single-arm variation allows full range of motion and reduced spinal loading compared to barbell row. Support yourself with opposite hand.',tags:['safe'],equip:['dumbbell']},
+  {name:'T-Bar Row',muscle:'Mid/Upper Back',type:'back',note:'⚠️ CAUTION: Compressive load on spine similar to barbell row. Avoid with active back issues. Chest-supported version is safer option.',tags:['caution'],equip:['machine']},
+  {name:'Face Pulls',muscle:'Rear Delts / Rotator Cuff / Traps',type:'back',note:'Critical for shoulder health and posture. Pull to face height, elbows high. Include in every training week for joint longevity.',tags:['safe'],equip:['cable','bands']},
+  {name:'Deadlift',muscle:'Full Posterior Chain',type:'back',note:'⚠️ HIGH RISK: Most technical barbell movement. High spinal compressive load. Requires proper hip hinge mechanics. Avoid with back pain. Never round the lower back under load.',tags:['highrisk'],equip:['barbell']},
+  {name:'Trap Bar Deadlift',muscle:'Legs / Back / Traps',type:'back',note:'More upright torso than conventional deadlift. Reduced lower back stress. Excellent alternative for those with back sensitivity.',tags:['caution'],equip:['barbell']},
+  {name:'Hyperextension / Back Extension',muscle:'Erectors / Glutes / Hamstrings',type:'back',note:'⚠️ CAUTION: Avoid hyperextending at the top. Stop at neutral spine. Do not load heavily if you have disc issues. Bodyweight is often sufficient.',tags:['caution'],equip:['machine','bodyweight']},
 
   // ── SHOULDERS ──
-  {name:'Overhead Press (Barbell)',muscle:'Shoulders / Triceps / Upper Traps',type:'shoulders',note:'⚠️ CAUTION: High lumbar demand. Brace core and avoid arching excessively. Not suitable during active lower back flare-ups.',tags:['caution']},
-  {name:'Dumbbell Shoulder Press',muscle:'Shoulders / Triceps',type:'shoulders',note:'Greater range of motion than barbell. Neutral or pronated grip options available. More shoulder-friendly for many people.',tags:['safe']},
-  {name:'Lateral Raises',muscle:'Side Delts',type:'shoulders',note:'Essential for shoulder width. Slow controlled eccentric. Slight forward lean and internal rotation of the pinky up. Avoid swinging.',tags:['safe']},
-  {name:'Front Raises',muscle:'Front Delts',type:'shoulders',note:'⚠️ CAUTION: Front delts are typically overdeveloped in people who bench press. Prioritize lateral raises and rear delt work instead. Use sparingly.',tags:['caution']},
-  {name:'Rear Delt Flyes',muscle:'Rear Delts / Upper Back',type:'shoulders',note:'Critical for posture and shoulder balance. Most people are rear delt deficient. Include in every upper body session.',tags:['safe']},
-  {name:'Upright Row',muscle:'Traps / Side Delts',type:'shoulders',note:'⚠️ HIGH RISK: Internal rotation combined with shoulder elevation creates high impingement risk. Many shoulder specialists advise against this exercise. Use with extreme caution.',tags:['highrisk']},
-  {name:'Arnold Press',muscle:'Shoulders / Triceps',type:'shoulders',note:'Rotational pressing movement hits all three delt heads. Slower and more technical than standard press. Excellent for shoulder development.',tags:['safe']},
-  {name:'Cable Lateral Raise',muscle:'Side Delts',type:'shoulders',note:'Constant tension throughout the movement. Excellent complement or alternative to dumbbell lateral raises.',tags:['safe']},
-  {name:'Behind-the-Neck Press',muscle:'Shoulders',type:'shoulders',note:'⚠️ HIGH RISK: Places cervical spine and rotator cuff in a vulnerable position. High injury risk. Not recommended for most people.',tags:['highrisk']},
+  {name:'Overhead Press (Barbell)',muscle:'Shoulders / Triceps / Upper Traps',type:'shoulders',note:'⚠️ CAUTION: High lumbar demand. Brace core and avoid arching excessively. Not suitable during active lower back flare-ups.',tags:['caution'],equip:['barbell']},
+  {name:'Dumbbell Shoulder Press',muscle:'Shoulders / Triceps',type:'shoulders',note:'Greater range of motion than barbell. Neutral or pronated grip options available. More shoulder-friendly for many people.',tags:['safe'],equip:['dumbbell']},
+  {name:'Lateral Raises',muscle:'Side Delts',type:'shoulders',note:'Essential for shoulder width. Slow controlled eccentric. Slight forward lean and internal rotation of the pinky up. Avoid swinging.',tags:['safe'],equip:['dumbbell']},
+  {name:'Front Raises',muscle:'Front Delts',type:'shoulders',note:'⚠️ CAUTION: Front delts are typically overdeveloped in people who bench press. Prioritize lateral raises and rear delt work instead. Use sparingly.',tags:['caution'],equip:['dumbbell']},
+  {name:'Rear Delt Flyes',muscle:'Rear Delts / Upper Back',type:'shoulders',note:'Critical for posture and shoulder balance. Most people are rear delt deficient. Include in every upper body session.',tags:['safe'],equip:['dumbbell']},
+  {name:'Upright Row',muscle:'Traps / Side Delts',type:'shoulders',note:'⚠️ HIGH RISK: Internal rotation combined with shoulder elevation creates high impingement risk. Many shoulder specialists advise against this exercise. Use with extreme caution.',tags:['highrisk'],equip:['barbell','dumbbell']},
+  {name:'Arnold Press',muscle:'Shoulders / Triceps',type:'shoulders',note:'Rotational pressing movement hits all three delt heads. Slower and more technical than standard press. Excellent for shoulder development.',tags:['safe'],equip:['dumbbell']},
+  {name:'Cable Lateral Raise',muscle:'Side Delts',type:'shoulders',note:'Constant tension throughout the movement. Excellent complement or alternative to dumbbell lateral raises.',tags:['safe'],equip:['cable']},
+  {name:'Behind-the-Neck Press',muscle:'Shoulders',type:'shoulders',note:'⚠️ HIGH RISK: Places cervical spine and rotator cuff in a vulnerable position. High injury risk. Not recommended for most people.',tags:['highrisk'],equip:['barbell']},
 
   // ── ARMS ──
-  {name:'Barbell Curl',muscle:'Biceps',type:'arms',note:'Primary bicep mass builder. Keep elbows at sides. Avoid swinging the torso — use a wall or preacher bench to isolate if needed.',tags:['safe']},
-  {name:'Dumbbell Curl',muscle:'Biceps',type:'arms',note:'Allows supination throughout the movement for full bicep activation. Can be done alternating or both arms simultaneously.',tags:['safe']},
-  {name:'Hammer Curl',muscle:'Biceps / Brachialis / Brachioradialis',type:'arms',note:'Neutral grip targets brachialis and forearm. Adds arm thickness. Great complement to supinated curls.',tags:['safe']},
-  {name:'Bayesian Curl',muscle:'Biceps (Long Head)',type:'arms',note:'Cable curl performed with arm behind the body. Maximizes bicep stretch under load — excellent for long head development and peak contraction. Use light to moderate weight.',tags:['safe']},
-  {name:'Preacher Curl',muscle:'Biceps (Short Head)',type:'arms',note:'Eliminates cheating by stabilizing the upper arm. Excellent for bicep peak. Avoid locking out fully under load as this stresses the distal bicep tendon.',tags:['caution']},
-  {name:'Incline Dumbbell Curl',muscle:'Biceps (Long Head)',type:'arms',note:'Stretched position emphasizes the long head of the bicep. Use light to moderate weight — high stretch position is demanding on the bicep tendon.',tags:['caution']},
-  {name:'Cable Curl',muscle:'Biceps',type:'arms',note:'Constant tension variation. Excellent finishing exercise. Can be done single or double arm.',tags:['safe']},
-  {name:'Tricep Pushdown',muscle:'Triceps',type:'arms',note:'Most common tricep isolation exercise. Keep elbows at sides. Both rope and bar attachments are effective.',tags:['safe']},
-  {name:'Skull Crushers',muscle:'Triceps',type:'arms',note:'⚠️ CAUTION: High elbow stress at the stretched position. Use moderate weight. Supinated (reverse) grip version reduces elbow stress for many people.',tags:['caution']},
-  {name:'Overhead Tricep Extension',muscle:'Triceps (Long Head)',type:'arms',note:'Overhead position maximally stretches the long head. Use cable or dumbbell. High elbow stress — avoid if you have elbow issues.',tags:['caution']},
-  {name:'Close-Grip Bench Press',muscle:'Triceps / Chest',type:'arms',note:'Compound tricep movement. Keep elbows close to torso. Slightly wider than shoulder width grip reduces wrist stress.',tags:['safe']},
-  {name:'Tricep Dips',muscle:'Triceps / Chest / Shoulders',type:'arms',note:'⚠️ CAUTION: High shoulder stress. Keep torso upright to emphasize triceps. Avoid if you have shoulder impingement or instability.',tags:['caution']},
-  {name:'Wrist Curls / Forearm Work',muscle:'Forearms',type:'arms',note:'Often neglected. Strong forearms improve grip for all pulling movements. Include 2-3 sets of wrist curls or farmer carries weekly.',tags:['safe']},
+  {name:'Barbell Curl',muscle:'Biceps',type:'arms',note:'Primary bicep mass builder. Keep elbows at sides. Avoid swinging the torso — use a wall or preacher bench to isolate if needed.',tags:['safe'],equip:['barbell']},
+  {name:'Dumbbell Curl',muscle:'Biceps',type:'arms',note:'Allows supination throughout the movement for full bicep activation. Can be done alternating or both arms simultaneously.',tags:['safe'],equip:['dumbbell']},
+  {name:'Hammer Curl',muscle:'Biceps / Brachialis / Brachioradialis',type:'arms',note:'Neutral grip targets brachialis and forearm. Adds arm thickness. Great complement to supinated curls.',tags:['safe'],equip:['dumbbell']},
+  {name:'Bayesian Curl',muscle:'Biceps (Long Head)',type:'arms',note:'Cable curl performed with arm behind the body. Maximizes bicep stretch under load — excellent for long head development and peak contraction. Use light to moderate weight.',tags:['safe'],equip:['cable']},
+  {name:'Preacher Curl',muscle:'Biceps (Short Head)',type:'arms',note:'Eliminates cheating by stabilizing the upper arm. Excellent for bicep peak. Avoid locking out fully under load as this stresses the distal bicep tendon.',tags:['caution'],equip:['barbell','dumbbell']},
+  {name:'Incline Dumbbell Curl',muscle:'Biceps (Long Head)',type:'arms',note:'Stretched position emphasizes the long head of the bicep. Use light to moderate weight — high stretch position is demanding on the bicep tendon.',tags:['caution'],equip:['dumbbell']},
+  {name:'Cable Curl',muscle:'Biceps',type:'arms',note:'Constant tension variation. Excellent finishing exercise. Can be done single or double arm.',tags:['safe'],equip:['cable']},
+  {name:'Tricep Pushdown',muscle:'Triceps',type:'arms',note:'Most common tricep isolation exercise. Keep elbows at sides. Both rope and bar attachments are effective.',tags:['safe'],equip:['cable']},
+  {name:'Skull Crushers',muscle:'Triceps',type:'arms',note:'⚠️ CAUTION: High elbow stress at the stretched position. Use moderate weight. Supinated (reverse) grip version reduces elbow stress for many people.',tags:['caution'],equip:['barbell','dumbbell']},
+  {name:'Overhead Tricep Extension',muscle:'Triceps (Long Head)',type:'arms',note:'Overhead position maximally stretches the long head. Use cable or dumbbell. High elbow stress — avoid if you have elbow issues.',tags:['caution'],equip:['dumbbell','cable']},
+  {name:'Close-Grip Bench Press',muscle:'Triceps / Chest',type:'arms',note:'Compound tricep movement. Keep elbows close to torso. Slightly wider than shoulder width grip reduces wrist stress.',tags:['safe'],equip:['barbell']},
+  {name:'Tricep Dips',muscle:'Triceps / Chest / Shoulders',type:'arms',note:'⚠️ CAUTION: High shoulder stress. Keep torso upright to emphasize triceps. Avoid if you have shoulder impingement or instability.',tags:['caution'],equip:['bodyweight']},
+  {name:'Wrist Curls / Forearm Work',muscle:'Forearms',type:'arms',note:'Often neglected. Strong forearms improve grip for all pulling movements. Include 2-3 sets of wrist curls or farmer carries weekly.',tags:['safe'],equip:['dumbbell']},
 
   // ── LEGS ──
-  {name:'Barbell Back Squat',muscle:'Quads / Glutes / Hamstrings / Core',type:'legs',note:'⚠️ CAUTION: High compressive load on knees and lumbar spine. Requires excellent mobility and technique. Keep chest up, knees tracking over toes. Avoid with active knee or back pain.',tags:['caution']},
-  {name:'Front Squat',muscle:'Quads / Core',type:'legs',note:'⚠️ CAUTION: Greater quad emphasis than back squat. More upright torso reduces lower back stress but demands high ankle and wrist mobility. Technical lift.',tags:['caution']},
-  {name:'Goblet Squat',muscle:'Quads / Glutes / Core',type:'legs',note:'Excellent teaching tool for squat mechanics. Counterbalance helps maintain upright torso. Great for beginners and warm-ups.',tags:['safe']},
-  {name:'Bulgarian Split Squat',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: High single-leg demand. Knee stress can be significant. Start with bodyweight. Keep front foot far enough forward to prevent knee traveling too far past toes.',tags:['caution']},
-  {name:'Leg Press',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: Do NOT lock out knees at top. High foot placement emphasizes glutes/hamstrings; low placement emphasizes quads. Avoid excessive depth if you have lower back issues — pelvis may tuck.',tags:['caution']},
-  {name:'Hack Squat',muscle:'Quads',type:'legs',note:'⚠️ CAUTION: High knee compressive force. Avoid with knee pain or patellofemoral issues. Keep controlled movement — do not let knees cave inward.',tags:['caution']},
-  {name:'Romanian Deadlift (RDL)',muscle:'Hamstrings / Glutes / Erectors',type:'legs',note:'Hip hinge movement with emphasis on hamstring stretch. Keep slight bend in knees and flat back throughout. Do not round the lower back.',tags:['safe']},
-  {name:'Leg Curl (Machine)',muscle:'Hamstrings',type:'legs',note:'⚠️ CAUTION: Open kinetic chain movement. Isolated hamstring loading can stress the posterior knee and ACL. Avoid heavy loading if recovering from knee injury. Use controlled tempo.',tags:['caution']},
-  {name:'Nordic Hamstring Curl',muscle:'Hamstrings',type:'legs',note:'⚠️ CAUTION: Very high eccentric demand on hamstrings. High DOMS common in untrained individuals. One of the most effective hamstring strengthening exercises for injury prevention.',tags:['caution']},
-  {name:'Hip Thrust',muscle:'Glutes',type:'legs',note:'Most effective glute activation exercise. Drive through heels, squeeze glutes at top. Keep chin tucked to maintain neutral spine.',tags:['safe']},
-  {name:'Glute Bridge',muscle:'Glutes / Hamstrings',type:'legs',note:'Beginner-friendly glute exercise. Good starting point before progressing to hip thrusts. Can be loaded with a barbell or dumbbell.',tags:['safe']},
-  {name:'Leg Extension (Machine)',muscle:'Quads',type:'legs',note:'⚠️ HIGH RISK: Open kinetic chain exercise. Places significant shear force on the ACL and patellar tendon at full extension. Avoid post-ACL surgery. Use light-moderate weight and avoid full lockout. Many clinicians advise against this exercise.',tags:['highrisk']},
-  {name:'Walking Lunges',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: High balance and knee stability demand. Keep front knee tracking over second toe. Avoid if you have knee pain until mobility and stability improve.',tags:['caution']},
-  {name:'Step-Ups',muscle:'Quads / Glutes',type:'legs',note:'Functional unilateral exercise. Low injury risk. Drive through the heel of the elevated foot. Excellent for balance and single-leg strength.',tags:['safe']},
-  {name:'Calf Raises',muscle:'Gastrocnemius / Soleus',type:'legs',note:'Standing calf raise targets gastrocnemius; seated targets soleus. Full range of motion important — stretch at bottom, pause at top.',tags:['safe']},
-  {name:'Spanish Squat',muscle:'Quads / Knee (Rehab)',type:'legs',note:'Isometric quad loading with minimal knee shear. Excellent for quad strengthening without joint stress. Highly recommended for patellofemoral issues.',tags:['safe']},
-  {name:'Wall Sit',muscle:'Quads / Glutes',type:'legs',note:'Isometric quad hold. Good for building endurance and knee stability with minimal injury risk. Great for beginners and rehab.',tags:['safe']},
+  {name:'Barbell Back Squat',muscle:'Quads / Glutes / Hamstrings / Core',type:'legs',note:'⚠️ CAUTION: High compressive load on knees and lumbar spine. Requires excellent mobility and technique. Keep chest up, knees tracking over toes. Avoid with active knee or back pain.',tags:['caution'],equip:['barbell']},
+  {name:'Front Squat',muscle:'Quads / Core',type:'legs',note:'⚠️ CAUTION: Greater quad emphasis than back squat. More upright torso reduces lower back stress but demands high ankle and wrist mobility. Technical lift.',tags:['caution'],equip:['barbell']},
+  {name:'Goblet Squat',muscle:'Quads / Glutes / Core',type:'legs',note:'Excellent teaching tool for squat mechanics. Counterbalance helps maintain upright torso. Great for beginners and warm-ups.',tags:['safe'],equip:['dumbbell']},
+  {name:'Bulgarian Split Squat',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: High single-leg demand. Knee stress can be significant. Start with bodyweight. Keep front foot far enough forward to prevent knee traveling too far past toes.',tags:['caution'],equip:['dumbbell','bodyweight']},
+  {name:'Leg Press',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: Do NOT lock out knees at top. High foot placement emphasizes glutes/hamstrings; low placement emphasizes quads. Avoid excessive depth if you have lower back issues — pelvis may tuck.',tags:['caution'],equip:['machine']},
+  {name:'Hack Squat',muscle:'Quads',type:'legs',note:'⚠️ CAUTION: High knee compressive force. Avoid with knee pain or patellofemoral issues. Keep controlled movement — do not let knees cave inward.',tags:['caution'],equip:['machine']},
+  {name:'Romanian Deadlift (RDL)',muscle:'Hamstrings / Glutes / Erectors',type:'legs',note:'Hip hinge movement with emphasis on hamstring stretch. Keep slight bend in knees and flat back throughout. Do not round the lower back.',tags:['safe'],equip:['barbell','dumbbell']},
+  {name:'Leg Curl (Machine)',muscle:'Hamstrings',type:'legs',note:'⚠️ CAUTION: Open kinetic chain movement. Isolated hamstring loading can stress the posterior knee and ACL. Avoid heavy loading if recovering from knee injury. Use controlled tempo.',tags:['caution'],equip:['machine']},
+  {name:'Nordic Hamstring Curl',muscle:'Hamstrings',type:'legs',note:'⚠️ CAUTION: Very high eccentric demand on hamstrings. High DOMS common in untrained individuals. One of the most effective hamstring strengthening exercises for injury prevention.',tags:['caution'],equip:['bodyweight']},
+  {name:'Hip Thrust',muscle:'Glutes',type:'legs',note:'Most effective glute activation exercise. Drive through heels, squeeze glutes at top. Keep chin tucked to maintain neutral spine.',tags:['safe'],equip:['barbell','dumbbell','bodyweight']},
+  {name:'Glute Bridge',muscle:'Glutes / Hamstrings',type:'legs',note:'Beginner-friendly glute exercise. Good starting point before progressing to hip thrusts. Can be loaded with a barbell or dumbbell.',tags:['safe'],equip:['bodyweight','barbell','dumbbell']},
+  {name:'Leg Extension (Machine)',muscle:'Quads',type:'legs',note:'⚠️ HIGH RISK: Open kinetic chain exercise. Places significant shear force on the ACL and patellar tendon at full extension. Avoid post-ACL surgery. Use light-moderate weight and avoid full lockout. Many clinicians advise against this exercise.',tags:['highrisk'],equip:['machine']},
+  {name:'Walking Lunges',muscle:'Quads / Glutes / Hamstrings',type:'legs',note:'⚠️ CAUTION: High balance and knee stability demand. Keep front knee tracking over second toe. Avoid if you have knee pain until mobility and stability improve.',tags:['caution'],equip:['dumbbell','bodyweight']},
+  {name:'Step-Ups',muscle:'Quads / Glutes',type:'legs',note:'Functional unilateral exercise. Low injury risk. Drive through the heel of the elevated foot. Excellent for balance and single-leg strength.',tags:['safe'],equip:['dumbbell','bodyweight']},
+  {name:'Calf Raises',muscle:'Gastrocnemius / Soleus',type:'legs',note:'Standing calf raise targets gastrocnemius; seated targets soleus. Full range of motion important — stretch at bottom, pause at top.',tags:['safe'],equip:['bodyweight','dumbbell']},
+  {name:'Spanish Squat',muscle:'Quads / Knee (Rehab)',type:'legs',note:'Isometric quad loading with minimal knee shear. Excellent for quad strengthening without joint stress. Highly recommended for patellofemoral issues.',tags:['safe'],equip:['bands','bodyweight']},
+  {name:'Wall Sit',muscle:'Quads / Glutes',type:'legs',note:'Isometric quad hold. Good for building endurance and knee stability with minimal injury risk. Great for beginners and rehab.',tags:['safe'],equip:['bodyweight']},
 
   // ── CORE ──
-  {name:'Plank',muscle:'Core / Anterior Chain',type:'core',note:'Fundamental core stability exercise. Maintain neutral spine — do not let hips sag or pike. Progress to RKC plank or add movement for increased difficulty.',tags:['safe']},
-  {name:'Side Plank',muscle:'Obliques / Hip Abductors',type:'core',note:'Anti-lateral flexion exercise. Critical for lateral spine stability. Keep hips stacked and body in straight line.',tags:['safe']},
-  {name:'Dead Bug',muscle:'Core / Anti-Extension',type:'core',note:'Excellent for lower back health. Press lower back into floor throughout. Opposite arm and leg extend simultaneously. Great rehab and prehab exercise.',tags:['safe']},
-  {name:'Bird-Dog',muscle:'Lumbar Stabilizers / Glutes',type:'core',note:'Quadruped stability exercise. Slow and controlled — pause at full extension. One of the most evidence-based exercises for lower back health.',tags:['safe']},
-  {name:'Pallof Press',muscle:'Anti-Rotation Core',type:'core',note:'Anti-rotation stability work. Resist rotation — do not let the cable pull you sideways. Builds functional core strength.',tags:['safe']},
-  {name:'Cable Woodchop',muscle:'Obliques / Rotational Core',type:'core',note:'Rotational power exercise. Important for sport and daily function. Control the movement — do not let the weight jerk you.',tags:['safe']},
-  {name:'Hanging Knee/Leg Raises',muscle:'Lower Abs / Hip Flexors',type:'core',note:'⚠️ CAUTION: High hip flexor demand. People with lower back issues may feel discomfort due to psoas involvement. Keep movements controlled — do not swing.',tags:['caution']},
-  {name:'Ab Wheel Rollout',muscle:'Core / Lats / Shoulders',type:'core',note:'⚠️ CAUTION: Very high anti-extension demand. High lower back injury risk if performed incorrectly. Start with partial rollouts from knees only. Not suitable for beginners.',tags:['caution']},
-  {name:'Sit-Ups / Crunches',muscle:'Rectus Abdominis',type:'core',note:'⚠️ CAUTION: Repeated spinal flexion under load has been linked to disc stress. Many clinicians prefer anti-movement exercises (planks, dead bugs). If used, avoid pulling on neck.',tags:['caution']},
-  {name:'McGill Big 3',muscle:'Core Stability (Full)',type:'core',note:'Evidence-based protocol: Modified Curl-Up, Side Plank, Bird-Dog. Recommended by spine researcher Dr. Stuart McGill for building spine stability and reducing back pain.',tags:['safe']},
-  {name:'Farmer Carries',muscle:'Core / Grip / Full Body',type:'core',note:'Loaded carry is one of the most functional core exercises. Walk tall, brace the core, do not lean to either side. Excellent for grip strength and conditioning.',tags:['safe']},
-  {name:'Suitcase Carry',muscle:'Obliques / Core / Grip',type:'core',note:'Single-sided loaded carry. Anti-lateral flexion demand is high. Keep torso straight — resist the urge to lean toward the weight.',tags:['safe']},
+  {name:'Plank',muscle:'Core / Anterior Chain',type:'core',note:'Fundamental core stability exercise. Maintain neutral spine — do not let hips sag or pike. Progress to RKC plank or add movement for increased difficulty.',tags:['safe'],equip:['bodyweight']},
+  {name:'Side Plank',muscle:'Obliques / Hip Abductors',type:'core',note:'Anti-lateral flexion exercise. Critical for lateral spine stability. Keep hips stacked and body in straight line.',tags:['safe'],equip:['bodyweight']},
+  {name:'Dead Bug',muscle:'Core / Anti-Extension',type:'core',note:'Excellent for lower back health. Press lower back into floor throughout. Opposite arm and leg extend simultaneously. Great rehab and prehab exercise.',tags:['safe'],equip:['bodyweight']},
+  {name:'Bird-Dog',muscle:'Lumbar Stabilizers / Glutes',type:'core',note:'Quadruped stability exercise. Slow and controlled — pause at full extension. One of the most evidence-based exercises for lower back health.',tags:['safe'],equip:['bodyweight']},
+  {name:'Pallof Press',muscle:'Anti-Rotation Core',type:'core',note:'Anti-rotation stability work. Resist rotation — do not let the cable pull you sideways. Builds functional core strength.',tags:['safe'],equip:['cable','bands']},
+  {name:'Cable Woodchop',muscle:'Obliques / Rotational Core',type:'core',note:'Rotational power exercise. Important for sport and daily function. Control the movement — do not let the weight jerk you.',tags:['safe'],equip:['cable','bands']},
+  {name:'Hanging Knee/Leg Raises',muscle:'Lower Abs / Hip Flexors',type:'core',note:'⚠️ CAUTION: High hip flexor demand. People with lower back issues may feel discomfort due to psoas involvement. Keep movements controlled — do not swing.',tags:['caution'],equip:['bodyweight']},
+  {name:'Ab Wheel Rollout',muscle:'Core / Lats / Shoulders',type:'core',note:'⚠️ CAUTION: Very high anti-extension demand. High lower back injury risk if performed incorrectly. Start with partial rollouts from knees only. Not suitable for beginners.',tags:['caution'],equip:['bodyweight']},
+  {name:'Sit-Ups / Crunches',muscle:'Rectus Abdominis',type:'core',note:'⚠️ CAUTION: Repeated spinal flexion under load has been linked to disc stress. Many clinicians prefer anti-movement exercises (planks, dead bugs). If used, avoid pulling on neck.',tags:['caution'],equip:['bodyweight']},
+  {name:'McGill Big 3',muscle:'Core Stability (Full)',type:'core',note:'Evidence-based protocol: Modified Curl-Up, Side Plank, Bird-Dog. Recommended by spine researcher Dr. Stuart McGill for building spine stability and reducing back pain.',tags:['safe'],equip:['bodyweight']},
+  {name:'Farmer Carries',muscle:'Core / Grip / Full Body',type:'core',note:'Loaded carry is one of the most functional core exercises. Walk tall, brace the core, do not lean to either side. Excellent for grip strength and conditioning.',tags:['safe'],equip:['dumbbell']},
+  {name:'Suitcase Carry',muscle:'Obliques / Core / Grip',type:'core',note:'Single-sided loaded carry. Anti-lateral flexion demand is high. Keep torso straight — resist the urge to lean toward the weight.',tags:['safe'],equip:['dumbbell']},
 
   // ── CORRECTIVE / REHAB ──
-  {name:'Glute Bridge (Activation)',muscle:'Glutes',type:'corrective',note:'Starting point for glute activation before training. Hold 2 seconds at top. Many people have inhibited glutes from sitting — activate before leg and back sessions.',tags:['safe']},
-  {name:'Clamshells',muscle:'Hip Abductors / Glute Med',type:'corrective',note:'Gluteus medius activation. Weak hip abductors contribute to knee valgus and IT band issues. Add resistance band to progress.',tags:['safe']},
-  {name:'Band Pull-Aparts',muscle:'Rear Delts / Rotator Cuff',type:'corrective',note:'Excellent shoulder prehab. Strengthens external rotators and retractors. Include before upper body sessions to activate rear delts and improve posture.',tags:['safe']},
-  {name:'External Rotation (Cable/Band)',muscle:'Rotator Cuff',type:'corrective',note:'Critical for shoulder health. Most people have weak external rotators from overdeveloped internal rotators (pressing, bench). Include 3x per week.',tags:['safe']},
-  {name:'Scapular Push-Ups',muscle:'Serratus Anterior',type:'corrective',note:'Protraction and retraction of the shoulder blades without arm bending. Activates serratus anterior which is commonly weak and contributes to shoulder dysfunction.',tags:['safe']},
-  {name:'Hip 90/90 Stretch',muscle:'Hip Capsule / Piriformis',type:'corrective',note:'Improves hip internal and external rotation. Tight hips contribute to lower back pain and poor squat mechanics. Hold 60-90 seconds per side.',tags:['safe']},
-  {name:'Thoracic Extension (Foam Roller)',muscle:'Thoracic Spine',type:'corrective',note:'Improves upper back mobility. Place roller perpendicular to spine. Extend gently over the roller. Limited thoracic mobility contributes to shoulder and lower back problems.',tags:['safe']},
-  {name:'Copenhagen Plank',muscle:'Hip Adductors / Core',type:'corrective',note:'⚠️ CAUTION: High adductor demand. Significant DOMS common in untrained individuals. Start with a shorter lever (bent knee). Excellent for groin injury prevention.',tags:['caution']},
-  {name:'Single-Leg Balance',muscle:'Ankle / Knee Stabilizers',type:'corrective',note:'Fundamental proprioception exercise. Progress from flat ground to unstable surface. Important after ankle sprains and knee injuries.',tags:['safe']},
-  {name:'Terminal Knee Extension (TKE)',muscle:'VMO / Quad',type:'corrective',note:'Resisted knee extension in last 30° of range. Strengthens the VMO and is a key exercise in knee rehabilitation. Commonly used post-ACL reconstruction.',tags:['safe']},
+  {name:'Glute Bridge (Activation)',muscle:'Glutes',type:'corrective',note:'Starting point for glute activation before training. Hold 2 seconds at top. Many people have inhibited glutes from sitting — activate before leg and back sessions.',tags:['safe'],equip:['bodyweight']},
+  {name:'Clamshells',muscle:'Hip Abductors / Glute Med',type:'corrective',note:'Gluteus medius activation. Weak hip abductors contribute to knee valgus and IT band issues. Add resistance band to progress.',tags:['safe'],equip:['bodyweight','bands']},
+  {name:'Band Pull-Aparts',muscle:'Rear Delts / Rotator Cuff',type:'corrective',note:'Excellent shoulder prehab. Strengthens external rotators and retractors. Include before upper body sessions to activate rear delts and improve posture.',tags:['safe'],equip:['bands']},
+  {name:'External Rotation (Cable/Band)',muscle:'Rotator Cuff',type:'corrective',note:'Critical for shoulder health. Most people have weak external rotators from overdeveloped internal rotators (pressing, bench). Include 3x per week.',tags:['safe'],equip:['cable','bands']},
+  {name:'Scapular Push-Ups',muscle:'Serratus Anterior',type:'corrective',note:'Protraction and retraction of the shoulder blades without arm bending. Activates serratus anterior which is commonly weak and contributes to shoulder dysfunction.',tags:['safe'],equip:['bodyweight']},
+  {name:'Hip 90/90 Stretch',muscle:'Hip Capsule / Piriformis',type:'corrective',note:'Improves hip internal and external rotation. Tight hips contribute to lower back pain and poor squat mechanics. Hold 60-90 seconds per side.',tags:['safe'],equip:['bodyweight']},
+  {name:'Thoracic Extension (Foam Roller)',muscle:'Thoracic Spine',type:'corrective',note:'Improves upper back mobility. Place roller perpendicular to spine. Extend gently over the roller. Limited thoracic mobility contributes to shoulder and lower back problems.',tags:['safe'],equip:['bodyweight']},
+  {name:'Copenhagen Plank',muscle:'Hip Adductors / Core',type:'corrective',note:'⚠️ CAUTION: High adductor demand. Significant DOMS common in untrained individuals. Start with a shorter lever (bent knee). Excellent for groin injury prevention.',tags:['caution'],equip:['bodyweight']},
+  {name:'Single-Leg Balance',muscle:'Ankle / Knee Stabilizers',type:'corrective',note:'Fundamental proprioception exercise. Progress from flat ground to unstable surface. Important after ankle sprains and knee injuries.',tags:['safe'],equip:['bodyweight']},
+  {name:'Terminal Knee Extension (TKE)',muscle:'VMO / Quad',type:'corrective',note:'Resisted knee extension in last 30° of range. Strengthens the VMO and is a key exercise in knee rehabilitation. Commonly used post-ACL reconstruction.',tags:['safe'],equip:['bands']},
 ];
 let currentFilter='all';
 function filterEx(type,btn){
@@ -4332,44 +4332,34 @@ async function generateAIPlan(planId, clientEmail, intakeData, planType) {
   
   const planTypeLabel = PLAN_TYPES.find(p=>p.value===planType)?.label || planType;
 
-  // Build exercise list from cache to feed to AI, HARD-FILTERED by available equipment
-  // so the AI physically cannot select equipment the client doesn't have.
-  const allExerciseNames = Object.keys(exerciseVideosCache || {});
+  // Build exercise list from the MASTER exercise database (not exerciseVideosCache,
+  // which only contains exercises that happen to have a demo video uploaded).
+  // HARD-FILTER by available equipment using each exercise's real equip tags.
   const equipTier = intakeData.equipment || '';
   const equipDetailLower = (intakeData.equipment_detail || '').toLowerCase();
-  const MACHINE_CABLE_KEYWORDS = ['cable','machine','lat pulldown','pulldown','leg press','hack squat','pec deck','smith','seated row','leg extension','leg curl','chest press machine','shoulder press machine','assisted pull-up','pull-up machine','hyperextension'];
-  const BARBELL_KEYWORDS = ['barbell','ez bar','ez-bar'];
-  const overrideAllows = (keywords) => keywords.some(k => equipDetailLower.includes(k));
-  const exerciseNames = allExerciseNames.filter(name => {
-    const n = name.toLowerCase();
-    const isMachineCable = MACHINE_CABLE_KEYWORDS.some(k => n.includes(k));
-    const isBarbell = BARBELL_KEYWORDS.some(k => n.includes(k));
-    if (equipTier === 'full_gym' || equipTier === 'mixed') return true; // everything available
-    if (equipTier === 'home_full') {
-      // barbell/rack/full weights, but no cable/machine equipment unless stated
-      if (isMachineCable && !overrideAllows(['cable','machine','pulldown','smith'])) return false;
-      return true;
-    }
-    if (equipTier === 'home_partial') {
-      if (isMachineCable && !overrideAllows(['cable','machine','pulldown','smith'])) return false;
-      if (isBarbell && !overrideAllows(['barbell'])) return false;
-      return true;
-    }
-    if (equipTier === 'bands_only') {
-      if (isMachineCable || isBarbell) return false;
-      if (n.includes('dumbbell') && !overrideAllows(['dumbbell'])) return false;
-      return true;
-    }
-    if (equipTier === 'bodyweight') {
-      if (isMachineCable || isBarbell) return false;
-      if (n.includes('dumbbell') || n.includes('band')) return false;
-      return true;
-    }
-    return true; // equipment not specified — don't over-restrict
-  });
+  const TIER_EQUIPMENT = {
+    full_gym: ['barbell','dumbbell','cable','machine','bodyweight','bands'],
+    mixed: ['barbell','dumbbell','cable','machine','bodyweight','bands'],
+    home_full: ['barbell','dumbbell','bodyweight','bands'],
+    home_partial: ['dumbbell','bodyweight','bands'],
+    bands_only: ['bands','bodyweight'],
+    bodyweight: ['bodyweight'],
+  };
+  let availableEquip = TIER_EQUIPMENT[equipTier] || ['barbell','dumbbell','cable','machine','bodyweight','bands']; // unspecified — don't over-restrict
+  // Let equipment_detail text add back specific equipment the client mentions having
+  const detailAdds = [];
+  if (equipDetailLower.includes('cable')) detailAdds.push('cable');
+  if (equipDetailLower.includes('machine')) detailAdds.push('machine');
+  if (equipDetailLower.includes('barbell')) detailAdds.push('barbell');
+  if (equipDetailLower.includes('band')) detailAdds.push('bands');
+  availableEquip = [...new Set([...availableEquip, ...detailAdds])];
+
+  const exerciseNames = exercises
+    .filter(e => (e.equip || []).some(eq => availableEquip.includes(eq)))
+    .map(e => e.name);
   const exerciseList = exerciseNames.length > 0
     ? exerciseNames.join(', ')
-    : allExerciseNames.join(', '); // fallback if filter removed everything (misconfigured data)
+    : exercises.map(e => e.name).join(', '); // fallback if filter removed everything
 
   // Time-budget guidance: roughly estimate how many exercise "slots" fit a session.
   // Rule of thumb: each individual exercise slot (all its sets + rest) takes ~8-10 min;
