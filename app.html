@@ -3181,7 +3181,10 @@ async function renderClientDetail(){
     <div style="margin-bottom:20px;">
       <div class="section-sub" style="border-top:1px solid var(--border);padding-top:16px;display:flex;justify-content:space-between;align-items:center;">
         <span>Current Plan${approvedPlan ? ' — '+(approvedPlan.plan_data?.name||'') : ''}</span>
-        ${approvedPlan ? `<button class="btn" style="font-size:0.7rem;" onclick="regenerateApprovedPlan('${approvedPlan.id}', '${email}')">🔄 Regenerate Plan</button>` : ''}
+        <div style="display:flex;gap:6px;">
+          <button class="btn" style="font-size:0.7rem;" onclick="openEditIntake('${email}')">✏️ Edit Intake</button>
+          ${approvedPlan ? `<button class="btn" style="font-size:0.7rem;" onclick="regenerateApprovedPlan('${approvedPlan.id}', '${email}')">🔄 Regenerate Plan</button>` : ''}
+        </div>
       </div>
       ${approvedPlan?.plan_data?.coach_notes ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.78rem;color:var(--muted);line-height:1.5;"><strong style="color:var(--text);">Coach Notes:</strong> ${approvedPlan.plan_data.coach_notes}</div>` : ''}
       ${planDays.length ? planDays.map((day, di) => `
@@ -4436,7 +4439,9 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
     addIf(avoidLower, ['leg press'], ['leg press']);
     addIf(avoidLower, ['bench press'], ['bench press']);
     addIf(avoidLower, ['overhead press','shoulder press'], ['overhead press','shoulder press']);
-    addIf(medicalLower, ['knee'], ['squat','lunge','leg press','hack squat']);
+    // Only ban squats from knee condition if not explicitly approved in avoid text
+    if (!avoidText.includes('spanish squat')) addIf(medicalLower, ['knee'], ['squat','hack squat']);
+    addIf(medicalLower, ['knee'], ['lunge','leg press']);
     addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
 
     // Safe exceptions only apply if client explicitly approves them in their avoid text
@@ -5015,6 +5020,129 @@ async function loadAllFeedback(filter = 'all') {
     `).join('');
   } catch(e) {
     el.innerHTML = '<div class="empty-state">Could not load feedback.</div>';
+  }
+}
+
+// ── EDIT INTAKE (COACH) ──────────────────────────────────────────────────────
+
+async function openEditIntake(email) {
+  // Get the client's intake data
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => p.client_email === email);
+  if (!plan) { toast('No intake found for this client.'); return; }
+  const intake = plan.plan_data?.intake || {};
+
+  // Build edit modal
+  const modal = document.createElement('div');
+  modal.id = 'edit-intake-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;padding:16px;';
+  modal.innerHTML = `
+    <div style="max-width:600px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;">EDIT INTAKE — ${email}</div>
+        <button class="btn" onclick="document.getElementById('edit-intake-modal').remove()">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Goal</label>
+        <select id="ei-goal">
+          <option value="weight_loss" ${intake.goal==='weight_loss'?'selected':''}>Weight Loss / Fat Loss</option>
+          <option value="muscle_gain" ${intake.goal==='muscle_gain'?'selected':''}>Muscle Gain</option>
+          <option value="lean_bulk" ${intake.goal==='lean_bulk'?'selected':''}>Lean Bulk</option>
+          <option value="general_fitness" ${intake.goal==='general_fitness'?'selected':''}>General Fitness</option>
+          <option value="maintenance" ${intake.goal==='maintenance'?'selected':''}>Maintenance</option>
+          <option value="sport_specific" ${intake.goal==='sport_specific'?'selected':''}>Sport Specific</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Fitness Level</label>
+        <select id="ei-level">
+          <option value="beginner" ${intake.level==='beginner'?'selected':''}>Beginner</option>
+          <option value="intermediate" ${intake.level==='intermediate'?'selected':''}>Intermediate</option>
+          <option value="advanced" ${intake.level==='advanced'?'selected':''}>Advanced</option>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Age</label>
+          <input type="number" id="ei-age" value="${intake.age||''}" placeholder="Age">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Days/Week</label>
+          <input type="number" id="ei-days" value="${intake.days||''}" placeholder="Days" min="1" max="7">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Session Length (min)</label>
+          <input type="number" id="ei-session" value="${intake.session||''}" placeholder="Minutes">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Equipment</label>
+          <select id="ei-equipment">
+            <option value="home_full" ${intake.equipment==='home_full'?'selected':''}>Home Full</option>
+            <option value="home_partial" ${intake.equipment==='home_partial'?'selected':''}>Home Partial</option>
+            <option value="gym" ${intake.equipment==='gym'?'selected':''}>Full Gym</option>
+            <option value="bodyweight" ${intake.equipment==='bodyweight'?'selected':''}>Bodyweight Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">⚠️ Medical Conditions / Injuries</label>
+        <textarea id="ei-medical" rows="3" placeholder="Medical history, injuries, conditions...">${intake.medical||''}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🚫 Exercises to Avoid</label>
+        <textarea id="ei-avoid" rows="2" placeholder="Exercises or movements to avoid...">${intake.avoid||''}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📝 Additional Notes</label>
+        <textarea id="ei-notes" rows="2" placeholder="Any other relevant information...">${intake.notes||''}</textarea>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;padding:14px;letter-spacing:2px;" onclick="saveEditIntake('${email}', '${plan.id}')">SAVE CHANGES</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveEditIntake(email, planId) {
+  const btn = document.querySelector('#edit-intake-modal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  try {
+    // Get current plan data
+    const plans = await sbGet('workout_plans');
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) throw new Error('Plan not found');
+
+    const updatedIntake = {
+      ...(plan.plan_data?.intake || {}),
+      goal: document.getElementById('ei-goal').value,
+      level: document.getElementById('ei-level').value,
+      age: document.getElementById('ei-age').value,
+      days: document.getElementById('ei-days').value,
+      session: document.getElementById('ei-session').value,
+      equipment: document.getElementById('ei-equipment').value,
+      medical: document.getElementById('ei-medical').value.trim(),
+      avoid: document.getElementById('ei-avoid').value.trim(),
+      notes: document.getElementById('ei-notes').value.trim(),
+    };
+
+    await sbUpdate('workout_plans', planId, {
+      plan_data: { ...plan.plan_data, intake: updatedIntake }
+    });
+
+    document.getElementById('edit-intake-modal').remove();
+    toast('Intake updated successfully ✅');
+    renderClientList();
+    renderClientDetail();
+  } catch(e) {
+    toast('Failed to save: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'SAVE CHANGES'; }
   }
 }
 
