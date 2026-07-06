@@ -720,7 +720,8 @@
       </div>
       <div class="form-group">
         <label class="form-label">Any exercises or movements you cannot or should not do?</label>
-        <textarea id="intake-avoid" rows="2" placeholder="e.g. no running due to knee surgery, can't overhead press, avoid heavy squats..."></textarea>
+        <textarea id="intake-avoid" rows="2" placeholder="e.g. no squats, no deadlifts. If there's an exception, spell it out: 'squats except Spanish squats' or 'no lunges'"></textarea>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Tip: list one restriction per item, separated by commas. If an exercise is OK in a specific form, name that exact variation (e.g. "Spanish squats OK").</div>
       </div>
     </div>
 
@@ -4199,6 +4200,9 @@ async function renderPendingIntakes() {
         <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="gen-btn-${p.id}" onclick="startAIGeneration('${p.id}', '${p.client_email}')">
           ⚡ Generate AI Plan
         </button>
+        <button class="btn" style="width:100%;margin-top:6px;" onclick="openEditIntake('${p.client_email}')">
+          ✏️ Edit Intake
+        </button>
         <button class="btn" style="width:100%;margin-top:6px;" onclick="openPlanBuilder('${p.client_email}')">
           📋 Build Manually Instead
         </button>
@@ -5142,6 +5146,7 @@ async function saveEditIntake(email, planId) {
     toast('Intake updated successfully ✅');
     renderClientList();
     renderClientDetail();
+    renderPendingIntakes();
   } catch(e) {
     toast('Failed to save: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = 'SAVE CHANGES'; }

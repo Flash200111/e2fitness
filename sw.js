@@ -1,28 +1,48 @@
-const CACHE_NAME = 'e2fitness-v5';
+const CACHE_NAME = 'e2fitness-v2';
+const ASSETS = [
+  '/app.html',
+  '/manifest.json'
+];
 
-// Install — skip waiting immediately
+// Install — cache core assets
 self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+  );
   self.skipWaiting();
 });
 
-// Activate — clean ALL old caches
+// Activate — clean old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
-// Fetch — always network first, no caching of HTML
+// Fetch — cache first for app assets, network first for API calls
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  
-  // Always go to network for everything - no caching
+
+  // Always go network for API calls
+  if (url.hostname === 'api.anthropic.com') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Cache first for everything else
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return new Response('Offline — please reconnect', { status: 503 });
+    caches.match(event.request).then(cached => {
+      return cached || fetch(event.request).then(response => {
+        // Cache fresh responses for same-origin assets
+        if (response.ok && url.origin === self.location.origin) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => cached || new Response('Offline — please reconnect', { status: 503 }));
     })
   );
 });
