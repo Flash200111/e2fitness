@@ -4439,9 +4439,20 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
     addIf(medicalLower, ['knee'], ['squat','lunge','leg press','hack squat']);
     addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
 
+    // Safe exceptions — these contain banned keywords but are safe variants
+    const safeExceptions = [
+      'spanish squat',       // wall-supported, safe for knee replacements
+      'goblet squat',        // upright torso, generally safe
+      'box squat',           // controlled range of motion
+      'wall squat',          // supported, rehab-friendly
+      'landmine squat',      // supported movement pattern
+    ];
+
     const violations = [];
     (planData.days || []).forEach(day => (day.exercises || []).forEach(ex => {
       const nameLower = (ex.name || '').toLowerCase();
+      // Skip if this exercise is a known safe exception
+      if (safeExceptions.some(e => nameLower.includes(e))) return;
       bannedKeywords.forEach(k => { if (nameLower.includes(k)) violations.push(ex.name); });
     }));
     if (violations.length) {
