@@ -4439,15 +4439,17 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
     addIf(avoidLower, ['leg press'], ['leg press']);
     addIf(avoidLower, ['bench press'], ['bench press']);
     addIf(avoidLower, ['overhead press','shoulder press'], ['overhead press','shoulder press']);
-    // Only ban squats from knee condition if not explicitly approved in avoid text
-    if (!avoidText.includes('spanish squat')) addIf(medicalLower, ['knee'], ['squat','hack squat']);
-    addIf(medicalLower, ['knee'], ['lunge','leg press']);
-    addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
 
     // Safe exceptions only apply if client explicitly approves them in their avoid text
     // e.g. "avoid squats except Spanish squats" — Spanish Squat is allowed
     const avoidText = (intakeData.avoid || '').toLowerCase();
     const medicalText = (intakeData.medical || '').toLowerCase();
+
+    // Only ban squats from knee condition if not explicitly approved in avoid text
+    if (!avoidText.includes('spanish squat')) addIf(medicalLower, ['knee'], ['squat','hack squat']);
+    addIf(medicalLower, ['knee'], ['lunge','leg press']);
+    addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
+
     const safeExceptions = [];
     // If "spanish squat" appears anywhere in avoid text, it's approved
     if (avoidText.includes('spanish squat') || avoidText.includes('spanish squats')) {
