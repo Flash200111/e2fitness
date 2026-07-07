@@ -1965,7 +1965,12 @@ async function calcTodayExpenditure(trainedOverride) {
 
   let workoutBurn = 0, epoc = 0;
   if (trained && state.today.workout.length) {
-    workoutBurn = 250;
+    // Scale with actual logged volume (~6 kcal/set for resistance training)
+    // instead of a flat estimate, so extra exercises actually count.
+    const totalSets = state.today.workout.reduce((s,ex)=> s + (parseInt(ex.sets,10)||0), 0);
+    workoutBurn = totalSets > 0
+      ? Math.min(700, Math.max(80, Math.round(totalSets * 6)))
+      : 250; // fallback if entries exist without a parseable set count
     epoc = Math.round(workoutBurn * 0.10);
   }
 
@@ -2080,9 +2085,13 @@ async function renderWeeklyOverview() {
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
-    // Match daily card logic: workout burn only if trained AND exercises logged
-    if (trained && workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0).length>0) {
-      workoutBurn=250; epoc=Math.round(workoutBurn*0.10);
+    // Match daily card logic: workout burn only if trained AND exercises logged,
+    // scaled by actual sets logged instead of a flat estimate.
+    const dayExerciseLogs = workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0);
+    if (trained && dayExerciseLogs.length>0) {
+      const totalSets = dayExerciseLogs.reduce((s,l)=> s + (l.exercises||[]).reduce((s2,ex)=> s2 + (parseInt(ex.sets,10)||0), 0), 0);
+      workoutBurn = totalSets > 0 ? Math.min(700, Math.max(80, Math.round(totalSets * 6))) : 250;
+      epoc = Math.round(workoutBurn*0.10);
     }
     // For today use lastComputedExpenditure if available so numbers always match
     let totalExpenditure;
