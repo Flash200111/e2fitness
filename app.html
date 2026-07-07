@@ -1907,23 +1907,28 @@ async function setTrainedToday(val) {
   state.today.trainedToday = val;
   saveState();
   updateExpenditureBreakdown();
-  // Persist to Supabase so it survives logout/login
+  // Persist to Supabase so it survives logout/login/reload — both Yes and No
+  // need an explicit marker row, otherwise "No" is indistinguishable from
+  // "never answered" once local state resets.
   const session = getSession();
   const today = getLocalDateStr();
+  const wantedFlag = val ? 'TRAINED_FLAG_YES' : 'TRAINED_FLAG_NO';
+  const otherFlag = val ? 'TRAINED_FLAG_NO' : 'TRAINED_FLAG_YES';
   try {
-    // Check if a trained-flag row already exists for today
-    const existing = await sbGetAuth('client_workout_logs',
-      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&plan_id=eq.TRAINED_FLAG`);
-    if (val && !existing.length) {
+    const [existingWanted, existingOther] = await Promise.all([
+      sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&plan_id=eq.${wantedFlag}`),
+      sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&plan_id=eq.${otherFlag}`)
+    ]);
+    if (!existingWanted.length) {
       await sbInsertAuth('client_workout_logs', {
         user_email: session.email,
         log_date: today,
-        plan_id: 'TRAINED_FLAG',
+        plan_id: wantedFlag,
         exercises: []
       });
-    } else if (!val && existing.length) {
-      // Remove flag if client switches to No
-      await sbDeleteAuth('client_workout_logs', `id=eq.${existing[0].id}`);
+    }
+    if (existingOther.length) {
+      await sbDeleteAuth('client_workout_logs', `id=eq.${existingOther[0].id}`);
     }
   } catch(e) { console.warn('Could not persist trained state', e); }
 }
@@ -2070,13 +2075,13 @@ async function renderWeeklyOverview() {
       (l.activities||[]).forEach(a=>{ cardioCal+=a.cal||0; });
     });
 
-    // Only show trained checkmark for real resistance training — not cardio, not TRAINED_FLAG
-    const trained = workoutLogs.some(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG' && l.exercises?.length>0);
+    // Only show trained checkmark for real resistance training — not cardio, not TRAINED_FLAG markers
+    const trained = workoutLogs.some(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0);
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
     // Match daily card logic: workout burn only if trained AND exercises logged
-    if (trained && workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG' && l.exercises?.length>0).length>0) {
+    if (trained && workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0).length>0) {
       workoutBurn=250; epoc=Math.round(workoutBurn*0.10);
     }
     // For today use lastComputedExpenditure if available so numbers always match
@@ -4311,9 +4316,13 @@ async function loadTodayWorkoutFromSupabase() {
     if (logs.length) {
       const allExercises = [];
       for (const log of logs) {
-        // TRAINED_FLAG rows are just markers - skip adding their exercises
-        if (log.plan_id === 'TRAINED_FLAG') {
+        // TRAINED_FLAG_YES/NO rows are just markers - skip adding their exercises
+        if (log.plan_id === 'TRAINED_FLAG_YES') {
           state.today.trainedToday = true;
+          continue;
+        }
+        if (log.plan_id === 'TRAINED_FLAG_NO') {
+          state.today.trainedToday = false;
           continue;
         }
         if (log.exercises && Array.isArray(log.exercises)) {
