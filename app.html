@@ -1928,6 +1928,46 @@ async function setTrainedToday(val) {
   } catch(e) { console.warn('Could not persist trained state', e); }
 }
 
+// Shared accurate expenditure calc — used by updateExpenditureBreakdown(),
+// refreshDashboard(), and renderWeeklyOverview() so all three always agree.
+// trainedOverride: pass true/false to force it (e.g. from the Yes/No toggle);
+// omit to auto-detect from whether resistance training was logged today.
+async function calcTodayExpenditure(trainedOverride) {
+  const profile = await loadClientProfile();
+  const latestWeight = (state.metrics && state.metrics.length)
+    ? state.metrics[state.metrics.length-1].weight
+    : parseFloat(profile?.weight) || null;
+  const bmr = calcBMR(profile || {}, latestWeight);
+
+  const totalProteinG = state.today.food.reduce((s,f)=>s+(f.protein||0),0);
+  const totalCarbsG = state.today.food.reduce((s,f)=>s+(f.carbs||0),0);
+  const totalFatG = state.today.food.reduce((s,f)=>s+(f.fat||0),0);
+  const proteinCal = totalProteinG * 4, carbsCal = totalCarbsG * 4, fatCal = totalFatG * 9;
+  const tef = Math.round((proteinCal * 0.25) + (carbsCal * 0.08) + (fatCal * 0.03));
+
+  const activityLevel = (profile?.activity_level || '').toLowerCase();
+  let neat = Math.round(bmr * 0.20);
+  if (activityLevel.includes('sedentary')) neat = Math.round(bmr * 0.12);
+  else if (activityLevel.includes('moderate')) neat = Math.round(bmr * 0.25);
+  else if (activityLevel.includes('active') || activityLevel.includes('high')) neat = Math.round(bmr * 0.35);
+
+  const cardioCal = state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
+
+  const trained = trainedOverride !== undefined ? trainedOverride
+    : (state.today.trainedToday !== null && state.today.trainedToday !== undefined)
+      ? state.today.trainedToday
+      : (state.today.workout && state.today.workout.length > 0);
+
+  let workoutBurn = 0, epoc = 0;
+  if (trained && state.today.workout.length) {
+    workoutBurn = 250;
+    epoc = Math.round(workoutBurn * 0.10);
+  }
+
+  const total = bmr + tef + neat + cardioCal + workoutBurn + epoc;
+  return { bmr, tef, neat, cardioCal, workoutBurn, epoc, total, trained };
+}
+
 async function updateExpenditureBreakdown() {
   const el = document.getElementById('expenditure-breakdown');
   if (!el) return;
@@ -1945,45 +1985,8 @@ async function updateExpenditureBreakdown() {
     return;
   }
 
-  const profile = await loadClientProfile();
-  // Latest body weight from metrics if available, else intake weight
-  const latestWeight = (state.metrics && state.metrics.length)
-    ? state.metrics[state.metrics.length-1].weight
-    : parseFloat(profile?.weight) || null;
-
-  const bmr = calcBMR(profile || {}, latestWeight);
-
-  // TEF: thermic effect varies by macro — protein burns more energy to digest
-  // than carbs, which burns more than fat. Compute from each macro's calorie
-  // contribution rather than a flat percentage of total intake.
+  const { bmr, tef, neat, cardioCal, workoutBurn, epoc, total: totalExpenditure } = await calcTodayExpenditure(trained);
   const totalCal = state.today.food.reduce((s,f)=>s+(f.cal||0),0);
-  const totalProteinG = state.today.food.reduce((s,f)=>s+(f.protein||0),0);
-  const totalCarbsG = state.today.food.reduce((s,f)=>s+(f.carbs||0),0);
-  const totalFatG = state.today.food.reduce((s,f)=>s+(f.fat||0),0);
-  const proteinCal = totalProteinG * 4;
-  const carbsCal = totalCarbsG * 4;
-  const fatCal = totalFatG * 9;
-  const tef = Math.round((proteinCal * 0.25) + (carbsCal * 0.08) + (fatCal * 0.03));
-
-  // NEAT / daily activity (non-exercise): rough estimate based on activity level
-  const activityLevel = (profile?.activity_level || '').toLowerCase();
-  let neat = Math.round(bmr * 0.20); // default light activity
-  if (activityLevel.includes('sedentary')) neat = Math.round(bmr * 0.12);
-  else if (activityLevel.includes('moderate')) neat = Math.round(bmr * 0.25);
-  else if (activityLevel.includes('active') || activityLevel.includes('high')) neat = Math.round(bmr * 0.35);
-
-  // Logged cardio calories burned
-  const cardioCal = state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
-
-  // Workout / EPOC: only if trained today and resistance training was logged
-  let workoutBurn = 0, epoc = 0;
-  if (trained && state.today.workout.length) {
-    // Rough estimate: ~5-7 kcal/min for resistance training, assume ~45-60 min session
-    workoutBurn = 250; // baseline resistance training session estimate
-    epoc = Math.round(workoutBurn * 0.10); // EPOC ~6-15% of session burn over 24h
-  }
-
-  const totalExpenditure = bmr + tef + neat + cardioCal + workoutBurn + epoc;
   lastComputedExpenditure = totalExpenditure; // expose to refreshDashboard()
   const balance = totalCal - totalExpenditure;
 
@@ -2209,25 +2212,36 @@ async function renderMonthlyWorkoutHistory() {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function refreshDashboard(){ try{ _refreshDashboardInner(); } catch(e){ console.warn('refreshDashboard error:',e); } }
-function _refreshDashboardInner(){
+function refreshDashboard(){ _refreshDashboardInner().catch(e=>console.warn('refreshDashboard error:',e)); }
+async function _refreshDashboardInner(){
   const totalCal=state.today.food.reduce((s,f)=>s+(f.cal||0),0);
   const totalProtein=state.today.food.reduce((s,f)=>s+(f.protein||0),0);
-  const totalCardio=state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
-  const calTarget=state.settings.calTarget, protTarget=state.settings.proteinTarget, tdee=state.settings.tdee||2450;
+  const calTarget=state.settings.calTarget, protTarget=state.settings.proteinTarget;
   document.getElementById('dash-cal').textContent=totalCal;
   document.getElementById('dash-protein').textContent=totalProtein;
   document.getElementById('dash-cal-target').textContent=calTarget;
   document.getElementById('dash-protein-target').textContent=protTarget;
   document.getElementById('dash-cal-bar').style.width=Math.min(100,(totalCal/calTarget)*100)+'%';
   document.getElementById('dash-protein-bar').style.width=Math.min(100,(totalProtein/protTarget)*100)+'%';
-  // If BMR/TEF/EPOC breakdown has been computed, use it (already includes cardio).
-  // Otherwise fall back to flat TDEE minus logged cardio (old behavior).
-  const expenditure = lastComputedExpenditure !== null ? lastComputedExpenditure : (tdee||2450) - totalCardio;
+  // Always use the same BMR+TEF+NEAT+cardio+workout calc as the expenditure
+  // breakdown and weekly overview, so all three numbers agree. If the user
+  // hasn't answered "Did you train today?" yet, auto-detect from logged
+  // workouts rather than falling back to a flat, less accurate TDEE number.
+  let expenditure;
+  try {
+    const result = await calcTodayExpenditure();
+    expenditure = result.total;
+    lastComputedExpenditure = expenditure; // keep weekly overview in sync too
+  } catch(e) {
+    console.warn('calcTodayExpenditure failed, using flat TDEE fallback:', e);
+    const tdee = state.settings.tdee || 2450;
+    const totalCardio = state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
+    expenditure = tdee - totalCardio;
+  }
   const balance = totalCal - expenditure;
   const balEl=document.getElementById('dash-balance'), balSub=document.getElementById('dash-balance-sub');
   if(totalCal>0){balEl.textContent=(balance>=0?'+':'')+balance;balEl.className='stat-value '+(balance>=0?'balance-positive':'balance-negative');balSub.textContent=balance>=0?'caloric surplus':'caloric deficit';}
-  else if(lastComputedExpenditure !== null){ balEl.textContent='—'; balSub.textContent='Log food to see balance'; }
+  else { balEl.textContent='—'; balSub.textContent='Log food to see balance'; }
   const fList=document.getElementById('dash-food-list');
   if(fList) fList.innerHTML=state.today.food.length?`<div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Nutrition</div>`+state.today.food.slice(0,4).map(f=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.82rem;border-bottom:1px solid var(--border)"><span>${f.name}</span><span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:0.75rem">${f.cal} kcal</span></div>`).join('')+(state.today.food.length>4?`<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">+${state.today.food.length-4} more</div>`:''): '<div class="empty-state">No food logged today</div>';
   const wList=document.getElementById('dash-workout-list');
