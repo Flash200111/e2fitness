@@ -1937,6 +1937,56 @@ async function setTrainedToday(val) {
 // refreshDashboard(), and renderWeeklyOverview() so all three always agree.
 // trainedOverride: pass true/false to force it (e.g. from the Yes/No toggle);
 // omit to auto-detect from whether resistance training was logged today.
+// Rough kcal-per-set rates by muscle group, based on typical metabolic cost
+// of compound vs isolation movements at a moderate hypertrophy tempo.
+// Legs/back/chest compounds cost more per set than arm/core isolation work.
+const EXERCISE_TYPE_KCAL_PER_SET = { legs: 10, back: 8, chest: 8, shoulders: 6, core: 4, arms: 4, corrective: 3 };
+// A rough "typical working weight" per muscle group (lbs) used as the
+// reference point for the load factor below — lifting more than this
+// scales the estimate up, lifting less scales it down.
+const EXERCISE_TYPE_REF_WEIGHT_LB = { legs: 135, back: 95, chest: 95, shoulders: 40, core: 20, arms: 25, corrective: 10 };
+
+// Parses a reps value like "10-12", "8", or "Max reps" into a numeric average.
+// Falls back to 10 (a typical hypertrophy rep count) when nothing parseable.
+function parseRepsAvg(repsStr) {
+  const nums = String(repsStr || '').match(/\d+/g);
+  if (!nums || !nums.length) return 10;
+  return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
+}
+
+// Estimates kcal burned for one logged exercise entry. Matches its name
+// against the master exercise database to get a muscle-group base rate,
+// then adjusts for reps, logged load (weight relative to a typical working
+// weight for that muscle group), and the client's own body weight — moving
+// more external load AND moving more of your own mass both cost more energy.
+// bodyWeightLb: client's current body weight in lbs (used for the bodyweight factor).
+function estimateExerciseKcal(ex, bodyWeightLb) {
+  const sets = parseInt(ex.sets, 10) || 0;
+  if (!sets) return 0;
+  const nameLower = (ex.name || '').toLowerCase().trim();
+  const match = exercises.find(e => e.name.toLowerCase() === nameLower);
+  const type = match?.type;
+  const baseRate = EXERCISE_TYPE_KCAL_PER_SET[type] || 6; // default for unmatched/custom names
+  const repFactor = Math.min(1.8, Math.max(0.6, parseRepsAvg(ex.reps) / 10));
+
+  // Load factor: only applies when a real numeric weight was logged
+  // (e.g. "135", "45 lb"). Bodyweight-only entries ("BW", blank, "bodyweight")
+  // stay neutral since the base rate already assumes a typical effort level.
+  const weightStr = String(ex.weight || '').toLowerCase();
+  const weightNum = parseFloat(weightStr);
+  let loadFactor = 1;
+  if (!isNaN(weightNum) && weightNum > 0 && !weightStr.includes('bw') && !weightStr.includes('bodyweight')) {
+    const refWeight = EXERCISE_TYPE_REF_WEIGHT_LB[type] || 50;
+    loadFactor = Math.min(1.6, Math.max(0.7, weightNum / refWeight));
+  }
+
+  // Bodyweight factor: heavier clients burn more moving the same load/reps.
+  // 170 lb is used as the "average adult" reference point.
+  const bwFactor = Math.min(1.5, Math.max(0.7, (bodyWeightLb || 170) / 170));
+
+  return sets * baseRate * repFactor * loadFactor * bwFactor;
+}
+
 async function calcTodayExpenditure(trainedOverride) {
   const profile = await loadClientProfile();
   const latestWeight = (state.metrics && state.metrics.length)
@@ -1963,14 +2013,28 @@ async function calcTodayExpenditure(trainedOverride) {
       ? state.today.trainedToday
       : (state.today.workout && state.today.workout.length > 0);
 
+  // Extra Exercises (logged outside the main plan, e.g. on a rest day) are
+  // saved to a separate table (client_extra_logs) — fetch and include them.
+  let extraLogs = [];
+  try {
+    const session = getSession();
+    if (session?.email) {
+      extraLogs = await sbGetAuth('client_extra_logs',
+        `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${getLocalDateStr()}`);
+    }
+  } catch(e) { console.warn('Could not load extra exercises for expenditure calc', e); }
+
   let workoutBurn = 0, epoc = 0;
-  if (state.today.workout.length) {
-    // Scale with actual logged volume (~6 kcal/set for resistance training)
-    // instead of a flat estimate, so extra exercises actually count.
-    const totalSets = state.today.workout.reduce((s,ex)=> s + (parseInt(ex.sets,10)||0), 0);
-    workoutBurn = totalSets > 0
-      ? Math.min(700, Math.max(80, Math.round(totalSets * 6)))
-      : 250; // fallback if entries exist without a parseable set count
+  if (state.today.workout.length || extraLogs.length) {
+    // Sum a type/rep/load/bodyweight-aware estimate per exercise instead of
+    // a flat per-set rate, so leg day, load lifted, and client mass all matter.
+    const bodyWeightLb = latestWeight || parseFloat(profile?.weight) || 170;
+    const planKcal = state.today.workout.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
+    const extraKcal = extraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
+    const rawKcal = planKcal + extraKcal;
+    workoutBurn = rawKcal > 0
+      ? Math.min(700, Math.max(80, Math.round(rawKcal)))
+      : 250; // fallback if entries exist but nothing parsed to a valid estimate
     epoc = Math.round(workoutBurn * 0.10);
   }
 
@@ -2056,10 +2120,11 @@ async function renderWeeklyOverview() {
   }
   const startDate = dates[0];
 
-  const [nutritionLogs, cardioLogs, workoutLogs] = await Promise.all([
+  const [nutritionLogs, cardioLogs, workoutLogs, extraLogsAll] = await Promise.all([
     sbGetAuth('client_nutrition_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`),
     sbGetAuth('client_cardio_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`),
-    sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`)
+    sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`),
+    sbGetAuth('client_extra_logs', `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startDate}`)
   ]);
 
   const rows = dates.map(date => {
@@ -2085,12 +2150,16 @@ async function renderWeeklyOverview() {
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
     let workoutBurn=0, epoc=0;
-    // Match daily card logic: workout burn only if trained AND exercises logged,
-    // scaled by actual sets logged instead of a flat estimate.
+    // Match daily card logic: workout burn scaled by actual sets logged,
+    // including both plan-based exercises and Extra Exercises (rest-day work).
     const dayExerciseLogs = workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0);
-    if (dayExerciseLogs.length>0) {
-      const totalSets = dayExerciseLogs.reduce((s,l)=> s + (l.exercises||[]).reduce((s2,ex)=> s2 + (parseInt(ex.sets,10)||0), 0), 0);
-      workoutBurn = totalSets > 0 ? Math.min(700, Math.max(80, Math.round(totalSets * 6))) : 250;
+    const dayExtraLogs = extraLogsAll.filter(l=>l.log_date===date);
+    if (dayExerciseLogs.length>0 || dayExtraLogs.length>0) {
+      const bodyWeightLb = latestWeight || parseFloat(profile?.weight) || 170;
+      const planKcal = dayExerciseLogs.reduce((s,l)=> s + (l.exercises||[]).reduce((s2,ex)=> s2 + estimateExerciseKcal(ex, bodyWeightLb), 0), 0);
+      const extraKcal = dayExtraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
+      const rawKcal = planKcal + extraKcal;
+      workoutBurn = rawKcal > 0 ? Math.min(700, Math.max(80, Math.round(rawKcal))) : 250;
       epoc = Math.round(workoutBurn*0.10);
     }
     // For today use lastComputedExpenditure if available so numbers always match
@@ -2103,7 +2172,7 @@ async function renderWeeklyOverview() {
       // Sanity cap — no single day should exceed 5000 kcal burn
       if (totalExpenditure > 5000) totalExpenditure = bmr + neat;
     }
-    const hasData = cal > 0 || cardioCal > 0 || trained;
+    const hasData = cal > 0 || cardioCal > 0 || trained || dayExtraLogs.length > 0;
     // Only calculate net for days with actual logged data
     const net = hasData ? cal - totalExpenditure : null;
 
@@ -4397,6 +4466,7 @@ async function loadTodayFoodFromSupabase() {
 // ── AI PLAN GENERATION ────────────────────────────────────────────────────────
 const PLAN_TYPES = [
   {value:'push_pull_legs', label:'Push / Pull / Legs'},
+  {value:'push_pull', label:'Push / Pull (Legs Incorporated)'},
   {value:'upper_lower', label:'Upper / Lower Split'},
   {value:'full_body', label:'Full Body'},
   {value:'bro_split', label:'Bro Split (Body Part)'},
@@ -4506,6 +4576,7 @@ CLIENT PROFILE:
 PLAN STYLE: ${planTypeLabel} — THIS IS MANDATORY. Every single training day MUST follow the ${planTypeLabel} structure strictly. Do NOT mix in other training styles.
 ${planType === 'full_body' ? '⚠️ FULL BODY: Every workout day must train upper AND lower body together. No push/pull splits, no muscle group isolation days.' : ''}
 ${planType === 'push_pull_legs' ? '⚠️ PUSH/PULL/LEGS: Strict separation — push days (chest/shoulders/triceps), pull days (back/biceps), leg days only.' : ''}
+${planType === 'push_pull' ? '⚠️ PUSH/PULL (LEGS INCORPORATED): Only two day types — Push and Pull — alternating, no dedicated leg day. Push days = chest/shoulders/triceps PLUS quad-dominant leg work (e.g. squats, leg press, lunges, leg extension). Pull days = back/biceps PLUS hamstring/glute-dominant leg work (e.g. RDLs, hip thrusts, leg curls, glute bridges). Every push day and every pull day must include leg exercises — do not skip legs on any day.' : ''}
 ${planType === 'upper_lower' ? '⚠️ UPPER/LOWER: Strict alternation — upper body days and lower body days only.' : ''}
 ${planType === 'circuit' ? '⚠️ FULL BODY CIRCUIT: Each circuit must include exactly ONE exercise per major muscle group (chest, back, shoulders, legs, core, arms). All exercises in a circuit are performed back-to-back with minimal rest. This is full body circuit training — every circuit hits every muscle group.' : ''}
 ${planType === 'sport_specific' && intakeData.sport ? `SPORT: ${intakeData.sport} — design around demands of ${intakeData.sport}.` : ''}
@@ -4841,6 +4912,7 @@ async function checkPlanUpdatesDue() {
           <select id="update-type-${p.id}" style="font-size:0.78rem;">
             <option value="same">Keep Same Style — Progress Intensity</option>
             <option value="push_pull_legs">Push / Pull / Legs</option>
+            <option value="push_pull">Push / Pull (Legs Incorporated)</option>
             <option value="upper_lower">Upper / Lower Split</option>
             <option value="full_body">Full Body</option>
             <option value="bro_split">Bro Split (Body Part)</option>
@@ -4910,6 +4982,7 @@ Apply the same specific rules as a fresh plan: no loaded squats/lunges/leg press
 CURRENT PLAN: ${currentPlanData.name || 'Unknown'}
 PLAN TYPE: ${currentPlanData.plan_type || 'Unknown'}
 UPDATE STYLE REQUESTED: ${updateType === 'same' ? 'Progress same style with increased intensity' : updateType.replace('_', ' ')}
+${(updateType === 'push_pull' || (updateType === 'same' && currentPlanData.plan_type === 'push_pull')) ? '⚠️ PUSH/PULL (LEGS INCORPORATED): Only two day types — Push and Pull — alternating, no dedicated leg day. Push days = chest/shoulders/triceps PLUS quad-dominant leg work (squats, leg press, lunges, leg extension). Pull days = back/biceps PLUS hamstring/glute-dominant leg work (RDLs, hip thrusts, leg curls, glute bridges). Every push day and every pull day must include leg exercises.' : ''}
 
 CLIENT PROFILE:
 - Goal: ${intake.goal?.replace('_',' ') || 'not specified'}
