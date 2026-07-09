@@ -4820,7 +4820,10 @@ async function renderPendingPlans() {
           ${days.map((day, di) => `
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;">
               <div style="font-size:0.8rem;font-weight:600;color:var(--accent);margin-bottom:10px;">${day.name}</div>
-              ${day.warmup ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px;">🔥 Warm-up: ${day.warmup}</div>` : ''}
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <div style="font-size:0.75rem;color:var(--muted);flex:1;">🔥 Warm-up: ${day.warmup || '<span style="font-style:italic;">none set</span>'}</div>
+                <button onclick="editPlanWarmup('${p.id}',${di})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;white-space:nowrap;">✏️ Edit</button>
+              </div>
               <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
                 <span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span><span>Type</span><span></span>
               </div>
@@ -4834,6 +4837,7 @@ async function renderPendingPlans() {
                   <button onclick="editPlanExercise('${p.id}',${di},${ei})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;">Edit</button>
                 </div>
               `).join('')}
+              <button onclick="addPlanExercise('${p.id}',${di})" class="btn" style="width:100%;margin-top:8px;font-size:0.72rem;">➕ Add Exercise</button>
             </div>
           `).join('')}
         </div>
@@ -5152,6 +5156,62 @@ let editingPlanId = null;
 let editingDayIdx = null;
 let editingExIdx = null;
 let editingPlanData = null;
+let editingWarmupPlanId = null;
+let editingWarmupDayIdx = null;
+
+async function editPlanWarmup(planId, dayIdx) {
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+
+  editingWarmupPlanId = planId;
+  editingWarmupDayIdx = dayIdx;
+
+  const day = plan.plan_data.days[dayIdx];
+  document.getElementById('edit-warmup-text').value = day.warmup || '';
+  document.getElementById('warmupEditModal').classList.add('open');
+}
+
+async function saveWarmupEdit() {
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(editingWarmupPlanId));
+  if (!plan) return toast('Plan not found');
+
+  const planData = plan.plan_data;
+  planData.days[editingWarmupDayIdx].warmup = document.getElementById('edit-warmup-text').value.trim();
+
+  const result = await sbUpdate('workout_plans', editingWarmupPlanId, { plan_data: planData });
+  if (!result) return toast('Could not save warm-up — check console', true);
+  closeModal('warmupEditModal');
+  if (document.getElementById('pending-review-plans')) renderPendingPlans();
+  if (activeClientId) renderClientDetail();
+  toast('Warm-up updated ✓');
+}
+
+async function addPlanExercise(planId, dayIdx) {
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (!plan) return toast('Plan not found');
+
+  editingPlanId = planId;
+  editingDayIdx = dayIdx;
+  editingExIdx = -1; // sentinel: add mode, not editing an existing index
+  editingPlanData = plan;
+
+  document.getElementById('edit-ex-name').value = '';
+  document.getElementById('edit-ex-sets').value = '';
+  document.getElementById('edit-ex-reps').value = '';
+  document.getElementById('edit-ex-rest').value = '';
+  document.getElementById('edit-ex-notes').value = '';
+  document.getElementById('edit-ex-group').value = '';
+  document.getElementById('edit-ex-type').value = 'individual';
+  document.getElementById('edit-ex-group').style.display = 'none';
+
+  document.getElementById('exercise-edit-modal-title').textContent = 'Add Exercise';
+  document.getElementById('exercise-edit-remove-btn').style.display = 'none';
+
+  document.getElementById('exerciseEditModal').classList.add('open');
+}
 
 async function editPlanExercise(planId, dayIdx, exIdx) {
   // Load plan from Supabase
@@ -5175,7 +5235,10 @@ async function editPlanExercise(planId, dayIdx, exIdx) {
   const exTypeVal = ex.type || (ex.superset_group ? 'superset' : 'individual');
   document.getElementById('edit-ex-type').value = exTypeVal;
   document.getElementById('edit-ex-group').style.display = exTypeVal==='individual' ? 'none' : 'block';
-  
+
+  document.getElementById('exercise-edit-modal-title').textContent = 'Edit Exercise';
+  document.getElementById('exercise-edit-remove-btn').style.display = '';
+
   document.getElementById('exerciseEditModal').classList.add('open');
 }
 
@@ -5185,24 +5248,36 @@ async function saveExerciseEdit() {
   if (!plan) return toast('Plan not found');
   
   const planData = plan.plan_data;
-  const ex = planData.days[editingDayIdx].exercises[editingExIdx];
-  
   const exType = document.getElementById('edit-ex-type').value;
   const group = document.getElementById('edit-ex-group').value.trim().toUpperCase();
-  
-  ex.name = document.getElementById('edit-ex-name').value.trim();
-  ex.sets = document.getElementById('edit-ex-sets').value.trim();
-  ex.reps = document.getElementById('edit-ex-reps').value.trim();
-  ex.rest = document.getElementById('edit-ex-rest').value.trim();
-  ex.notes = document.getElementById('edit-ex-notes').value.trim();
-  ex.type = exType;
-  ex.superset_group = exType === 'individual' ? null : (group || 'A');
-  
-  await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
+  const name = document.getElementById('edit-ex-name').value.trim();
+  if (!name) return toast('Exercise name is required', true);
+
+  const exFields = {
+    name,
+    sets: document.getElementById('edit-ex-sets').value.trim(),
+    reps: document.getElementById('edit-ex-reps').value.trim(),
+    rest: document.getElementById('edit-ex-rest').value.trim(),
+    notes: document.getElementById('edit-ex-notes').value.trim(),
+    type: exType,
+    superset_group: exType === 'individual' ? null : (group || 'A')
+  };
+
+  if (editingExIdx === -1) {
+    // Add mode — append new exercise to this day
+    if (!planData.days[editingDayIdx].exercises) planData.days[editingDayIdx].exercises = [];
+    planData.days[editingDayIdx].exercises.push(exFields);
+  } else {
+    // Edit mode — update existing exercise in place
+    Object.assign(planData.days[editingDayIdx].exercises[editingExIdx], exFields);
+  }
+
+  const result = await sbUpdate('workout_plans', editingPlanId, { plan_data: planData });
+  if (!result) return toast('Could not save exercise — check console', true);
   closeModal('exerciseEditModal');
   if (document.getElementById('pending-review-plans')) renderPendingPlans();
   if (activeClientId) renderClientDetail();
-  toast('Exercise updated ✓');
+  toast(editingExIdx === -1 ? 'Exercise added ✓' : 'Exercise updated ✓');
 }
 
 async function deleteExerciseFromPlan() {
@@ -5559,7 +5634,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 <div class="modal-overlay" id="exerciseEditModal">
   <div class="modal" style="max-width:480px;">
     <button class="modal-close" onclick="closeModal('exerciseEditModal')">✕</button>
-    <div class="modal-title">Edit Exercise</div>
+    <div class="modal-title" id="exercise-edit-modal-title">Edit Exercise</div>
     <div class="form-group"><label class="form-label">Exercise Name</label><input id="edit-ex-name" type="text" placeholder="Exercise name"></div>
     <div class="form-row">
       <div style="flex:1"><label class="form-label">Sets</label><input id="edit-ex-sets" type="text" placeholder="e.g. 3"></div>
@@ -5584,7 +5659,21 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
     </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
       <button class="btn btn-primary" style="flex:1;" onclick="saveExerciseEdit()">Save Changes</button>
-      <button class="btn btn-danger" onclick="deleteExerciseFromPlan()">Remove</button>
+      <button class="btn btn-danger" id="exercise-edit-remove-btn" onclick="deleteExerciseFromPlan()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="warmupEditModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" onclick="closeModal('warmupEditModal')">✕</button>
+    <div class="modal-title">Edit Warm-up</div>
+    <div class="form-group">
+      <label class="form-label">Warm-up (~5 minutes)</label>
+      <textarea id="edit-warmup-text" rows="3" placeholder="e.g. 5 min light cardio + dynamic stretching, or 2 warm-up sets before the first exercise"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveWarmupEdit()">Save Warm-up</button>
     </div>
   </div>
 </div>
