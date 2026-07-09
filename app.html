@@ -1211,9 +1211,12 @@ async function sbDelete(table, id) {
 }
 async function sbUpdate(table, id, data) {
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'PATCH',headers:sbDynamicHeaders(),body:JSON.stringify(data)});
-    if (!r.ok) console.warn('sbUpdate error for', table, id, ':', await r.text());
-  } catch(e) { console.warn('sbUpdate exception for', table, id, ':', e); }
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'PATCH',headers:{...sbDynamicHeaders(),'Prefer':'return=representation'},body:JSON.stringify(data)});
+    const d = await r.json().catch(()=>null);
+    if (!r.ok) { console.warn('sbUpdate error for', table, id, ':', d); return null; }
+    if (Array.isArray(d) && d.length === 0) { console.warn('sbUpdate matched 0 rows for', table, id, '— likely blocked by RLS (not logged in as the right user)'); return null; }
+    return d;
+  } catch(e) { console.warn('sbUpdate exception for', table, id, ':', e); return null; }
 }
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
@@ -4755,11 +4758,15 @@ Respond ONLY with valid JSON. No text before or after. Keep all string values SH
     }
 
     // Save generated plan back to Supabase
-    await sbUpdate('workout_plans', planId, {
+    const saveResult = await sbUpdate('workout_plans', planId, {
       plan_data: planData,
       status: 'pending_review',
       coach_notes: planData.coach_notes || ''
     });
+
+    if (!saveResult) {
+      throw new Error('Plan was generated but could not be saved — check the browser console for details. This is usually a permissions/login issue, not an AI problem.');
+    }
 
     toast('Plan generated! Review it below ✓');
     renderPendingIntakes();
