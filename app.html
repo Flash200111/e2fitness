@@ -1169,13 +1169,21 @@
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://bafdfqtnrxptroohhzjp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZmRmcXRucnhwdHJvb2hoempwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDI0OTQsImV4cCI6MjA5NjA3ODQ5NH0.MAJW8P9BzQ2LUPJg-EevKSiEMOYMKcEiZ_nFEZjLQWQ';
-const sbH = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY };
+
+// Builds headers using the CURRENT logged-in user's session token when available,
+// falling back to the raw anon key only if no one is logged in. This matters
+// because RLS policies check auth.jwt() — a request authenticated with just the
+// static anon key has no identifiable user and gets silently filtered to zero
+// rows by RLS (no error thrown), rather than actually acting as that user.
+function sbDynamicHeaders() {
+  const session = (typeof getSession === 'function') ? getSession() : null;
+  const token = (session && session.access_token) ? session.access_token : SUPABASE_KEY;
+  return { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token };
+}
 
 async function sbGet(table) {
   try {
-    const session = getSession ? getSession() : null;
-    const token = (session && session.access_token) ? session.access_token : SUPABASE_KEY;
-    const headers = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token };
+    const headers = sbDynamicHeaders();
     const url = table.includes('?')
       ? `${SUPABASE_URL}/rest/v1/${table}`
       : `${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`;
@@ -1188,17 +1196,24 @@ async function sbGet(table) {
 async function sbInsert(table, data) {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-      method:'POST', headers:{...sbH,'Prefer':'return=representation'}, body:JSON.stringify(data)
+      method:'POST', headers:{...sbDynamicHeaders(),'Prefer':'return=representation'}, body:JSON.stringify(data)
     });
     const d = await r.json();
+    if (!r.ok) console.warn('sbInsert error for', table, ':', d);
     return (r.ok && Array.isArray(d) && d.length) ? d : null;
-  } catch(e) { return null; }
+  } catch(e) { console.warn('sbInsert exception for', table, ':', e); return null; }
 }
 async function sbDelete(table, id) {
-  try { await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'DELETE',headers:sbH}); } catch(e){}
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'DELETE',headers:sbDynamicHeaders()});
+    if (!r.ok) console.warn('sbDelete error for', table, id, ':', await r.text());
+  } catch(e) { console.warn('sbDelete exception for', table, id, ':', e); }
 }
 async function sbUpdate(table, id, data) {
-  try { await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'PATCH',headers:sbH,body:JSON.stringify(data)}); } catch(e){}
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`,{method:'PATCH',headers:sbDynamicHeaders(),body:JSON.stringify(data)});
+    if (!r.ok) console.warn('sbUpdate error for', table, id, ':', await r.text());
+  } catch(e) { console.warn('sbUpdate exception for', table, id, ':', e); }
 }
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
