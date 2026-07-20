@@ -430,6 +430,7 @@
     <button class="filter-btn" onclick="filterEx('legs',this)">Legs</button>
     <button class="filter-btn" onclick="filterEx('core',this)">Core</button>
     <button class="filter-btn" onclick="filterEx('corrective',this)">Corrective / Rehab</button>
+    <button class="filter-btn" id="ex-sort-az-btn" onclick="toggleExerciseSort(this)" style="margin-left:auto;">🔤 A–Z</button>
   </div>
   <div class="exercise-grid" id="exercise-grid"></div>
 </div>
@@ -2647,10 +2648,17 @@ const exercises=[
   {name:'Terminal Knee Extension (TKE)',muscle:'VMO / Quad',type:'corrective',note:'Resisted knee extension in last 30° of range. Strengthens the VMO and is a key exercise in knee rehabilitation. Commonly used post-ACL reconstruction.',tags:['safe'],equip:['bands']},
 ];
 let currentFilter='all';
+let currentSort='default'; // 'default' or 'az'
 function filterEx(type,btn){
   currentFilter=type;
-  document.querySelectorAll('#page-exercises .filter-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#page-exercises .filter-btn').forEach(b=>{ if(b.id!=='ex-sort-az-btn') b.classList.remove('active'); });
   btn.classList.add('active');
+  renderExercises();
+}
+function toggleExerciseSort(btn){
+  currentSort = currentSort==='az' ? 'default' : 'az';
+  btn.classList.toggle('active', currentSort==='az');
+  btn.textContent = currentSort==='az' ? '🔤 A–Z ✓' : '🔤 A–Z';
   renderExercises();
 }
 let exerciseVideosCache = null;
@@ -2671,6 +2679,7 @@ async function renderExercises(){
   const grid=document.getElementById('exercise-grid');
   if (exerciseVideosCache === null) await loadExerciseVideos();
   const filtered=currentFilter==='all'?exercises:exercises.filter(e=>e.type===currentFilter);
+  if (currentSort==='az') filtered.sort((a,b)=>a.name.localeCompare(b.name));
   grid.innerHTML=filtered.map(e=>{
     const tagClass=e.tags[0]==='highrisk'?'tag-avoid':e.tags[0]==='caution'?'tag-caution':'tag-safe';
     const tagLabel=e.tags[0]==='highrisk'?'⚠️ High Risk':e.tags[0]==='caution'?'⚠️ Caution':'✓ Safe';
