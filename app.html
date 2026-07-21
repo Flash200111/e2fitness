@@ -3737,6 +3737,44 @@ async function clearTodaysDayLog(planId, dayIndex, btn) {
   }
 }
 
+// ── CLIENT: ACCEPT PLAN / 6-WEEK LOCK ──────────────────────────────────────────
+// Once a client accepts a plan (or self-builds one), it's locked for 6 weeks —
+// no rejecting, rebuilding, or self-building a replacement until the lock expires.
+const PLAN_LOCK_MS = 42 * 24 * 60 * 60 * 1000; // 6 weeks
+const AUTO_LOCK_MS = 5 * 24 * 60 * 60 * 1000; // 5 days — auto-accept if client never responds
+
+function isPlanLocked(planRow) {
+  const acceptedAt = planRow?.plan_data?.client_accepted_at;
+  if (!acceptedAt) return false;
+  return (Date.now() - new Date(acceptedAt).getTime()) < PLAN_LOCK_MS;
+}
+
+function planLockUntilStr(planRow) {
+  const acceptedAt = planRow?.plan_data?.client_accepted_at;
+  if (!acceptedAt) return '';
+  const until = new Date(new Date(acceptedAt).getTime() + PLAN_LOCK_MS);
+  return until.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// If the coach approved a plan and the client hasn't accepted/rejected it
+// within 5 days, it auto-locks — same as if they'd hit Accept themselves.
+function getAutoLockDeadline(planRow) {
+  if (!planRow?.approved_at) return null;
+  return new Date(new Date(planRow.approved_at).getTime() + AUTO_LOCK_MS);
+}
+
+async function acceptPlan(planId) {
+  if (!confirm('Accept this plan? Once accepted, it will be locked in for 6 weeks — no rebuilds or self-builds until then.')) return;
+  const rows = await sbGetAuth('workout_plans', `id=eq.${planId}`);
+  const plan = rows[0];
+  if (!plan) return toast('Plan not found', true);
+  const pd = plan.plan_data || {};
+  pd.client_accepted_at = new Date().toISOString();
+  await sbUpdateAuth('workout_plans', planId, { plan_data: pd });
+  toast('Plan accepted — locked in for 6 weeks ✓');
+  renderMyPlan();
+}
+
 async function renderMyPlan() {
   const session = getSession();
   const container = document.getElementById('myplan-content');
@@ -3753,6 +3791,21 @@ async function renderMyPlan() {
         <button class="btn" onclick="showPage('messaging')">Message Coach</button>
       </div>`;
     return;
+  }
+
+  // Auto-lock any plan the client never explicitly accepted/rejected within
+  // 5 days of coach approval — backdated to the deadline so the 6-week lock
+  // is measured consistently regardless of when the client next opens the app.
+  for (const plan of plans) {
+    const pd = plan.plan_data || {};
+    if (!pd.client_accepted_at) {
+      const deadline = getAutoLockDeadline(plan);
+      if (deadline && Date.now() >= deadline.getTime()) {
+        pd.client_accepted_at = deadline.toISOString();
+        plan.plan_data = pd;
+        await sbUpdateAuth('workout_plans', plan.id, { plan_data: pd });
+      }
+    }
   }
 
   // Get Sun-Sat week boundaries
@@ -3774,15 +3827,26 @@ async function renderMyPlan() {
   container.innerHTML = plans.map(plan => {
     const p = plan.plan_data;
     const days = p.days || [];
+    const acceptedAt = p.client_accepted_at;
+    const locked = isPlanLocked(plan);
+    const lockUntilStr = planLockUntilStr(plan);
+    const autoLockDeadline = !acceptedAt ? getAutoLockDeadline(plan) : null;
+    const autoLockDeadlineStr = autoLockDeadline ? autoLockDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     return `
       <div class="panel" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;">${p.name || 'My Workout Plan'}</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
-            <button onclick="openClientRejectModal('${plan.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:4px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;">Reject This Plan</button>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${locked ? `
+              <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">🔒 Locked until ${lockUntilStr}</span>
+            ` : `
+              <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
+              ${!acceptedAt ? `<button onclick="acceptPlan('${plan.id}')" class="btn btn-primary" style="font-size:0.65rem;padding:4px 10px;">✓ Accept Plan</button>` : ''}
+              <button onclick="openClientRejectModal('${plan.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:4px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;">Reject This Plan</button>
+            `}
           </div>
         </div>
+        ${!acceptedAt && !locked ? `<div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;">Please accept this plan to lock it in, or reject it if it's not right for you.${autoLockDeadlineStr ? ` If you don't respond, it will auto-lock on <strong style="color:var(--text);">${autoLockDeadlineStr}</strong>.` : ''}</div>` : ''}
         ${(() => {
           const summary = p.client_summary || '';
           // Safety check: if client_summary is unexpectedly long, it likely leaked
@@ -4751,6 +4815,7 @@ async function submitRebuildRequest() {
   const rows = await sbGetAuth('workout_plans', `id=eq.${clientRejectPlanId}`);
   const plan = rows[0];
   if (!plan) return toast('Plan not found', true);
+  if (isPlanLocked(plan)) return toast('This plan is locked for 6 weeks from when you accepted it.', true);
 
   const pd = plan.plan_data || {};
   delete pd.source; // clear any prior client_self_build tag
@@ -4780,6 +4845,7 @@ async function openClientPlanBuilder(planId) {
   const rows = await sbGetAuth('workout_plans', `id=eq.${planId}`);
   const plan = rows[0];
   if (!plan) return toast('Plan not found', true);
+  if (isPlanLocked(plan)) return toast('This plan is locked for 6 weeks from when you accepted it.', true);
 
   clientBuilderPlanId = planId;
   clientBuilderIntake = plan.plan_data?.intake || {};
@@ -4898,7 +4964,14 @@ async function finalizeClientPlan(activateNow) {
     plan_data: planData,
     status: activateNow ? 'approved' : 'pending_review'
   };
-  if (activateNow) updates.approved_at = new Date().toISOString();
+  // Choosing to build their own plan IS the client's acceptance — no separate
+  // Accept step. For instant activation the lock starts now; for the
+  // send-for-review path it starts when the coach approves (see approveGeneratedPlan).
+  if (activateNow) {
+    const now = new Date().toISOString();
+    updates.approved_at = now;
+    planData.client_accepted_at = now;
+  }
 
   await sbUpdateAuth('workout_plans', clientBuilderPlanId, updates);
   toast(activateNow ? 'Your custom plan is now active ✓' : 'Sent to Coach E for review ✓');
@@ -5295,11 +5368,21 @@ async function regenPlan(planId, clientEmail) {
 
 async function approveGeneratedPlan(planId) {
   const notes = document.getElementById(`coach-notes-${planId}`).value.trim();
-  await sbUpdate('workout_plans', planId, {
+  const approvedAt = new Date().toISOString();
+  const updates = {
     status: 'approved',
     coach_notes: notes,
-    approved_at: new Date().toISOString()
-  });
+    approved_at: approvedAt
+  };
+  // If this was a client self-built plan sent for review, the client already
+  // "accepted" it by choosing to build it — lock it in as of this approval.
+  const plans = await sbGet('workout_plans');
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (plan?.plan_data?.source === 'client_self_build') {
+    const pd = { ...plan.plan_data, client_accepted_at: approvedAt };
+    updates.plan_data = pd;
+  }
+  await sbUpdate('workout_plans', planId, updates);
   toast('Plan approved — client can now see it ✓');
   renderPendingPlans();
   renderPendingIntakes();
