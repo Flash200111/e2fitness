@@ -235,6 +235,9 @@
       </div>
     </div>
     <div id="expenditure-breakdown"></div>
+    <div style="text-align:right;margin-top:6px;">
+      <button onclick="clearAllTodaysWorkouts(this)" style="background:none;border:none;color:var(--muted);font-size:0.68rem;text-decoration:underline;cursor:pointer;padding:0;">Clear all logged exercises for today</button>
+    </div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
@@ -3629,6 +3632,46 @@ async function sbDeleteAuth(table, id) {
 }
 
 // ── MY PLAN ───────────────────────────────────────────────────────────────────
+async function clearAllTodaysWorkouts(btn) {
+  if (!confirm("Clear ALL exercises logged today, including any manually-logged ones? This can't be undone.")) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Clearing...'; }
+  try {
+    const session = getSession();
+    const today = getLocalDateStr();
+    const rows = await sbGetAuth('client_workout_logs',
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}`);
+    // Keep TRAINED_FLAG marker rows — only clear rows with actual logged exercises
+    const toDelete = rows.filter(r => r.plan_id !== 'TRAINED_FLAG_YES' && r.plan_id !== 'TRAINED_FLAG_NO');
+    if (!toDelete.length) {
+      toast('Nothing logged today to clear');
+      if (btn) { btn.disabled = false; btn.textContent = 'Clear all logged exercises for today'; }
+      return;
+    }
+    let allDeleted = true;
+    for (const row of toDelete) {
+      const ok = await sbDeleteAuth('client_workout_logs', row.id);
+      if (!ok) allDeleted = false;
+    }
+    if (!allDeleted) {
+      toast('Could not fully clear — check console for details', true);
+      if (btn) { btn.disabled = false; btn.textContent = 'Clear all logged exercises for today'; }
+      return;
+    }
+    state.today.workout = [];
+    saveState();
+    toast("All of today's logged exercises cleared ✓");
+    await renderMyPlan();
+    await renderWorkoutLog();
+    refreshDashboard();
+    await updateExpenditureBreakdown();
+    if (btn) { btn.disabled = false; btn.textContent = 'Clear all logged exercises for today'; }
+  } catch(e) {
+    toast('Could not clear — check console', true);
+    console.warn('clearAllTodaysWorkouts error:', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Clear all logged exercises for today'; }
+  }
+}
+
 async function clearTodaysDayLog(planId, dayIndex, btn) {
   if (!confirm("Clear today's logged sets for this day? This can't be undone.")) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Clearing...'; }
