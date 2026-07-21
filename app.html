@@ -5574,6 +5574,26 @@ async function saveEditIntake(email, planId) {
   }
 }
 
+// Re-checks whether the calendar day has changed since state was last loaded.
+// Called on initial load (via loadState) AND whenever the app becomes visible
+// again or on a periodic timer — because leaving the PWA open/backgrounded
+// across midnight means loadState()'s one-time check never re-fires on its own.
+async function checkDayRollover() {
+  const today = getLocalDateStr();
+  const saved = localStorage.getItem('e2fitness_date_' + getStateKey());
+  if (saved === today) return; // still the same day, nothing to do
+  state.today = {food:[],workout:[],cardio:[],trainedToday:null};
+  localStorage.setItem('e2fitness_date_' + getStateKey(), today);
+  saveState();
+  const headerDateEl = document.getElementById('headerDate');
+  if (headerDateEl) headerDateEl.textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  await loadTodayFoodFromSupabase();
+  await loadTodayWorkoutFromSupabase();
+  renderFoodLog(); renderWorkoutLog(); renderCardioLog(); refreshDashboard(); renderWeeklyOverview();
+  await updateExpenditureBreakdown();
+  toast('New day — your log has reset ✓');
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
   if(!checkAuth())return;
@@ -5623,6 +5643,10 @@ async function init(){
   // Auto-sync workout and nutrition at end of day on load
   setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000);
   setInterval(()=>{ checkUnreadMessages(); }, 60000); // check for new messages every minute // every 5 min
+  // Catch the calendar day changing while the app stays open in the background —
+  // check whenever the tab/app regains focus, and on a periodic timer as a backstop.
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') checkDayRollover(); });
+  setInterval(checkDayRollover, 300000);
 }
 window.onclick=function(e){if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');}
 document.addEventListener('DOMContentLoaded',()=>{document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')checkPin();});});
