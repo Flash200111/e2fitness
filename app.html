@@ -3621,11 +3621,15 @@ async function sbUpdateAuth(table, id, data) {
 
 async function sbDeleteAuth(table, id) {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders()
+      headers: {...getAuthHeaders(), 'Prefer': 'return=representation'}
     });
-  } catch(e) {}
+    const d = await r.json().catch(()=>null);
+    if (!r.ok) { console.warn('sbDeleteAuth error for', table, id, ':', d); return false; }
+    if (Array.isArray(d) && d.length === 0) { console.warn('sbDeleteAuth matched 0 rows for', table, id, '— likely blocked by RLS or wrong id'); return false; }
+    return true;
+  } catch(e) { console.warn('sbDeleteAuth exception for', table, id, ':', e); return false; }
 }
 
 // ── MY PLAN ───────────────────────────────────────────────────────────────────
@@ -3637,20 +3641,30 @@ async function clearTodaysDayLog(planId, dayIndex, btn) {
     const today = getLocalDateStr();
     const rows = await sbGetAuth('client_workout_logs',
       `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&plan_id=eq.${planId}&day_index=eq.${dayIndex}`);
+    if (!rows.length) {
+      toast("Nothing found to clear for today on this day");
+      if (btn) { btn.disabled = false; btn.textContent = "🗑️ Clear Today's Log for This Day"; }
+      return;
+    }
+    let allDeleted = true;
     for (const row of rows) {
-      await sbDeleteAuth('client_workout_logs', row.id);
+      const ok = await sbDeleteAuth('client_workout_logs', row.id);
+      if (!ok) allDeleted = false;
+    }
+    if (!allDeleted) {
+      toast("Could not fully clear this log — check console for details", true);
+      if (btn) { btn.disabled = false; btn.textContent = "🗑️ Clear Today's Log for This Day"; }
+      return;
     }
     // Also clear any matching entries out of local state so the dashboard reflects it immediately
-    if (rows.length) {
-      const clearedIds = new Set(rows.flatMap(r => (r.exercises||[]).map(e=>e.id)));
-      state.today.workout = state.today.workout.filter(e => !clearedIds.has(e.id));
-      saveState();
-    }
+    const clearedIds = new Set(rows.flatMap(r => (r.exercises||[]).map(e=>e.id)));
+    state.today.workout = state.today.workout.filter(e => !clearedIds.has(e.id));
+    saveState();
     toast("Today's log cleared for this day ✓");
-    renderMyPlan();
-    renderWorkoutLog();
+    await renderMyPlan();
+    await renderWorkoutLog();
     refreshDashboard();
-    updateExpenditureBreakdown();
+    await updateExpenditureBreakdown();
   } catch(e) {
     toast('Could not clear log — check console', true);
     console.warn('clearTodaysDayLog error:', e);
