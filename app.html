@@ -288,10 +288,10 @@
           <input type="file" id="ai-photo-input" accept="image/*" style="display:none" onchange="handleFoodPhoto(event)">
         </div>
         <div style="margin-bottom:10px;">
-          <label class="form-label" style="font-size:0.65rem;">✏️ Description (optional — add details for better accuracy)</label>
-          <textarea id="ai-food-desc" rows="2" placeholder="e.g. grilled chicken breast 6oz, white rice 1 cup, mixed vegetables..." style="width:100%;"></textarea>
+          <label class="form-label" style="font-size:0.65rem;">✏️ Description (optional — but add a rough portion size for much better accuracy)</label>
+          <textarea id="ai-food-desc" rows="2" placeholder="e.g. grilled chicken breast ~8oz, a big handful of spinach, 3/4 avocado, 4 tbsp dressing... even a rough guess helps a lot" style="width:100%;"></textarea>
         </div>
-        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-style:italic;">💡 Use both photo and description together for the most accurate estimate</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-style:italic;">💡 Photos alone can be tricky to size accurately — even a rough portion guess (chicken ~8oz, "a big bowl," "half an avocado") meaningfully improves the estimate. Exact label numbers for packaged/branded items help even more.</div>
         <button class="btn btn-primary" onclick="analyzeFood()" style="width:100%;margin-bottom:10px;">⚡ Analyze</button>
         <div id="ai-loading" style="display:none;text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);"><span style="color:var(--accent);">⚡</span> Analyzing...</div>
         <div id="food-confirm-container"></div>
@@ -3013,7 +3013,7 @@ Reply ONLY with this JSON, no other text:
     } else if (hasPhoto) {
       messages = [{role:"user", content:[
         {type:"image", source:{type:"base64", media_type:"image/jpeg", data:currentPhotoBase64}},
-        {type:"text", text: basePrompt + "\n\nEstimate portion sizes using visual cues (plate size, utensils, containers)."}
+        {type:"text", text: basePrompt + "\n\nNo text description was provided — estimate portion sizes using visual cues only (plate size, utensils, containers, how full/heaping the portions look). Since photo-only estimates are inherently less precise than ones with stated quantities, set confidence to \"medium\" or \"low\" unless the photo gives strong, unambiguous size cues (e.g. a clearly standard container or labeled packaging), and in confidence_note briefly suggest what specific detail (e.g. \"add the chicken's approximate weight next time for a more precise read\") would most improve accuracy."}
       ]}];
     } else {
       messages = [{role:"user", content: basePrompt + "\n\nFood description: \"" + desc + "\". The user has given exact stated quantities (e.g. \"4 tablespoons\", \"3/4 avocado\", \"1.5 pieces\") — use these EXACT amounts in your calculation, do not silently round them down to a smaller \"typical\" serving size. If the user says 4 tablespoons of dressing, calculate for 4 tablespoons, not 1-2. If they say 3/4 of an avocado, calculate 3/4 of a whole avocado's nutrition, not a garnish-sized amount. Stated quantities always override generic default serving sizes."}];
