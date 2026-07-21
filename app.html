@@ -3629,6 +3629,35 @@ async function sbDeleteAuth(table, id) {
 }
 
 // ── MY PLAN ───────────────────────────────────────────────────────────────────
+async function clearTodaysDayLog(planId, dayIndex, btn) {
+  if (!confirm("Clear today's logged sets for this day? This can't be undone.")) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Clearing...'; }
+  try {
+    const session = getSession();
+    const today = getLocalDateStr();
+    const rows = await sbGetAuth('client_workout_logs',
+      `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&plan_id=eq.${planId}&day_index=eq.${dayIndex}`);
+    for (const row of rows) {
+      await sbDeleteAuth('client_workout_logs', row.id);
+    }
+    // Also clear any matching entries out of local state so the dashboard reflects it immediately
+    if (rows.length) {
+      const clearedIds = new Set(rows.flatMap(r => (r.exercises||[]).map(e=>e.id)));
+      state.today.workout = state.today.workout.filter(e => !clearedIds.has(e.id));
+      saveState();
+    }
+    toast("Today's log cleared for this day ✓");
+    renderMyPlan();
+    renderWorkoutLog();
+    refreshDashboard();
+    updateExpenditureBreakdown();
+  } catch(e) {
+    toast('Could not clear log — check console', true);
+    console.warn('clearTodaysDayLog error:', e);
+    if (btn) { btn.disabled = false; btn.textContent = "🗑️ Clear Today's Log for This Day"; }
+  }
+}
+
 async function renderMyPlan() {
   const session = getSession();
   const container = document.getElementById('myplan-content');
@@ -3697,7 +3726,9 @@ async function renderMyPlan() {
             ${isDone ? `
             <div style="text-align:center;padding:16px;color:var(--success);font-size:0.8rem;background:rgba(71,255,138,0.04);border-radius:6px;border:1px solid rgba(71,255,138,0.2);">
               ✅ You've already logged ${day.name} this week.<br>
-              <span style="font-size:0.72rem;color:var(--muted);">Resets Sunday. Check Workout History for your sets.</span>
+              <span style="font-size:0.72rem;color:var(--muted);">Resets Sunday. Check Workout History for your sets.</span><br>
+              <button class="btn" style="margin-top:10px;font-size:0.7rem;padding:6px 14px;" onclick="clearTodaysDayLog('${plan.id}', ${di}, this)">🗑️ Clear Today's Log for This Day</button>
+              <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">Use this if a day got logged under the wrong date, or you want to re-log it.</div>
             </div>
             ` : `
             <div style="overflow-x:auto;">
