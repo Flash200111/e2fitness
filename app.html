@@ -2263,11 +2263,12 @@ async function renderWeeklyOverview() {
   `;
 }
 
-async function renderMonthlyWorkoutHistory() {
-  const el = document.getElementById('monthly-workout-history');
+async function renderMonthlyWorkoutHistory(targetEmail, containerId) {
+  const el = document.getElementById(containerId || 'monthly-workout-history');
   if (!el) return;
   const session = getSession();
-  if (!session?.email) return;
+  const email = targetEmail || session?.email;
+  if (!email) return;
 
   el.innerHTML = '<div class="empty-state">Loading...</div>';
 
@@ -2275,63 +2276,78 @@ async function renderMonthlyWorkoutHistory() {
   startDate.setDate(startDate.getDate() - 29);
   const startStr = startDate.toISOString().split('T')[0];
 
-  const logs = await sbGetAuth('client_workout_logs',
-    `user_email=eq.${encodeURIComponent(session.email)}&log_date=gte.${startStr}&order=log_date.desc`);
+  const [logs, plans] = await Promise.all([
+    sbGetAuth('client_workout_logs', `user_email=eq.${encodeURIComponent(email)}&log_date=gte.${startStr}&order=log_date.desc`),
+    sbGetAuth('workout_plans', `client_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=1`)
+  ]);
 
   if (!logs.length) {
     el.innerHTML = '<div class="empty-state">No workouts logged in the last 30 days</div>';
     return;
   }
 
-  // Group by date, deduplicate exercises by name within each day
-  const byDate = {};
-  logs.forEach(l => {
-    if (!byDate[l.log_date]) byDate[l.log_date] = new Map();
-    (l.exercises||[]).forEach(ex => {
-      if (!byDate[l.log_date].has(ex.name)) {
-        byDate[l.log_date].set(ex.name, ex);
-      }
-    });
-  });
+  // Best-effort day names from the client's most recent plan (day_index -> name)
+  const dayNames = {};
+  const currentPlanDays = plans?.[0]?.plan_data?.days;
+  if (Array.isArray(currentPlanDays)) {
+    currentPlanDays.forEach((d, i) => { dayNames[i] = d.name; });
+  }
 
-  const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
   const dayLabel = (dateStr) => {
     const d = new Date(dateStr+'T00:00:00');
     return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
   };
+  const formatSets = (sets) => Array.isArray(sets)
+    ? sets.map(s=>`${s.weight||'—'}${s.weight?'lb':''}×${s.reps||'—'}`).join(', ')
+    : (sets || '—');
+
+  // Group: day_index -> exercise name -> [{date, sets, notes}], plus an "other" bucket
+  // for exercises logged with no day tie (e.g. the manual Log Exercise form).
+  const groups = {};
+  logs.forEach(l => {
+    if (l.plan_id === 'TRAINED_FLAG_YES' || l.plan_id === 'TRAINED_FLAG_NO') return; // skip markers
+    const key = (l.day_index !== undefined && l.day_index !== null) ? l.day_index : 'other';
+    if (!groups[key]) groups[key] = {};
+    (l.exercises||[]).forEach(ex => {
+      if (!groups[key][ex.name]) groups[key][ex.name] = [];
+      groups[key][ex.name].push({ date: l.log_date, sets: ex.sets, notes: ex.notes });
+    });
+  });
+
+  const dayKeys = Object.keys(groups).sort((a,b) => {
+    if (a === 'other') return 1;
+    if (b === 'other') return -1;
+    return Number(a) - Number(b);
+  });
 
   el.innerHTML = `
-    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:10px;">${dates.length} workout day${dates.length===1?'':'s'} in the last 30 days</div>
-    ${dates.map(date => {
-      const exercises = [...byDate[date].values()];
-      const maxSets = Math.max(1, ...exercises.map(ex => Array.isArray(ex.sets) ? ex.sets.length : 1));
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:14px;">Grouped by training day so you can track progress on the same exercises over time.</div>
+    ${dayKeys.map(key => {
+      const title = key === 'other' ? 'Other / Manually Logged' : (dayNames[key] || `Day ${Number(key)+1}`);
+      const exerciseNames = Object.keys(groups[key]);
       return `
-      <div style="margin-bottom:16px;">
-        <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);">${dayLabel(date)}</div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border);">
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Exercise</th>
-                ${Array.from({length:maxSets},(_,si)=>`<th style="text-align:center;padding:5px 4px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Set ${si+1}</th>`).join('')}
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${exercises.map(ex => `
-                <tr style="border-bottom:1px solid var(--border);">
-                  <td style="padding:6px 8px;font-weight:600;">${ex.name}</td>
-                  ${Array.isArray(ex.sets)
-                    ? ex.sets.map(s=>`<td style="text-align:center;padding:6px 4px;font-family:'DM Mono',monospace;font-size:0.7rem;">${s.weight||'—'}${s.weight?'lb':''}×${s.reps||'—'}</td>`).join('')
-                    : `<td style="text-align:center;padding:6px 4px;color:var(--muted);">—</td>`
-                  }
-                  ${Array.from({length:maxSets-(Array.isArray(ex.sets)?ex.sets.length:1)},()=>'<td></td>').join('')}
-                  <td style="padding:6px 8px;font-size:0.7rem;color:var(--muted);">${ex.notes||''}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
+      <div style="margin-bottom:22px;">
+        <div style="font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;padding-bottom:5px;border-bottom:2px solid var(--border);">${title}</div>
+        ${exerciseNames.map(name => {
+          const entries = groups[key][name].slice().sort((a,b)=>b.date.localeCompare(a.date));
+          return `
+          <div style="margin-bottom:12px;">
+            <div style="font-size:0.78rem;font-weight:600;margin-bottom:4px;">${name}</div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+                <tbody>
+                  ${entries.map(e => `
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <td style="padding:5px 8px;color:var(--muted);white-space:nowrap;">${dayLabel(e.date)}</td>
+                      <td style="padding:5px 8px;font-family:'DM Mono',monospace;">${formatSets(e.sets)}</td>
+                      <td style="padding:5px 8px;font-size:0.68rem;color:var(--muted);">${e.notes||''}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;}).join('')}
       </div>
     `;}).join('')}
   `;
@@ -3436,6 +3452,16 @@ async function renderClientDetail(){
           <strong style="color:var(--text);">${date}</strong> — ${exercises.map(e=>e.name).join(', ')}
         </div>`;
       }).join('') : '<div class="empty-state">No workout logs yet</div>'}
+    </div>
+
+    <div class="section-collapsible" style="margin-bottom:20px;">
+      <div class="section-header" id="section-header-client-history" onclick="toggleSection('client-history');if(document.getElementById('section-client-history').classList.contains('open'))renderMonthlyWorkoutHistory('${email}','client-monthly-workout-history')">
+        <div class="section-header-title">🗓️ Full Workout History (Last 30 Days)</div>
+        <div class="section-toggle-icon">▾</div>
+      </div>
+      <div class="section-body" id="section-client-history">
+        <div id="client-monthly-workout-history"><div class="empty-state">Tap to load full history</div></div>
+      </div>
     </div>
 
     <div style="margin-bottom:20px;">
