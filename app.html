@@ -1197,6 +1197,20 @@ async function sbGet(table) {
     return (r.ok && Array.isArray(d)) ? d : [];
   } catch(e) { console.warn('sbGet exception for', table, ':', e); return []; }
 }
+
+// Fetches a single workout_plans row by id directly (instead of pulling the
+// whole table and searching client-side — fragile as the table grows, and a
+// single slow/dropped request silently looked like "plan doesn't exist").
+// Retries once after a network failure before reporting the row missing, so a
+// brief connectivity blip doesn't read as data loss.
+async function fetchPlanById(planId) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const rows = await sbGet(`workout_plans?id=eq.${encodeURIComponent(planId)}`);
+    if (rows.length) return rows[0];
+    if (attempt === 0) await new Promise(res => setTimeout(res, 500));
+  }
+  return null;
+}
 async function sbInsert(table, data) {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
@@ -4983,9 +4997,8 @@ async function finalizeClientPlan(activateNow) {
 async function startAIGeneration(planId, clientEmail) {
   const planType = document.getElementById('plan-type-' + planId)?.value || 'full_body';
   // Load intake from Supabase
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   const intake = plan.plan_data?.intake || {};
   if (planType === 'sport_specific') {
     intake.sport = document.getElementById('sport-type-' + planId)?.value || '';
@@ -5346,9 +5359,8 @@ async function renderPendingPlans() {
 
 async function regenerateApprovedPlan(planId, clientEmail) {
   if (!confirm('Regenerate this plan? The new version will go to "Plans Pending Your Review" before the client sees it.')) return;
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   const intake = plan.plan_data?.intake || {};
   const planType = plan.plan_data?.plan_type || 'full_body';
   toast('Regenerating plan...');
@@ -5359,9 +5371,8 @@ async function regenerateApprovedPlan(planId, clientEmail) {
 
 async function regenPlan(planId, clientEmail) {
   const planType = document.getElementById(`regen-type-${planId}`).value;
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   const intake = plan.plan_data?.intake || {};
   await generateAIPlan(planId, clientEmail, intake, planType);
 }
@@ -5376,8 +5387,7 @@ async function approveGeneratedPlan(planId) {
   };
   // If this was a client self-built plan sent for review, the client already
   // "accepted" it by choosing to build it — lock it in as of this approval.
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
+  const plan = await fetchPlanById(planId);
   if (plan?.plan_data?.source === 'client_self_build') {
     const pd = { ...plan.plan_data, client_accepted_at: approvedAt };
     updates.plan_data = pd;
@@ -5464,8 +5474,7 @@ async function triggerPlanUpdate(planId, clientEmail) {
     `user_email=eq.${encodeURIComponent(clientEmail)}&order=created_at.desc&limit=10`);
 
   // Get current plan
-  const plans = await sbGet('workout_plans');
-  const currentPlan = plans.find(p => String(p.id) === String(planId));
+  const currentPlan = await fetchPlanById(planId);
   const intake = currentPlan?.plan_data?.intake || {};
   const currentPlanData = currentPlan?.plan_data || {};
 
@@ -5652,9 +5661,8 @@ let editingWarmupPlanId = null;
 let editingWarmupDayIdx = null;
 
 async function editPlanWarmup(planId, dayIdx) {
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
 
   editingWarmupPlanId = planId;
   editingWarmupDayIdx = dayIdx;
@@ -5665,9 +5673,8 @@ async function editPlanWarmup(planId, dayIdx) {
 }
 
 async function saveWarmupEdit() {
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(editingWarmupPlanId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(editingWarmupPlanId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
 
   const planData = plan.plan_data;
   planData.days[editingWarmupDayIdx].warmup = document.getElementById('edit-warmup-text').value.trim();
@@ -5681,9 +5688,8 @@ async function saveWarmupEdit() {
 }
 
 async function addPlanExercise(planId, dayIdx) {
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
 
   editingPlanId = planId;
   editingDayIdx = dayIdx;
@@ -5707,9 +5713,8 @@ async function addPlanExercise(planId, dayIdx) {
 
 async function editPlanExercise(planId, dayIdx, exIdx) {
   // Load plan from Supabase
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(planId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   
   editingPlanId = planId;
   editingDayIdx = dayIdx;
@@ -5735,9 +5740,8 @@ async function editPlanExercise(planId, dayIdx, exIdx) {
 }
 
 async function saveExerciseEdit() {
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(editingPlanId));
-  if (!plan) return toast('Plan not found');
+  const plan = await fetchPlanById(editingPlanId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   
   const planData = plan.plan_data;
   const exType = document.getElementById('edit-ex-type').value;
@@ -5774,9 +5778,8 @@ async function saveExerciseEdit() {
 
 async function deleteExerciseFromPlan() {
   if (!confirm('Remove this exercise from the plan?')) return;
-  const plans = await sbGet('workout_plans');
-  const plan = plans.find(p => String(p.id) === String(editingPlanId));
-  if (!plan) return;
+  const plan = await fetchPlanById(editingPlanId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
   
   const planData = plan.plan_data;
   planData.days[editingDayIdx].exercises.splice(editingExIdx, 1);
@@ -5981,9 +5984,8 @@ async function saveEditIntake(email, planId) {
 
   try {
     // Get current plan data
-    const plans = await sbGet('workout_plans');
-    const plan = plans.find(p => p.id === planId);
-    if (!plan) throw new Error('Plan not found');
+    const plan = await fetchPlanById(planId);
+    if (!plan) throw new Error('Plan not found — check your connection and try again');
 
     const updatedIntake = {
       ...(plan.plan_data?.intake || {}),
