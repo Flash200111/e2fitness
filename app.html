@@ -1498,13 +1498,11 @@ async function renderWorkoutLog(){
       if(seen.has(e.id))return false;
       seen.add(e.id);return true;
     });
-    const localOnly=state.today.workout.filter(e=>!deduped.find(se=>se.id===e.id));
-    const combined=[...deduped,...localOnly];
-    state.today.workout=combined;
+    state.today.workout=deduped;
     saveState();
     
-    if(!combined.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
-    list.innerHTML=combined.map(e=>{
+    if(!deduped.length){list.innerHTML='<div class="empty-state">No exercises logged</div>';return;}
+    list.innerHTML=deduped.map(e=>{
       const detail = Array.isArray(e.sets)
         ? e.sets.map(s=>`Set ${s.set}: ${s.weight||'—'}${s.weight?' lbs':''} × ${s.reps||'—'}`).join(' · ')
         : `${e.sets||'—'} sets · ${e.reps||'—'} reps · ${e.weight||'—'} ${e.rpe?'· RPE '+e.rpe:''}`;
@@ -1855,12 +1853,10 @@ async function renderCardioLog(){
       allCardio.push(...log.activities);
     }
   }
-  const localOnly=state.today.cardio.filter(c=>!allCardio.find(ac=>ac.id===c.id));
-  const combined=[...allCardio,...localOnly];
-  state.today.cardio=combined;
+  state.today.cardio=allCardio;
   saveState();
-  if(!combined.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
-  list.innerHTML=combined.map(c=>{
+  if(!allCardio.length){list.innerHTML='<div class="empty-state">No cardio logged</div>';return;}
+  list.innerHTML=allCardio.map(c=>{
     const detail = c.mode === 'steps'
       ? `${c.steps?.toLocaleString()} steps · ~${c.miles} mi · ${c.cal||'—'} kcal burned`
       : `${c.mins||'—'} min · ${c.cal||'—'} kcal burned`;
