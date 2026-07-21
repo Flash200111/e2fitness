@@ -3778,7 +3778,10 @@ async function renderMyPlan() {
       <div class="panel" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:3px;">${p.name || 'My Workout Plan'}</div>
-          <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;background:rgba(71,255,138,0.1);color:var(--success);padding:2px 8px;border-radius:2px;">Active</span>
+            <button onclick="openClientRejectModal('${plan.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:4px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;">Reject This Plan</button>
+          </div>
         </div>
         ${(() => {
           const summary = p.client_summary || '';
@@ -4512,12 +4515,15 @@ async function renderPendingIntakes() {
 
   container.innerHTML = pending.map(p => {
     const intake = p.plan_data.intake || {};
+    const clientRejected = !!p.plan_data.rejected_by_client_at;
+    const requestedStyle = p.plan_data.client_requested_style || (intake.goal === 'sport_specific' ? 'sport_specific' : '');
     return `
       <div style="background:var(--surface2);border:1px solid var(--danger);border-radius:8px;padding:16px;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
           <div style="font-weight:600;">${p.client_email}</div>
-          <span style="font-size:0.65rem;background:rgba(255,69,69,0.15);color:var(--danger);padding:2px 8px;border-radius:2px;letter-spacing:1px;">NEEDS PLAN</span>
+          <span style="font-size:0.65rem;background:rgba(255,69,69,0.15);color:var(--danger);padding:2px 8px;border-radius:2px;letter-spacing:1px;">${clientRejected ? 'CLIENT REJECTED — REBUILD' : 'NEEDS PLAN'}</span>
         </div>
+        ${clientRejected ? `<div style="font-size:0.75rem;color:var(--danger);margin-bottom:10px;">🔁 Client rejected the previous plan and requested a <strong>${PLAN_TYPES.find(pt=>pt.value===requestedStyle)?.label || requestedStyle}</strong> rebuild.</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.78rem;margin-bottom:12px;">
           <div><span style="color:var(--muted);">Goal:</span> ${intake.goal?.replace('_',' ') || '—'}${intake.goal==='sport_specific' && intake.sport ? ` (${intake.sport})` : ''}</div>
           <div><span style="color:var(--muted);">Level:</span> ${intake.level || '—'}</div>
@@ -4533,10 +4539,10 @@ async function renderPendingIntakes() {
         <div style="margin-bottom:8px;">
           <label class="form-label">Plan Style</label>
           <select id="plan-type-${p.id}" style="font-size:0.78rem;" onchange="document.getElementById('sport-select-${p.id}').style.display=this.value==='sport_specific'?'block':'none';">
-            ${PLAN_TYPES.map(pt => `<option value="${pt.value}" ${intake.goal==='sport_specific' && pt.value==='sport_specific'?'selected':''}>${pt.label}</option>`).join('')}
+            ${PLAN_TYPES.map(pt => `<option value="${pt.value}" ${pt.value===requestedStyle?'selected':''}>${pt.label}</option>`).join('')}
           </select>
         </div>
-        <div id="sport-select-${p.id}" style="margin-bottom:8px;display:${intake.goal==='sport_specific'?'block':'none'};">
+        <div id="sport-select-${p.id}" style="margin-bottom:8px;display:${requestedStyle==='sport_specific'?'block':'none'};">
           <label class="form-label">Sport</label>
           <select id="sport-type-${p.id}" style="font-size:0.78rem;">
             ${SPORTS.map(s => `<option value="${s}" ${intake.sport===s?'selected':''}>${s}</option>`).join('')}
@@ -4660,6 +4666,245 @@ const PLAN_TYPES = [
 ];
 
 const SPORTS = ['Football','Basketball','Baseball','Soccer','Hockey','Tennis','Golf','Track & Field','Wrestling','Lacrosse','Volleyball','Swimming'];
+
+// ── CLIENT: REJECT PLAN → REBUILD OR SELF-BUILD ────────────────────────────────
+// getClientSafeEquipmentList / getClientContraindicationInfo mirror the hard
+// safety-net logic inside generateAIPlan() above — equipment tiers and the
+// avoid/medical banned-keyword rules. Kept as separate copies (rather than a
+// shared call) so a future edit to the AI-generation safety net doesn't
+// silently change what's available in the client-facing picker without a
+// deliberate matching edit here, and vice versa. If you change one, check
+// the other.
+function getClientSafeEquipmentList(intakeData) {
+  const equipTier = intakeData.equipment || '';
+  const equipDetailLower = (intakeData.equipment_detail || '').toLowerCase();
+  const TIER_EQUIPMENT = {
+    full_gym: ['barbell','dumbbell','cable','machine','bodyweight','bands'],
+    mixed: ['barbell','dumbbell','cable','machine','bodyweight','bands'],
+    home_full: ['barbell','dumbbell','bodyweight','bands'],
+    home_partial: ['dumbbell','bodyweight','bands'],
+    bands_only: ['bands','bodyweight'],
+    bodyweight: ['bodyweight'],
+  };
+  let availableEquip = TIER_EQUIPMENT[equipTier] || ['barbell','dumbbell','cable','machine','bodyweight','bands'];
+  const detailAdds = [];
+  if (equipDetailLower.includes('cable')) detailAdds.push('cable');
+  if (equipDetailLower.includes('machine')) detailAdds.push('machine');
+  if (equipDetailLower.includes('barbell')) detailAdds.push('barbell');
+  if (equipDetailLower.includes('band')) detailAdds.push('bands');
+  return [...new Set([...availableEquip, ...detailAdds])];
+}
+
+function getClientContraindicationInfo(intakeData) {
+  const avoidLower = (intakeData.avoid || '').toLowerCase();
+  const medicalLower = (intakeData.medical || '').toLowerCase();
+  const bannedKeywords = new Set();
+  const addIf = (sourceText, patterns, keywords) => {
+    if (patterns.some(p => sourceText.includes(p))) keywords.forEach(k => bannedKeywords.add(k));
+  };
+  addIf(avoidLower, ['squat'], ['squat']);
+  addIf(avoidLower, ['dead lift','deadlift'], ['deadlift']);
+  addIf(avoidLower, ['lunge'], ['lunge']);
+  addIf(avoidLower, ['leg press'], ['leg press']);
+  addIf(avoidLower, ['bench press'], ['bench press']);
+  addIf(avoidLower, ['overhead press','shoulder press'], ['overhead press','shoulder press']);
+
+  if (!avoidLower.includes('spanish squat')) addIf(medicalLower, ['knee'], ['squat','hack squat']);
+  addIf(medicalLower, ['knee'], ['lunge','leg press']);
+  addIf(medicalLower, ['back','spine','disc','sciatica'], ['deadlift','good morning','bent-over row','bent over row']);
+
+  const safeExceptions = [];
+  if (avoidLower.includes('spanish squat') || avoidLower.includes('spanish squats')) safeExceptions.push('spanish squat');
+  if (avoidLower.includes('goblet squat') || avoidLower.includes('goblet squats')) safeExceptions.push('goblet squat');
+  if (avoidLower.includes('box squat') || avoidLower.includes('box squats')) safeExceptions.push('box squat');
+  if (avoidLower.includes('rdl') || avoidLower.includes('romanian')) { safeExceptions.push('romanian'); safeExceptions.push('rdl'); }
+
+  return { bannedKeywords, safeExceptions };
+}
+
+function isExerciseContraindicatedForClient(name, info) {
+  const nameLower = (name || '').toLowerCase();
+  if (info.safeExceptions.some(e => nameLower.includes(e))) return false;
+  for (const k of info.bannedKeywords) { if (nameLower.includes(k)) return true; }
+  return false;
+}
+
+let clientRejectPlanId = null;
+
+function openClientRejectModal(planId) {
+  clientRejectPlanId = planId;
+  document.getElementById('crm-choice-buttons').style.display = 'flex';
+  document.getElementById('crm-rebuild-panel').style.display = 'none';
+  const sel = document.getElementById('crm-rebuild-style');
+  sel.innerHTML = PLAN_TYPES.map(pt => `<option value="${pt.value}">${pt.label}</option>`).join('');
+  document.getElementById('clientRejectModal').classList.add('open');
+}
+
+function showRebuildChoice() {
+  document.getElementById('crm-choice-buttons').style.display = 'none';
+  document.getElementById('crm-rebuild-panel').style.display = 'block';
+}
+
+async function submitRebuildRequest() {
+  if (!clientRejectPlanId) return;
+  const style = document.getElementById('crm-rebuild-style').value;
+  const rows = await sbGetAuth('workout_plans', `id=eq.${clientRejectPlanId}`);
+  const plan = rows[0];
+  if (!plan) return toast('Plan not found', true);
+
+  const pd = plan.plan_data || {};
+  delete pd.source; // clear any prior client_self_build tag
+  pd.client_requested_style = style;
+  pd.rejected_by_client_at = new Date().toISOString();
+
+  await sbUpdateAuth('workout_plans', clientRejectPlanId, {
+    plan_data: pd,
+    status: 'intake_submitted'
+  });
+
+  toast('Sent back to Coach E for a new plan ✓');
+  closeModal('clientRejectModal');
+  renderMyPlan();
+  showPage('dashboard');
+}
+
+// ── CLIENT: SELF-BUILD PLAN (client-facing exercise picker) ───────────────────
+let clientBuilderPlanId = null;
+let clientBuilderIntake = {};
+let clientBuilderDays = [];
+let clientBuilderCurrentDay = 0;
+let clientBuilderAllowedExercises = [];
+let clientBuilderCategory = 'all';
+
+async function openClientPlanBuilder(planId) {
+  const rows = await sbGetAuth('workout_plans', `id=eq.${planId}`);
+  const plan = rows[0];
+  if (!plan) return toast('Plan not found', true);
+
+  clientBuilderPlanId = planId;
+  clientBuilderIntake = plan.plan_data?.intake || {};
+  clientBuilderDays = [];
+  clientBuilderCurrentDay = 0;
+  clientBuilderCategory = 'all';
+
+  const availableEquip = getClientSafeEquipmentList(clientBuilderIntake);
+  const contraInfo = getClientContraindicationInfo(clientBuilderIntake);
+  clientBuilderAllowedExercises = exercises.filter(e =>
+    (e.equip || []).some(eq => availableEquip.includes(eq)) &&
+    !isExerciseContraindicatedForClient(e.name, contraInfo)
+  );
+
+  document.getElementById('cb-plan-name').value = '';
+  document.getElementById('cb-day-name').value = '';
+  document.getElementById('cb-ex-search').value = '';
+  document.getElementById('cb-days-list').innerHTML = '';
+  document.querySelectorAll('#cb-ex-filters .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+
+  renderClientBuilderDays();
+  renderClientExercisePicker();
+  document.getElementById('clientPlanBuilderModal').classList.add('open');
+}
+
+function addClientBuilderDay() {
+  const dayName = document.getElementById('cb-day-name').value.trim();
+  if (!dayName) return toast('Enter a day name');
+  clientBuilderDays.push({ name: dayName, exercises: [] });
+  clientBuilderCurrentDay = clientBuilderDays.length - 1;
+  document.getElementById('cb-day-name').value = '';
+  renderClientBuilderDays();
+  toast('Day added');
+}
+
+function renderClientBuilderDays() {
+  const container = document.getElementById('cb-days-list');
+  container.innerHTML = clientBuilderDays.map((day, di) => `
+    <div style="background:var(--surface2);border:1px solid ${di === clientBuilderCurrentDay ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:12px;margin-bottom:8px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;cursor:pointer;" onclick="clientBuilderCurrentDay=${di};renderClientBuilderDays()">
+        ${day.name} <span style="font-size:0.7rem;color:var(--muted);">(${day.exercises.length} exercises)${di===clientBuilderCurrentDay ? ' · adds go here' : ''}</span>
+      </div>
+      ${day.exercises.map((e, ei) => `
+        <div style="display:grid;grid-template-columns:2fr 46px 66px 56px auto;gap:4px;align-items:center;padding:4px 0;border-top:1px solid var(--border);font-size:0.72rem;">
+          <span>${e.name}</span>
+          <input type="number" min="1" value="${e.sets}" style="font-size:0.72rem;padding:3px;width:42px;" onchange="updateClientBuilderExercise(${di},${ei},'sets',this.value)">
+          <input type="text" value="${e.reps}" style="font-size:0.72rem;padding:3px;width:60px;" onchange="updateClientBuilderExercise(${di},${ei},'reps',this.value)">
+          <input type="text" value="${e.rest}" style="font-size:0.72rem;padding:3px;width:48px;" onchange="updateClientBuilderExercise(${di},${ei},'rest',this.value)">
+          <button onclick="removeClientBuilderExercise(${di},${ei})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.8rem;">✕</button>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function updateClientBuilderExercise(di, ei, field, value) {
+  clientBuilderDays[di].exercises[ei][field] = value;
+}
+
+function removeClientBuilderExercise(di, ei) {
+  clientBuilderDays[di].exercises.splice(ei, 1);
+  renderClientBuilderDays();
+}
+
+function filterClientExercisePicker(cat, btn) {
+  clientBuilderCategory = cat;
+  document.querySelectorAll('#cb-ex-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderClientExercisePicker();
+}
+
+function renderClientExercisePicker() {
+  const list = document.getElementById('cb-ex-picker-list');
+  if (!list) return;
+  const search = (document.getElementById('cb-ex-search').value || '').toLowerCase();
+  const filtered = clientBuilderAllowedExercises.filter(e =>
+    (clientBuilderCategory === 'all' || e.type === clientBuilderCategory) &&
+    (!search || e.name.toLowerCase().includes(search))
+  );
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:16px;">No matching exercises available for your equipment and medical profile.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(e => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;">
+      <div>
+        <div style="font-size:0.78rem;font-weight:600;">${e.name}</div>
+        <div style="font-size:0.68rem;color:var(--muted);">${e.muscle}</div>
+      </div>
+      <button class="btn" style="font-size:0.7rem;padding:5px 10px;white-space:nowrap;" onclick="addExerciseToClientBuilderDay('${e.name.replace(/'/g,"\\'")}')">+ Add</button>
+    </div>
+  `).join('');
+}
+
+function addExerciseToClientBuilderDay(name) {
+  if (!clientBuilderDays.length) return toast('Add a day first');
+  clientBuilderDays[clientBuilderCurrentDay].exercises.push({ name, sets: 3, reps: '8-12', rest: '60s' });
+  renderClientBuilderDays();
+}
+
+async function finalizeClientPlan(activateNow) {
+  const planName = document.getElementById('cb-plan-name').value.trim();
+  if (!planName) return toast('Enter a plan name');
+  if (!clientBuilderDays.length || !clientBuilderDays.some(d => d.exercises.length)) {
+    return toast('Add at least one exercise to a day');
+  }
+
+  const planData = {
+    name: planName,
+    days: clientBuilderDays,
+    intake: clientBuilderIntake,
+    source: 'client_self_build'
+  };
+
+  const updates = {
+    plan_data: planData,
+    status: activateNow ? 'approved' : 'pending_review'
+  };
+  if (activateNow) updates.approved_at = new Date().toISOString();
+
+  await sbUpdateAuth('workout_plans', clientBuilderPlanId, updates);
+  toast(activateNow ? 'Your custom plan is now active ✓' : 'Sent to Coach E for review ✓');
+  closeModal('clientPlanBuilderModal');
+  renderMyPlan();
+}
 
 
 async function startAIGeneration(planId, clientEmail) {
@@ -4962,8 +5207,9 @@ async function renderPendingPlans() {
             <div style="font-weight:600;font-size:0.95rem;">${pd.name || 'Generated Plan'}</div>
             <div style="font-size:0.72rem;color:var(--muted);">${p.client_email} · ${pd.plan_type?.replace('_',' ') || ''}</div>
           </div>
-          <span style="font-size:0.65rem;background:rgba(232,255,71,0.1);color:var(--accent);padding:2px 8px;border-radius:2px;letter-spacing:1px;">PENDING REVIEW</span>
+          <span style="font-size:0.65rem;background:${pd.source==='client_self_build' ? 'rgba(255,153,0,0.12)' : 'rgba(232,255,71,0.1)'};color:${pd.source==='client_self_build' ? '#ff9900' : 'var(--accent)'};padding:2px 8px;border-radius:2px;letter-spacing:1px;">${pd.source==='client_self_build' ? '🛠️ CLIENT-BUILT — PENDING REVIEW' : 'PENDING REVIEW'}</span>
         </div>
+        ${pd.source==='client_self_build' ? `<div style="font-size:0.75rem;color:#ff9900;margin-bottom:10px;">This plan was self-built by the client from the exercise database. It was already filtered to their on-file equipment and medical/avoid notes, but give it the same review pass as any other plan before approving.</div>` : ''}
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:0.75rem;">
           <div style="font-size:0.65rem;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Client Intake (reference)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
@@ -5813,6 +6059,76 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
       </div>
     </div>
     <button class="btn btn-primary" style="width:100%;" onclick="savePlanToClient()">✓ Send Plan to Client</button>
+  </div>
+</div>
+
+
+<!-- CLIENT: REJECT PLAN MODAL -->
+<div class="modal-overlay" id="clientRejectModal">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" onclick="closeModal('clientRejectModal')">✕</button>
+    <div class="modal-title">Reject This Plan</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:18px;">What would you like to do instead?</div>
+
+    <div id="crm-choice-buttons" style="display:flex;flex-direction:column;gap:10px;margin-bottom:6px;">
+      <button class="btn btn-primary" style="width:100%;text-align:left;padding:14px;" onclick="showRebuildChoice()">
+        🔄 Send Back for a Rebuild<br><span style="font-size:0.7rem;font-weight:400;color:rgba(0,0,0,0.6);">Pick a new plan style — Coach E will build it fresh.</span>
+      </button>
+      <button class="btn" style="width:100%;text-align:left;padding:14px;" onclick="closeModal('clientRejectModal');openClientPlanBuilder(clientRejectPlanId);">
+        🛠️ Build My Own<br><span style="font-size:0.7rem;font-weight:400;color:var(--muted);">Pick your own exercises from the exercise database.</span>
+      </button>
+    </div>
+
+    <div id="crm-rebuild-panel" style="display:none;margin-top:14px;">
+      <hr class="divider">
+      <div class="form-group">
+        <label class="form-label">New Plan Style</label>
+        <select id="crm-rebuild-style"></select>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="submitRebuildRequest()">✓ Send to Coach E for a Rebuild</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENT: SELF-BUILD PLAN MODAL -->
+<div class="modal-overlay" id="clientPlanBuilderModal">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('clientPlanBuilderModal')">✕</button>
+    <div class="modal-title">Build My Own Plan</div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:14px;">Exercises are filtered to what's safe and available for you based on your intake — equipment and any medical/avoid notes on file.</div>
+
+    <div class="form-group"><label class="form-label">Plan Name</label><input id="cb-plan-name" type="text" placeholder="e.g. My Custom Push/Pull/Legs"></div>
+
+    <hr class="divider">
+    <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Training Days</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="cb-day-name" type="text" placeholder="Day name (e.g. Day 1 — Push)" style="flex:1;">
+      <button class="btn btn-primary" onclick="addClientBuilderDay()">+ Add Day</button>
+    </div>
+    <div id="cb-days-list" style="margin-bottom:16px;"></div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Add Exercise to Selected Day</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <input id="cb-ex-search" type="text" placeholder="Search exercises..." style="flex:1;min-width:160px;" oninput="renderClientExercisePicker()">
+      </div>
+      <div id="cb-ex-filters" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="filter-btn active" onclick="filterClientExercisePicker('all',this)">All</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('chest',this)">Chest</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('back',this)">Back</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('shoulders',this)">Shoulders</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('arms',this)">Arms</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('legs',this)">Legs</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('core',this)">Core</button>
+        <button class="filter-btn" onclick="filterClientExercisePicker('corrective',this)">Corrective</button>
+      </div>
+      <div id="cb-ex-picker-list" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="finalizeClientPlan(true)">🚀 Make Active Immediately</button>
+      <button class="btn" style="flex:1;" onclick="finalizeClientPlan(false)">📤 Send to Coach for Review</button>
+    </div>
   </div>
 </div>
 
