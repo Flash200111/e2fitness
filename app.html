@@ -3456,7 +3456,9 @@ async function renderClientDetail(){
         <div style="margin-bottom:10px;">
           <div style="font-size:0.72rem;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">${day.name}</div>
           ${day.warmup ? `<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">🔥 Warm-up: ${day.warmup}</div>` : ''}
-          ${(day.exercises||[]).map((e,ei)=>`<div style="display:flex;gap:12px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><button class="btn" style="font-size:0.65rem;padding:3px 8px;" onclick="editPlanExercise('${approvedPlan.id}', ${di}, ${ei})">✏️</button></div>`).join('')}
+          <div id="cd-day-ex-${di}">
+            ${(day.exercises||[]).map((e,ei)=>`<div class="reorder-row" data-ex-idx="${ei}" style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span class="drag-handle" style="cursor:grab;touch-action:none;color:var(--muted);padding:0 4px;font-size:0.9rem;">⠿</span><span style="flex:2;">${e.name}</span><span style="color:var(--accent2);font-family:'DM Mono',monospace;">${e.sets}×${e.reps}</span><button class="btn" style="font-size:0.65rem;padding:3px 8px;" onclick="editPlanExercise('${approvedPlan.id}', ${di}, ${ei})">✏️</button></div>`).join('')}
+          </div>
         </div>
       `).join('') : '<div class="empty-state">No approved plan yet</div>'}
     </div>
@@ -3499,6 +3501,12 @@ async function renderClientDetail(){
       `).join('') : '<div class="empty-state">No metrics logged yet</div>'}
     </div>
   `;
+  if (approvedPlan) {
+    planDays.forEach((day, di) => {
+      const dayContainer = document.getElementById(`cd-day-ex-${di}`);
+      if (dayContainer) initExerciseReorder(dayContainer, approvedPlan.id, di, renderClientDetail);
+    });
+  }
   } catch(e) {
     console.error('renderClientDetail error:', e);
     panel.innerHTML = '<div class="empty-state" style="padding:48px;color:var(--danger);">Error loading client: ' + e.message + '</div>';
@@ -5322,19 +5330,22 @@ async function renderPendingPlans() {
                 <div style="font-size:0.75rem;color:var(--muted);flex:1;">🔥 Warm-up: ${day.warmup || '<span style="font-style:italic;">none set</span>'}</div>
                 <button onclick="editPlanWarmup('${p.id}',${di})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;white-space:nowrap;">✏️ Edit</button>
               </div>
-              <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
-                <span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span><span>Type</span><span></span>
+              <div style="display:grid;grid-template-columns:24px 2fr 60px 80px 60px 80px auto;gap:4px;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">
+                <span></span><span>Exercise</span><span>Sets</span><span>Reps</span><span>Rest</span><span>Type</span><span></span>
               </div>
-              ${(day.exercises||[]).map((ex, ei) => `
-                <div style="display:grid;grid-template-columns:2fr 60px 80px 60px 80px auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.78rem;align-items:center;" id="ex-row-${p.id}-${di}-${ei}">
-                  <span style="${ex.superset_group ? 'color:var(--accent2);' : ''}">${ex.superset_group ? ex.superset_group+'. ' : ''}${ex.name}</span>
-                  <span style="font-family:'DM Mono',monospace;color:var(--accent);">${ex.sets}</span>
-                  <span style="font-family:'DM Mono',monospace;">${ex.reps}</span>
-                  <span style="font-family:'DM Mono',monospace;color:var(--muted);">${ex.rest||'—'}</span>
-                  <span style="font-size:0.65rem;color:${ex.superset_group ? 'var(--accent2)' : 'var(--muted)'};">${ex.superset_group ? ({superset:'Superset',triset:'Tri-Set',circuit:'Circuit'}[ex.type] || 'Superset') : 'Individual'}</span>
-                  <button onclick="editPlanExercise('${p.id}',${di},${ei})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;">Edit</button>
-                </div>
-              `).join('')}
+              <div id="pr-day-ex-${p.id}-${di}">
+                ${(day.exercises||[]).map((ex, ei) => `
+                  <div class="reorder-row" data-ex-idx="${ei}" style="display:grid;grid-template-columns:24px 2fr 60px 80px 60px 80px auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.78rem;align-items:center;" id="ex-row-${p.id}-${di}-${ei}">
+                    <span class="drag-handle" style="cursor:grab;touch-action:none;color:var(--muted);font-size:0.9rem;">⠿</span>
+                    <span style="${ex.superset_group ? 'color:var(--accent2);' : ''}">${ex.superset_group ? ex.superset_group+'. ' : ''}${ex.name}</span>
+                    <span style="font-family:'DM Mono',monospace;color:var(--accent);">${ex.sets}</span>
+                    <span style="font-family:'DM Mono',monospace;">${ex.reps}</span>
+                    <span style="font-family:'DM Mono',monospace;color:var(--muted);">${ex.rest||'—'}</span>
+                    <span style="font-size:0.65rem;color:${ex.superset_group ? 'var(--accent2)' : 'var(--muted)'};">${ex.superset_group ? ({superset:'Superset',triset:'Tri-Set',circuit:'Circuit'}[ex.type] || 'Superset') : 'Individual'}</span>
+                    <button onclick="editPlanExercise('${p.id}',${di},${ei})" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.65rem;padding:2px 6px;border-radius:3px;cursor:pointer;">Edit</button>
+                  </div>
+                `).join('')}
+              </div>
               <button onclick="addPlanExercise('${p.id}',${di})" class="btn" style="width:100%;margin-top:8px;font-size:0.72rem;">➕ Add Exercise</button>
             </div>
           `).join('')}
@@ -5358,6 +5369,14 @@ async function renderPendingPlans() {
         </div>
       </div>`;
   }).join('');
+
+  pending.forEach(p => {
+    const days = (p.plan_data || {}).days || [];
+    days.forEach((day, di) => {
+      const dayContainer = document.getElementById(`pr-day-ex-${p.id}-${di}`);
+      if (dayContainer) initExerciseReorder(dayContainer, p.id, di, renderPendingPlans);
+    });
+  });
 }
 
 async function regenerateApprovedPlan(planId, clientEmail) {
@@ -5662,6 +5681,71 @@ let editingExIdx = null;
 let editingPlanData = null;
 let editingWarmupPlanId = null;
 let editingWarmupDayIdx = null;
+
+// ── COACH: DRAG-TO-REORDER EXERCISES ────────────────────────────────────────
+// Uses the Pointer Events API (not native HTML5 drag/drop) so it works the
+// same way with touch on mobile as it does with a mouse. `container` holds
+// one day's exercise rows; each row needs class="reorder-row" with
+// data-ex-idx="<original index>" and a child ".drag-handle" to grab.
+// onDone(planId, dayIdx) is called with the container's saved re-render
+// function so the freshly-persisted order is reflected immediately.
+function initExerciseReorder(container, planId, dayIdx, rerenderFn) {
+  container.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.onpointerdown = (e) => {
+      e.preventDefault();
+      const row = handle.closest('.reorder-row');
+      if (!row) return;
+      const pointerId = e.pointerId;
+      row.setPointerCapture(pointerId);
+      row.classList.add('reorder-dragging');
+      row.style.opacity = '0.45';
+      row.style.background = 'var(--surface2)';
+
+      const getRowAfter = (y) => {
+        const rows = [...container.querySelectorAll('.reorder-row:not(.reorder-dragging)')];
+        return rows.reduce((closest, r) => {
+          const box = r.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) return { offset, element: r };
+          return closest;
+        }, { offset: -Infinity, element: null }).element;
+      };
+
+      const onMove = (ev) => {
+        const after = getRowAfter(ev.clientY);
+        if (after == null) container.appendChild(row);
+        else if (after !== row) container.insertBefore(row, after);
+      };
+
+      const onUp = async (ev) => {
+        row.classList.remove('reorder-dragging');
+        row.style.opacity = '';
+        row.style.background = '';
+        try { row.releasePointerCapture(pointerId); } catch(e) {}
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+
+        const newOrder = [...container.querySelectorAll('.reorder-row')].map(r => parseInt(r.dataset.exIdx, 10));
+        await saveExerciseOrder(planId, dayIdx, newOrder, rerenderFn);
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    };
+  });
+}
+
+async function saveExerciseOrder(planId, dayIdx, newOrderOriginalIndexes, rerenderFn) {
+  const plan = await fetchPlanById(planId);
+  if (!plan) return toast('Plan not found — check your connection and try again', true);
+  const pd = plan.plan_data || {};
+  const day = (pd.days || [])[dayIdx];
+  if (!day || !day.exercises) return;
+  const reordered = newOrderOriginalIndexes.map(i => day.exercises[i]);
+  day.exercises = reordered;
+  await sbUpdate('workout_plans', planId, { plan_data: pd });
+  if (typeof rerenderFn === 'function') rerenderFn();
+}
 
 async function editPlanWarmup(planId, dayIdx) {
   const plan = await fetchPlanById(planId);
