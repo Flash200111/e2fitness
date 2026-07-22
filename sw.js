@@ -24,8 +24,13 @@ self.addEventListener('activate', event => {
 
 // Fetch strategy:
 // - app.html (and the root/navigation requests that resolve to it) use
-//   NETWORK-FIRST so new deploys are picked up immediately without needing
-//   a cache-name bump. Falls back to cache only if offline.
+//   NETWORK-FIRST with cache: 'no-store' so the browser's own HTTP cache
+//   can't hand back a stale response underneath us — every load hits the
+//   network for real. Falls back to the service-worker cache only if
+//   offline. This is what "network-first" was missing before: fetch()
+//   without cache: 'no-store' can still be satisfied by the browser's HTTP
+//   cache depending on the response headers GitHub Pages sends, so a new
+//   deploy could silently keep serving the old file.
 // - everything else (manifest, images, etc.) stays cache-first for speed.
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
@@ -40,7 +45,7 @@ self.addEventListener('fetch', event => {
 
   if (isAppShell) {
     event.respondWith(
-      fetch(event.request).then(response => {
+      fetch(event.request, { cache: 'no-store' }).then(response => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
@@ -64,3 +69,4 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
