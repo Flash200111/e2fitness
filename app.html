@@ -1486,6 +1486,78 @@ async function consolidateLegacyFoodRows(){
   toast(`Consolidated ${logs.length} rows → 1 ✓`);
 }
 
+// One-time cleanup: removes the duplicate client_workout_logs rows caused by
+// the (now-removed) 5-minute auto-sync timer, which used to blindly re-insert
+// the entire day's exercises as a brand-new row on a loop.
+//
+// Safe by design: it dedupes at the EXERCISE level using each exercise's own
+// `id` field (a fresh Date.now()+random value generated at the moment it was
+// logged) rather than guessing which whole ROWS are "duplicates." Two
+// different exercises always have different ids, even if logged the same
+// second — so two legitimate separate manual log entries are never mistaken
+// for duplicates of each other. Only an exercise whose exact id has already
+// been seen in an earlier row for that day is dropped, since the only way
+// the same id appears twice is the sync bug re-inserting the same object.
+// TRAINED_FLAG marker rows are left untouched.
+//
+// Run this once from the browser console: consolidateLegacyWorkoutRows()
+// Coach can clean up a specific client instead of themselves by passing
+// their email: consolidateLegacyWorkoutRows('client@example.com')
+async function consolidateLegacyWorkoutRows(targetEmail, daysBack = 90){
+  const session = getSession();
+  const email = targetEmail || session.email;
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysBack);
+  const startStr = startDate.toISOString().split('T')[0];
+
+  const logs = await sbGetAuth('client_workout_logs',
+    `user_email=eq.${encodeURIComponent(email)}&log_date=gte.${startStr}&order=created_at.asc`);
+
+  const realLogs = logs.filter(l => l.plan_id !== 'TRAINED_FLAG_YES' && l.plan_id !== 'TRAINED_FLAG_NO');
+  if (!realLogs.length) { toast('No workout logs found in range'); return; }
+
+  // Group by date so an id collision on one day can't affect another
+  const byDate = {};
+  realLogs.forEach(l => { (byDate[l.log_date] = byDate[l.log_date] || []).push(l); });
+
+  let rowsDeleted = 0, rowsTrimmed = 0, exercisesRemoved = 0;
+
+  for (const date of Object.keys(byDate)) {
+    const rows = byDate[date].sort((a,b) => (a.created_at||'').localeCompare(b.created_at||''));
+    const seenIds = new Set();
+
+    for (const row of rows) {
+      const original = row.exercises || [];
+      const kept = [];
+      let removedHere = 0;
+      for (const ex of original) {
+        if (ex.id !== undefined && seenIds.has(ex.id)) { removedHere++; continue; }
+        if (ex.id !== undefined) seenIds.add(ex.id);
+        kept.push(ex);
+      }
+      if (removedHere === 0) continue; // nothing duplicate in this row — leave it alone
+
+      exercisesRemoved += removedHere;
+      if (kept.length === 0) {
+        // Entire row was a re-insertion of already-seen exercises — delete it
+        await sbDeleteAuth('client_workout_logs', row.id);
+        rowsDeleted++;
+      } else {
+        // Row had a mix of new + already-seen exercises — keep only the new ones
+        await sbUpdateAuth('client_workout_logs', row.id, { exercises: kept });
+        rowsTrimmed++;
+      }
+    }
+  }
+
+  if (!rowsDeleted && !rowsTrimmed) {
+    toast('No duplicate workout entries found ✓');
+  } else {
+    toast(`Cleaned up ✓ — removed ${rowsDeleted} duplicate row(s), trimmed ${rowsTrimmed} row(s), ${exercisesRemoved} duplicate exercise entries total`);
+  }
+  console.log(`consolidateLegacyWorkoutRows: scanned ${realLogs.length} rows across ${Object.keys(byDate).length} days for ${email}. Deleted ${rowsDeleted}, trimmed ${rowsTrimmed}, removed ${exercisesRemoved} duplicate exercise entries.`);
+}
+
 // ── WORKOUT LOG ───────────────────────────────────────────────────────────────
 async function addWorkoutEntry(){
   const name=document.getElementById('ex-name').value.trim();
@@ -2228,11 +2300,23 @@ async function renderWeeklyOverview() {
     let workoutBurn=0, epoc=0;
     // Match daily card logic: workout burn scaled by actual sets logged,
     // including both plan-based exercises and Extra Exercises (rest-day work).
+    // Dedupe by exercise id across all of the day's log rows first — mirrors
+    // the live dashboard (renderWorkoutLog), which dedupes before totaling.
+    // Without this, a duplicate/overlapping log row for the same exercise
+    // (e.g. from a double "Save Day Log" tap) gets counted twice here even
+    // though the live view only ever counted it once that evening.
     const dayExerciseLogs = workoutLogs.filter(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0);
     const dayExtraLogs = extraLogsAll.filter(l=>l.log_date===date);
     if (dayExerciseLogs.length>0 || dayExtraLogs.length>0) {
       const bodyWeightLb = latestWeight || parseFloat(profile?.weight) || 170;
-      const planKcal = dayExerciseLogs.reduce((s,l)=> s + (l.exercises||[]).reduce((s2,ex)=> s2 + estimateExerciseKcal(ex, bodyWeightLb), 0), 0);
+      const seenExIds = new Set();
+      const dedupedDayExercises = [];
+      dayExerciseLogs.forEach(l => (l.exercises||[]).forEach(ex => {
+        if (ex.id !== undefined && seenExIds.has(ex.id)) return;
+        if (ex.id !== undefined) seenExIds.add(ex.id);
+        dedupedDayExercises.push(ex);
+      }));
+      const planKcal = dedupedDayExercises.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
       const extraKcal = dayExtraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
       const rawKcal = planKcal + extraKcal;
       workoutBurn = rawKcal > 0 ? Math.min(700, Math.max(80, Math.round(rawKcal))) : 250;
@@ -4404,6 +4488,12 @@ async function renderCoachingPage() {
 }
 
 // ── SAVE WORKOUT TO SUPABASE ──────────────────────────────────────────────────
+// REMOVED from the periodic timer (see init()) — this blindly re-inserted the
+// entire day's exercises as a brand-new row every 5 minutes the app stayed
+// open, silently duplicating data with no dedup or "already saved" check.
+// Every real logging action (addWorkoutEntry, saveDayLog) already writes to
+// Supabase immediately at the moment it happens, so this was pure duplication,
+// not a needed backup. Left here unused in case anything still references it.
 async function syncWorkoutToSupabase() {
   const session = getSession();
   if (!session) return;
@@ -4420,6 +4510,11 @@ async function syncWorkoutToSupabase() {
 }
 
 // ── SAVE NUTRITION TO SUPABASE ────────────────────────────────────────────────
+// REMOVED from the periodic timer (see init()) for the same reason as
+// syncWorkoutToSupabase() above — addFoodEntry/logAiFood/confirmAndLogFood
+// already save immediately using the single-row-per-day pattern
+// (getTodayFoodRow + update-in-place). This function bypassed that pattern
+// entirely and inserted a brand-new duplicate row every 5 minutes instead.
 async function syncNutritionToSupabase() {
   const session = getSession();
   if (!session) return;
@@ -6205,8 +6300,10 @@ async function init(){
   checkUnreadMessages();
   checkIntakeStatus();
   if(coachUnlocked) { setTimeout(checkPlanUpdatesDue, 2000); }
-  // Auto-sync workout and nutrition at end of day on load
-  setInterval(()=>{ syncWorkoutToSupabase(); syncNutritionToSupabase(); }, 300000);
+  // Duplicate-saving auto-sync timer removed (was calling
+  // syncWorkoutToSupabase/syncNutritionToSupabase every 5 minutes and
+  // silently inserting a fresh duplicate row each time — every real
+  // logging action already saves immediately, so this was never needed).
   setInterval(()=>{ checkUnreadMessages(); }, 60000); // check for new messages every minute // every 5 min
   // Catch the calendar day changing while the app stays open in the background —
   // check whenever the tab/app regains focus, and on a periodic timer as a backstop.
