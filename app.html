@@ -1807,14 +1807,41 @@ async function renderExtraExerciseLog() {
       <button class="log-item-del" onclick="removeExtraExercise(${e.id})">✕</button>
     </div>`).join('');
 }
-function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase) {
+// Gives a plain-language read on today's macro split by percentage of
+// calories. General, goal-agnostic guidance — not tied to cut/bulk/maintain,
+// since a good protein-forward split is beneficial across all of them.
+function getMacroSplitNote(proteinPct, carbPct, fatPct) {
+  if (proteinPct < 20) {
+    return `a bit light on protein relative to carbs and fat — shifting more of today's calories toward protein (chicken, fish, eggs, dairy, protein shake) tends to help with fullness and muscle retention.`;
+  }
+  if (fatPct < 15) {
+    return `quite low in fat today — some healthy fat (olive oil, nuts, avocado, fatty fish) supports hormone production and nutrient absorption.`;
+  }
+  if (fatPct > 40) {
+    return `fat-heavy today — shifting some calories toward carbs or protein can help fuel training and recovery.`;
+  }
+  if (proteinPct >= 25 && fatPct >= 20 && fatPct <= 35) {
+    return `a well-balanced split that supports muscle retention, hormone health, and steady energy — nice work.`;
+  }
+  return `a reasonable mix overall.`;
+}
+
+function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase, expenditure) {
   const tips = [];
   const hour = new Date().getHours();
   const protLeft = Math.max(0, protTarget - totals.protein);
-  const calLeft = Math.max(0, calTarget - totals.cal);
-  const calOver = Math.max(0, totals.cal - calTarget);
+  // Calorie surplus/deficit messaging is based on TODAY'S actual computed
+  // expenditure (BMR + TEF + NEAT + cardio + workout + EPOC for today) rather
+  // than the static planned target — a fixed target can't reflect a day where
+  // you trained hard, did extra cardio, or rested, so it can make a perfectly
+  // fine day look like an overage (or hide a real one). Falls back to
+  // calTarget only if expenditure wasn't available for some reason.
+  const calBasis = (typeof expenditure === 'number' && expenditure > 0) ? expenditure : calTarget;
+  const calLeft = Math.max(0, calBasis - totals.cal);
+  const calOver = Math.max(0, totals.cal - calBasis);
   const fatPct = totals.cal > 0 ? Math.round((totals.fat * 9 / totals.cal) * 100) : 0;
   const carbPct = totals.cal > 0 ? Math.round((totals.carbs * 4 / totals.cal) * 100) : 0;
+  const proteinPct = totals.cal > 0 ? Math.round((totals.protein * 4 / totals.cal) * 100) : 0;
   const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
 
   // Age-specific context
@@ -1837,39 +1864,44 @@ function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase) 
     tips.push({ icon: '✅', label: `Protein — Target Hit!`, text: `You've hit your ${protTarget}g protein target — excellent work! ${ageContext} Consistent daily protein is the single most important nutrition habit for your goals.` });
   }
 
-  // ── CALORIE TIP ──────────────────────────────────────────────────────────
+  // ── CALORIE TIP (based on today's actual expenditure) ──────────────────
   if (phase === 'cut' || phase === 'weight_loss') {
     if (totals.cal === 0) {
-      tips.push({ icon: '🔥', label: 'Calories — Fat Loss Mode', text: `Your calorie target is ${calTarget} today. Don't skip meals — a large deficit slows your metabolism and causes muscle loss, making fat loss harder long-term. Aim for 3 balanced meals within your target.` });
+      tips.push({ icon: '🔥', label: 'Calories — Fat Loss Mode', text: `Based on today's activity, your estimated burn is ${calBasis} kcal. Don't skip meals — a large deficit slows your metabolism and causes muscle loss, making fat loss harder long-term. Aim for 3 balanced meals within that range.` });
     } else if (calLeft > 400) {
-      tips.push({ icon: '🔥', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You have ${calLeft} calories left for the ${timeOfDay}. Spread them across ${timeOfDay === 'morning' ? '2-3 more meals' : timeOfDay === 'afternoon' ? '1-2 more meals' : 'dinner and/or a snack'}. Protein-forward meals will help you stay full and protect muscle on a deficit.` });
+      tips.push({ icon: '🔥', label: `Calories — ${totals.cal} of ~${calBasis} today`, text: `Based on today's actual activity, you have about ${calLeft} calories left for the ${timeOfDay}. Spread them across ${timeOfDay === 'morning' ? '2-3 more meals' : timeOfDay === 'afternoon' ? '1-2 more meals' : 'dinner and/or a snack'}. Protein-forward meals will help you stay full and protect muscle on a deficit.` });
     } else if (calOver > 200) {
-      tips.push({ icon: '⚠️', label: `Calories — ${calOver} Over Target`, text: `You're ${calOver} calories over your ${calTarget} target today. One over day won't derail your progress — fat loss happens over weeks, not single days. Just get back on track tomorrow and don't compensate by under-eating.` });
+      tips.push({ icon: '⚠️', label: `Calories — ${calOver} Over Today's Burn`, text: `You're about ${calOver} calories over today's estimated burn (${calBasis} kcal, based on your actual activity today). One over day won't derail your progress — fat loss happens over weeks, not single days. Just get back on track tomorrow and don't compensate by under-eating.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories — On Target', text: `You're right on track at ${totals.cal} of ${calTarget} calories. This is exactly how fat loss is made — consistent daily deficits over time. Your fat-to-protein macro split looks ${fatPct > 35 ? 'a bit fat-heavy today — try to shift more calories to protein' : 'solid'}.` });
+      tips.push({ icon: '✅', label: 'Calories — On Target', text: `You're right on track at ${totals.cal} of your ~${calBasis} kcal estimated burn today. This is exactly how fat loss is made — consistent daily deficits over time. Your fat-to-protein macro split looks ${fatPct > 35 ? 'a bit fat-heavy today — try to shift more calories to protein' : 'solid'}.` });
     }
     tips.push({ icon: '🔬', label: 'Fat Loss Science', text: `Protein has a 20-30% thermic effect — your body burns extra calories just digesting it. Carbs cost 5-10% and fat only 0-3%. This means a 200g protein day burns ~100 more calories than the same calories from carbs or fat. Protein is your metabolic edge.` });
 
   } else if (phase === 'bulk' || phase === 'muscle_gain') {
     if (totals.cal === 0) {
-      tips.push({ icon: '📈', label: 'Calories — Muscle Building Mode', text: `Your target is ${calTarget} calories today. To build muscle you need a consistent 200-300 calorie surplus — without it your body won't have the fuel for new muscle tissue. Don't skip meals or under-eat on training days.` });
+      tips.push({ icon: '📈', label: 'Calories — Muscle Building Mode', text: `Based on today's activity, your estimated burn is ${calBasis} kcal. To build muscle you need a consistent 200-300 calorie surplus above that — without it your body won't have the fuel for new muscle tissue. Don't skip meals or under-eat on training days.` });
     } else if (calLeft > 400) {
-      tips.push({ icon: '📈', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You have ${calLeft} calories left today. On a lean bulk, consistent surpluses drive muscle growth over time. If your appetite is low, calorie-dense foods like oats with peanut butter, rice with olive oil, or a banana with a protein shake can help you hit your target without feeling stuffed.` });
+      tips.push({ icon: '📈', label: `Calories — ${totals.cal} of ~${calBasis} today`, text: `You have about ${calLeft} calories left today based on your actual activity. On a lean bulk, consistent surpluses drive muscle growth over time. If your appetite is low, calorie-dense foods like oats with peanut butter, rice with olive oil, or a banana with a protein shake can help without feeling stuffed.` });
     } else if (calOver > 500) {
-      tips.push({ icon: '⚠️', label: `Calories — Large Surplus`, text: `You're ${calOver} calories over your ${calTarget} target today. A 200-300 calorie surplus is the sweet spot for muscle gain — beyond that, excess calories tend to be stored as fat rather than built into muscle. Keep your surplus moderate and consistent.` });
+      tips.push({ icon: '⚠️', label: `Calories — Large Surplus`, text: `You're about ${calOver} calories over today's estimated burn (${calBasis} kcal). A 200-300 calorie surplus is the sweet spot for muscle gain — beyond that, excess calories tend to be stored as fat rather than built into muscle. Keep your surplus moderate and consistent.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories — Perfect Surplus', text: `You're in your ideal surplus range at ${totals.cal} of ${calTarget} calories. Muscle is built slowly — this kind of consistency over weeks and months is what produces real results. Carbs are ${carbPct}% of your intake today, which ${carbPct < 35 ? 'is on the lower side — carbs fuel your workouts and spare protein for muscle building' : 'looks solid for fueling your training'}.` });
+      tips.push({ icon: '✅', label: 'Calories — Good Surplus', text: `You're in a solid surplus at ${totals.cal} against today's ~${calBasis} kcal estimated burn — based on your actual activity, not just a flat target. Muscle is built slowly; this kind of consistency over weeks and months is what produces real results.` });
     }
 
   } else {
     // Maintenance / Recomp
     if (calOver > 300) {
-      tips.push({ icon: '⚖️', label: `Calories — ${calOver} Over Maintenance`, text: `You're ${calOver} over your ${calTarget} maintenance target. For recomposition, staying close to maintenance is key — significant surpluses add fat, significant deficits cost muscle. Aim to balance this out over the next day or two.` });
+      tips.push({ icon: '⚖️', label: `Calories — ${calOver} Over Today's Burn`, text: `You're about ${calOver} over today's estimated maintenance burn (${calBasis} kcal, based on your actual activity today). For recomposition, staying close to maintenance is key — significant surpluses add fat, significant deficits cost muscle. Aim to balance this out over the next day or two.` });
     } else if (calLeft > 400) {
-      tips.push({ icon: '⚖️', label: `Calories — ${totals.cal} of ${calTarget}`, text: `You're well under your ${calTarget} maintenance target with ${calLeft} calories remaining. Consistently eating too little on a recomp phase can lead to muscle loss over time — try to stay within 200 calories of your target daily.` });
+      tips.push({ icon: '⚖️', label: `Calories — ${totals.cal} of ~${calBasis} today`, text: `You're well under today's estimated burn (${calBasis} kcal) with about ${calLeft} calories remaining. Consistently eating too little on a recomp phase can lead to muscle loss over time — try to stay within 200 calories of that daily.` });
     } else {
-      tips.push({ icon: '✅', label: 'Calories — On Track', text: `You're right around your ${calTarget} maintenance target at ${totals.cal} calories. For body recomposition, this consistency is exactly right — the key is pairing it with your training and hitting your protein target every day.` });
+      tips.push({ icon: '✅', label: 'Calories — On Track', text: `You're right around today's estimated maintenance burn at ${totals.cal} of ~${calBasis} kcal. For body recomposition, this consistency is exactly right — the key is pairing it with your training and hitting your protein target every day.` });
     }
+  }
+
+  // ── MACRO SPLIT BREAKDOWN ────────────────────────────────────────────────
+  if (totals.cal > 0) {
+    tips.push({ icon: '📊', label: `Macro Split — ${proteinPct}% / ${carbPct}% / ${fatPct}%`, text: `Today you're at ${proteinPct}% protein, ${carbPct}% carbs, and ${fatPct}% fat. That's ${getMacroSplitNote(proteinPct, carbPct, fatPct)}` });
   }
 
   // ── TIME-AWARE TIP ───────────────────────────────────────────────────────
@@ -1890,10 +1922,10 @@ function getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase) 
     }
   }
 
-  return tips.slice(0, 3);
+  return tips.slice(0, 4);
 }
 
-function renderNutritionTotals(combined){
+async function renderNutritionTotals(combined){
   const el=document.getElementById('nutrition-totals');
   if(!el)return;
   if(!combined.length){el.innerHTML='';return;}
@@ -1921,7 +1953,17 @@ function renderNutritionTotals(combined){
     }
   }
 
-  const tips = getNutritionTips(totals, calTarget, adjProtTarget, weightLbs, age, phase);
+  // Today's real computed expenditure (BMR+TEF+NEAT+cardio+workout+EPOC for
+  // today specifically) — this is what the calorie coaching tip should be
+  // measured against, not the static planned target, since a fixed number
+  // can't reflect a day you trained hard, did extra cardio, or rested.
+  let todaysExpenditure = null;
+  try {
+    const result = await calcTodayExpenditure();
+    todaysExpenditure = result.total;
+  } catch(e) { console.warn('Could not compute today\'s expenditure for nutrition tips:', e); }
+
+  const tips = getNutritionTips(totals, calTarget, adjProtTarget, weightLbs, age, phase, todaysExpenditure);
   const tipsHtml = tips.map(t => `
     <div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
       <span style="font-size:1.1rem;flex-shrink:0;">${t.icon}</span>
@@ -1931,15 +1973,18 @@ function renderNutritionTotals(combined){
       </div>
     </div>`).join('');
 
+  const displayBasis = (typeof todaysExpenditure === 'number' && todaysExpenditure > 0) ? todaysExpenditure : calTarget;
+
   el.innerHTML=`
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;">
       <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Today's Totals</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:8px;">
-        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${calTarget?` / ${calTarget}`:''}</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${displayBasis?` / ~${displayBasis}`:''}</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein / ${adjProtTarget}g</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.carbs}g</div><div style="font-size:0.65rem;color:var(--muted);">Carbs</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fat}g</div><div style="font-size:0.65rem;color:var(--muted);">Fat</div></div>
       </div>
+      <div style="font-size:0.62rem;color:var(--muted);text-align:center;">~${displayBasis} kcal is today's estimated burn based on your actual logged activity — not a fixed daily number.</div>
     </div>
     <div style="background:var(--surface2);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:12px 14px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
