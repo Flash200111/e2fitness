@@ -333,6 +333,8 @@
           </div>
         </div>
       </div>
+      <div class="section-sub" style="border-top:none;padding-top:0;margin-top:0;">⭐ Saved Meals — Quick Add</div>
+      <div id="saved-meals-list" style="margin-bottom:16px;"></div>
       <div class="section-sub" style="border-top:none;padding-top:0;margin-top:0;">Or Enter Manually</div>
       <div class="log-entry-form">
         <input id="food-name" type="text" placeholder="Food / meal name">
@@ -344,10 +346,15 @@
           <input id="food-carbs" type="number" placeholder="Carbs (g)" min="0">
           <input id="food-fat" type="number" placeholder="Fat (g)" min="0">
         </div>
+        <input id="food-fiber" type="number" placeholder="Fiber (g) — optional" min="0">
         <select id="food-meal">
           <option>Breakfast</option><option>Lunch</option><option>Dinner</option>
           <option>Snack</option><option>Pre-Workout</option><option>Post-Workout</option>
         </select>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.76rem;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="manual-save-meal" style="width:15px;height:15px;cursor:pointer;">
+          ⭐ Save as a reusable meal for quick-adding later
+        </label>
         <button class="btn btn-primary" onclick="addFoodEntry()">Add Entry</button>
       </div>
       <div id="nutrition-totals" style="margin-bottom:10px;"></div>
@@ -1338,9 +1345,9 @@ async function getTodayFoodRow(session, today) {
 function calcFoodTotals(items) {
   return items.reduce((acc,f)=>{
     acc.cal+=f.cal||0; acc.protein+=f.protein||0;
-    acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+    acc.carbs+=f.carbs||0; acc.fat+=f.fat||0; acc.fiber+=f.fiber||0;
     return acc;
-  },{cal:0,protein:0,carbs:0,fat:0});
+  },{cal:0,protein:0,carbs:0,fat:0,fiber:0});
 }
 
 async function addFoodEntry(){
@@ -1353,6 +1360,7 @@ async function addFoodEntry(){
   const protein=parseInt(document.getElementById('food-protein').value)||0;
   const carbs=parseInt(document.getElementById('food-carbs').value)||0;
   const fat=parseInt(document.getElementById('food-fat').value)||0;
+  const fiber=parseInt(document.getElementById('food-fiber').value)||0;
   const meal=document.getElementById('food-meal').value;
   if(!name||!cal){if(btn)btn.disabled=false;return toast('Enter food name and calories');}
 
@@ -1368,9 +1376,11 @@ async function addFoodEntry(){
     f.name.toLowerCase()===name.toLowerCase() && f.cal===cal && f.meal===meal);
   if(alreadyExists) return toast('Already logged today — use ✕ to remove if it was a mistake');
 
+  const processedLevel = classifyProcessedLevelKeyword(name);
+  const shouldSaveMeal = document.getElementById('manual-save-meal')?.checked;
   const newEntry = {
     id: Date.now() + Math.floor(Math.random()*1000),
-    name, cal, protein, carbs, fat, meal
+    name, cal, protein, carbs, fat, fiber, meal, processed_level: processedLevel
   };
   const updatedItems = [...currentItems, newEntry];
   const totals = calcFoodTotals(updatedItems);
@@ -1397,12 +1407,91 @@ async function addFoodEntry(){
     });
   }
 
-  ['food-name','food-cal','food-protein','food-carbs','food-fat']
+  if (shouldSaveMeal) await saveMealFromEntry(newEntry);
+
+  ['food-name','food-cal','food-protein','food-carbs','food-fat','food-fiber']
     .forEach(id=>document.getElementById(id).value='');
+  const saveCheckbox = document.getElementById('manual-save-meal');
+  if (saveCheckbox) saveCheckbox.checked = false;
   await renderFoodLog();
   toast('Food logged ✓');
   }catch(e){toast('Error saving food — please try again',true);}
   finally{const btn=document.querySelector('button[onclick="addFoodEntry()"]');if(btn)btn.disabled=false;}
+}
+
+// ── SAVED MEALS (quick-add reusable meals) ─────────────────────────────────
+async function saveMealFromEntry(entry) {
+  const session = getSession();
+  const result = await sbInsertAuth('saved_meals', {
+    user_email: session.email,
+    name: entry.name,
+    cal: entry.cal,
+    protein: entry.protein,
+    carbs: entry.carbs,
+    fat: entry.fat,
+    processed_level: entry.processed_level || 'mixed'
+  });
+  if (result) toast(`Saved "${entry.name}" for quick reuse ⭐`);
+  renderSavedMeals();
+}
+
+async function renderSavedMeals() {
+  const list = document.getElementById('saved-meals-list');
+  if (!list) return;
+  const session = getSession();
+  const meals = await sbGetAuth('saved_meals', `user_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc`);
+  if (!meals.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:12px;">No saved meals yet — check "Save as a reusable meal" when logging one you eat often.</div>';
+    return;
+  }
+  const procIcon = { whole: '🥗', mixed: '🍽️', processed: '📦' };
+  list.innerHTML = meals.map(m => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:6px;">
+      <div style="cursor:pointer;flex:1;min-width:0;" onclick="quickLogSavedMeal('${m.id}')">
+        <div style="font-size:0.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${procIcon[m.processed_level] || '🍽️'} ${m.name}</div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;">${m.cal} kcal · P${m.protein}g C${m.carbs}g F${m.fat}g</div>
+      </div>
+      <button onclick="quickLogSavedMeal('${m.id}')" class="btn" style="font-size:0.68rem;padding:5px 10px;white-space:nowrap;">+ Log</button>
+      <button onclick="deleteSavedMeal('${m.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:2px 4px;">✕</button>
+    </div>
+  `).join('');
+}
+
+async function quickLogSavedMeal(id) {
+  const session = getSession();
+  const rows = await sbGetAuth('saved_meals', `id=eq.${id}`);
+  const m = rows[0];
+  if (!m) return toast('Saved meal not found', true);
+
+  const meal = document.getElementById('food-meal')?.value || 'Snack';
+  const today = getLocalDateStr();
+  const entry = { name: m.name, cal: m.cal, protein: m.protein, carbs: m.carbs, fat: m.fat, meal, processed_level: m.processed_level || 'mixed', id: Date.now() + Math.floor(Math.random() * 1000) };
+
+  const existingRow = await getTodayFoodRow(session, today);
+  const currentItems = existingRow ? (existingRow.food_items || []) : [];
+  const updatedItems = [...currentItems, entry];
+  const totals = calcFoodTotals(updatedItems);
+
+  if (existingRow) {
+    await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
+      food_items: updatedItems, total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat
+    });
+  } else {
+    await sbInsertAuth('client_nutrition_logs', {
+      user_email: session.email, log_date: today, food_items: updatedItems,
+      total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat
+    });
+  }
+
+  await renderFoodLog();
+  toast(`${m.name} logged ✓`);
+}
+
+async function deleteSavedMeal(id) {
+  if (!confirm('Remove this saved meal? This only removes it from your quick-add list, not anything already logged.')) return;
+  await sbDeleteAuth('saved_meals', id);
+  renderSavedMeals();
+  toast('Saved meal removed');
 }
 
 async function renderFoodLog(){
@@ -1417,15 +1506,20 @@ async function renderFoodLog(){
   state.today.food = combined;
   saveState();
 
+  renderSavedMeals();
+
   if(!combined.length){list.innerHTML='<div class="empty-state">No entries yet</div>';renderNutritionTotals([]);refreshDashboard();return;}
 
   list.innerHTML = combined.map(f=>`
     <div class="log-item">
       <div>
         <div class="log-item-name">${f.name} <span style="font-size:0.7rem;color:var(--muted)">${f.meal}</span></div>
-        <div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g</div>
+        <div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g${f.fiber ? ` &nbsp;·&nbsp; Fiber: ${f.fiber}g` : ''}</div>
       </div>
-      <button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button onclick='saveMealFromEntry(${JSON.stringify({name:f.name,cal:f.cal,protein:f.protein||0,carbs:f.carbs||0,fat:f.fat||0,processed_level:f.processed_level||"mixed"}).replace(/'/g,"&#39;")})' title="Save for quick reuse" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:2px 4px;">⭐</button>
+        <button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button>
+      </div>
     </div>`).join('');
 
   renderNutritionTotals(combined);
@@ -1810,6 +1904,56 @@ async function renderExtraExerciseLog() {
 // Gives a plain-language read on today's macro split by percentage of
 // calories. General, goal-agnostic guidance — not tied to cut/bulk/maintain,
 // since a good protein-forward split is beneficial across all of them.
+// Free, local (non-AI) classifier for manually-typed food entries, since the
+// AI analyzer only sees photo/description-based entries. Deliberately simple
+// and conservative — this is a rough signal, not a nutrition judgment; the
+// AI path (analyzeFood) gives a much better read when available.
+function classifyProcessedLevelKeyword(name) {
+  const n = (name || '').toLowerCase();
+  const processedWords = ['chip','soda','candy','fries','fried','fast food','nugget','frozen dinner','instant','packaged','cookie','cake','donut','pizza','burger','hot dog','processed','white bread','soft drink','energy drink','deli meat','bacon','sausage','tender','pop tart','cereal bar','snack cake','chocolate','pastry'];
+  const wholeWords = ['chicken breast','salmon','broccoli','vegetable','veggie','spinach','kale','salad','brown rice','oats','oatmeal','egg','fruit','apple','banana','berries','sweet potato','quinoa','lean beef','turkey breast','fish','avocado','nuts','greek yogurt','beans','lentils','steak','tuna'];
+  const hasProcessed = processedWords.some(w => n.includes(w));
+  const hasWhole = wholeWords.some(w => n.includes(w));
+  if (hasProcessed && !hasWhole) return 'processed';
+  if (hasWhole && !hasProcessed) return 'whole';
+  return 'mixed'; // both, or neither recognized — neutral default
+}
+
+// Combines today's food-quality composition (whole vs. processed, weighted
+// by calories so a large processed snack counts more than a token garnish)
+// with whether the day actually hit its calorie/protein goals, and returns
+// one of four coaching messages depending on the combination.
+function computeDailyFoodQuality(items, totals, calBasis, protTarget) {
+  if (!items.length || totals.cal <= 0) return null;
+
+  let processedCals = 0, mixedCals = 0;
+  items.forEach(f => {
+    const lvl = f.processed_level || 'mixed';
+    if (lvl === 'processed') processedCals += (f.cal || 0);
+    else if (lvl === 'mixed') mixedCals += (f.cal || 0);
+  });
+  const processedRatio = (processedCals + mixedCals * 0.5) / totals.cal;
+  const leanedProcessed = processedRatio >= 0.4;
+
+  const proteinHit = totals.protein >= protTarget;
+  const calOnTrack = Math.abs(totals.cal - calBasis) <= Math.max(250, calBasis * 0.12);
+  const hitGoals = proteinHit && calOnTrack;
+  const carbsExceedProtein = (totals.carbs * 4) > (totals.protein * 4 * 1.2);
+
+  let message;
+  if (!leanedProcessed && hitGoals) {
+    message = `Great job eating those minimally processed, whole foods today — and you hit your goals! Keep up the great eating.`;
+  } else if (!leanedProcessed && !hitGoals) {
+    message = `Great job eating those minimally processed, whole foods today! You didn't quite hit your goals though${carbsExceedProtein ? ' — it looks like carbs pulled ahead of protein. Try shifting a bit more toward protein-rich choices tomorrow to close that gap.' : '. Keep an eye on your calorie and protein targets tomorrow.'}`;
+  } else if (leanedProcessed && hitGoals) {
+    message = `You ate a lot of heavily processed foods today, but you still hit your macro goals — nice work landing the numbers. Just know it's much harder to stay consistent long-term on processed foods. Sticking to minimally processed foods, packed with whole meats and vegetables, will help you feel more satiated on fewer calories and make hitting your goals easier day after day.`;
+  } else {
+    message = `Today you leaned more on heavily processed foods, high in salts and sugars. Your goals will be achieved better with minimally processed foods, filled with fresh vegetables and whole meats. Tomorrow is a fresh start to get it going.`;
+  }
+
+  return { message, leanedProcessed, hitGoals, processedPct: Math.round(processedRatio * 100) };
+}
+
 function getMacroSplitNote(proteinPct, carbPct, fatPct) {
   if (proteinPct < 20) {
     return `a bit light on protein relative to carbs and fat — shifting more of today's calories toward protein (chicken, fish, eggs, dairy, protein shake) tends to help with fullness and muscle retention.`;
@@ -1930,9 +2074,9 @@ async function renderNutritionTotals(combined){
   if(!el)return;
   if(!combined.length){el.innerHTML='';return;}
   const totals=combined.reduce((acc,f)=>{
-    acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0;
+    acc.cal+=f.cal||0; acc.protein+=f.protein||0; acc.carbs+=f.carbs||0; acc.fat+=f.fat||0; acc.fiber+=f.fiber||0;
     return acc;
-  },{cal:0,protein:0,carbs:0,fat:0});
+  },{cal:0,protein:0,carbs:0,fat:0,fiber:0});
   const calTarget=state.settings.calTarget||2600, protTarget=state.settings.proteinTarget||190;
 
   // Pull profile data for tips
@@ -1974,18 +2118,41 @@ async function renderNutritionTotals(combined){
     </div>`).join('');
 
   const displayBasis = (typeof todaysExpenditure === 'number' && todaysExpenditure > 0) ? todaysExpenditure : calTarget;
+  // General guideline: ~14g fiber per 1000 kcal eaten (roughly maps to the
+  // commonly-cited 25g/38g women/men daily targets at typical intakes).
+  const fiberTarget = Math.max(20, Math.round((displayBasis / 1000) * 14));
 
   el.innerHTML=`
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;">
       <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Today's Totals</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:8px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px;text-align:center;margin-bottom:8px;">
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${displayBasis?` / ~${displayBasis}`:''}</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein / ${adjProtTarget}g</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.carbs}g</div><div style="font-size:0.65rem;color:var(--muted);">Carbs</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fat}g</div><div style="font-size:0.65rem;color:var(--muted);">Fat</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fiber}g</div><div style="font-size:0.65rem;color:var(--muted);">Fiber / ~${fiberTarget}g</div></div>
       </div>
       <div style="font-size:0.62rem;color:var(--muted);text-align:center;">~${displayBasis} kcal is today's estimated burn based on your actual logged activity — not a fixed daily number.</div>
     </div>
+    ${totals.fiber > 0 && totals.fiber < fiberTarget * 0.6 ? `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:0.78rem;color:var(--text);">
+      🌾 <strong>Fiber — ${totals.fiber}g of ~${fiberTarget}g</strong><br>
+      <span style="font-size:0.75rem;color:var(--muted);">Fiber's on the low side today. Beans, oats, vegetables, and whole fruit are easy ways to close the gap — most manually-logged foods won't count toward this unless you fill in the Fiber field yourself.</span>
+    </div>` : ''}
+    ${(() => {
+      const quality = computeDailyFoodQuality(combined, totals, displayBasis, adjProtTarget);
+      if (!quality) return '';
+      const badgeColor = quality.leanedProcessed ? 'var(--danger)' : 'var(--success)';
+      const badgeLabel = quality.leanedProcessed ? '📦 Leaned Processed' : '🥗 Mostly Whole Foods';
+      return `
+      <div style="background:var(--surface2);border:1px solid ${badgeColor}44;border-radius:6px;padding:12px 14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+          <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:${badgeColor};">Today's Food Quality</div>
+          <span style="font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;background:${badgeColor}22;color:${badgeColor};padding:2px 8px;border-radius:2px;">${badgeLabel}</span>
+        </div>
+        <div style="font-size:0.8rem;line-height:1.6;color:var(--text);">${quality.message}</div>
+      </div>`;
+    })()}
     <div style="background:var(--surface2);border:1px solid rgba(232,255,71,0.15);border-radius:6px;padding:12px 14px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--accent);">Nutrition Coaching Tips</div>
@@ -3182,8 +3349,14 @@ BRAND SEARCH — HIGHEST PRIORITY: If a specific brand or product name is mentio
 
 STANDARD REFERENCES: fries serving = 4oz (365 kcal); sandwich roll = 6-inch (~220 kcal); cheesesteak filling = 6oz meat (350 kcal/35g protein) + 1.5oz cheese (150 kcal). CHICKEN BREAST "PIECE" (unspecified size): a standard boneless/skinless chicken breast piece, baked or grilled, weighs 5-6oz COOKED — not 3-4oz. Do not default to a small cutlet-sized piece unless the user explicitly says "small," "thin-sliced," or gives an exact ounce/gram amount smaller than this. "1.5 pieces" = 1.5 × 5-6oz = 7.5-9oz total, not 1.5 × 3.5oz. When user says "half" compute exactly half. See the NYC-specific pizza slice and bagel guidance above — those override these generic defaults when the food matches.
 
+PROCESSED-LEVEL CLASSIFICATION: Also classify how processed this meal is, using "processed_level":
+- "whole" — meals built mainly from single-ingredient, minimally processed foods: fresh/frozen meat, fish, eggs, vegetables, fruit, plain rice/oats/potatoes, plain dairy. Home-cooked meals from base ingredients count as whole even if seasoned or oiled.
+- "processed" — meals dominated by packaged, fast-food, fried, sugary, or heavily refined items: fast food, chips, candy, soda, packaged snacks, deli/cured meats, sugary cereal, pastries, most fried takeout.
+- "mixed" — a real combination of both (e.g. a grilled chicken sandwich on white bread with chips), or genuinely unclear from the description.
+Also set "processed_note" to a short (under 12 words) flag ONLY if something stands out as notably high in sodium or added sugar (e.g. "high sodium from deli meat and dressing") — otherwise leave it as an empty string. Don't moralize or lecture in this field, just note the fact plainly.
+
 Reply ONLY with this JSON, no other text:
-{"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number,"portion_breakdown":"e.g. 6oz chicken, 1 cup rice","confidence":"high/medium/low","confidence_note":"brief reason if not high"}`;
+{"name":"brief meal description","calories":number,"protein":number,"carbs":number,"fat":number,"portion_breakdown":"e.g. 6oz chicken, 1 cup rice","confidence":"high/medium/low","confidence_note":"brief reason if not high","processed_level":"whole/mixed/processed","processed_note":""}`;
     let messages;
     if (hasPhoto && hasDesc) {
       messages = [{role:"user", content:[
@@ -3260,13 +3433,19 @@ function showFoodConfirmation(parsed) {
 
   const confidenceColor = parsed.confidence === 'high' ? 'var(--success)' : parsed.confidence === 'low' ? 'var(--danger)' : 'var(--accent)';
   const confidenceIcon = parsed.confidence === 'high' ? '✅' : parsed.confidence === 'low' ? '⚠️' : '🔍';
+  const procLevel = parsed.processed_level || 'mixed';
+  const procBadge = { whole: {icon:'🥗', label:'Minimally Processed', color:'var(--success)'}, mixed: {icon:'🍽️', label:'Mixed', color:'var(--accent2)'}, processed: {icon:'📦', label:'Processed', color:'var(--danger)'} }[procLevel];
 
   const panel = document.createElement('div');
   panel.id = 'food-confirm-panel';
   panel.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px;';
   panel.innerHTML = `
     <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">AI DETECTED</div>
-    <div style="font-size:1rem;font-weight:600;margin-bottom:12px;">${parsed.name}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
+      <div style="font-size:1rem;font-weight:600;">${parsed.name}</div>
+      <span style="flex-shrink:0;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;background:${procBadge.color}22;color:${procBadge.color};padding:3px 8px;border-radius:2px;white-space:nowrap;">${procBadge.icon} ${procBadge.label}</span>
+    </div>
+    ${parsed.processed_note ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;margin-top:-6px;">⚠️ ${parsed.processed_note}</div>` : ''}
 
     ${parsed.portion_breakdown ? `
     <div style="background:rgba(232,255,71,0.06);border:1px solid rgba(232,255,71,0.2);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
@@ -3297,6 +3476,11 @@ function showFoodConfirmation(parsed) {
     </div>
 
     <div style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">✏️ Adjust any values if the portion estimate looks off, then confirm to log.</div>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--text);margin-bottom:14px;cursor:pointer;">
+      <input type="checkbox" id="confirm-save-meal" style="width:16px;height:16px;cursor:pointer;">
+      ⭐ Also save this as a reusable meal for quick-adding later
+    </label>
 
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" id="confirm-log-btn" style="flex:1;padding:12px;" onclick="confirmAndLogFood()">✅ Confirm & Log</button>
@@ -3329,7 +3513,9 @@ async function confirmAndLogFood() {
 
     if (!name || !cal) { return toast('Need at least a name and calories', true); }
 
-    const entry = { name, cal, protein, carbs, fat, meal, id: Date.now() + Math.floor(Math.random() * 1000) };
+    const processedLevel = currentParsedFood?.processed_level || 'mixed';
+    const entry = { name, cal, protein, carbs, fat, meal, processed_level: processedLevel, id: Date.now() + Math.floor(Math.random() * 1000) };
+    const shouldSaveMeal = document.getElementById('confirm-save-meal')?.checked;
 
     const session = getSession();
     const today = getLocalDateStr();
@@ -3365,6 +3551,8 @@ async function confirmAndLogFood() {
         total_fat: totals.fat
       });
     }
+
+    if (shouldSaveMeal) await saveMealFromEntry(entry);
 
     // Supabase is source of truth — renderFoodLog will sync state
     await renderFoodLog(); refreshDashboard();
