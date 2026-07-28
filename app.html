@@ -1422,16 +1422,37 @@ async function addFoodEntry(){
 // ── SAVED MEALS (quick-add reusable meals) ─────────────────────────────────
 async function saveMealFromEntry(entry) {
   const session = getSession();
-  const result = await sbInsertAuth('saved_meals', {
-    user_email: session.email,
-    name: entry.name,
-    cal: entry.cal,
-    protein: entry.protein,
-    carbs: entry.carbs,
-    fat: entry.fat,
-    processed_level: entry.processed_level || 'mixed'
-  });
-  if (result) toast(`Saved "${entry.name}" for quick reuse ⭐`);
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_meals`, {
+      method: 'POST',
+      headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+      body: JSON.stringify({
+        user_email: session.email,
+        name: entry.name,
+        cal: entry.cal,
+        protein: entry.protein,
+        carbs: entry.carbs,
+        fat: entry.fat,
+        processed_level: entry.processed_level || 'mixed'
+      })
+    });
+    const d = await r.json().catch(() => null);
+    console.log('saveMealFromEntry response:', r.status, JSON.stringify(d));
+    if (!r.ok) {
+      toast('Save failed: ' + (d?.message || d?.hint || JSON.stringify(d) || ('HTTP ' + r.status)), true);
+      return;
+    }
+    if (!Array.isArray(d) || !d.length) {
+      // Request succeeded but no row came back — almost always an RLS policy
+      // silently blocking the insert (Postgres returns 0 rows, not an error).
+      toast('Save didn\'t go through — check that saved_meals has the "own rows" RLS policy set up', true);
+      return;
+    }
+    toast(`Saved "${entry.name}" for quick reuse ⭐`);
+  } catch(e) {
+    console.error('saveMealFromEntry exception:', e);
+    toast('Save error: ' + e.message, true);
+  }
   renderSavedMeals();
 }
 
@@ -1439,7 +1460,21 @@ async function renderSavedMeals() {
   const list = document.getElementById('saved-meals-list');
   if (!list) return;
   const session = getSession();
-  const meals = await sbGetAuth('saved_meals', `user_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc`);
+  let meals = [];
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_meals?user_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc`, { headers: getAuthHeaders() });
+    const d = await r.json().catch(() => null);
+    if (!r.ok) {
+      console.warn('renderSavedMeals error:', r.status, JSON.stringify(d));
+      list.innerHTML = `<div class="empty-state" style="padding:12px;color:var(--danger);">Couldn't load saved meals (${d?.message || 'HTTP ' + r.status}) — check the saved_meals table/RLS setup.</div>`;
+      return;
+    }
+    meals = Array.isArray(d) ? d : [];
+  } catch(e) {
+    console.warn('renderSavedMeals exception:', e);
+    list.innerHTML = '<div class="empty-state" style="padding:12px;color:var(--danger);">Couldn\'t load saved meals — check your connection.</div>';
+    return;
+  }
   if (!meals.length) {
     list.innerHTML = '<div class="empty-state" style="padding:12px;">No saved meals yet — check "Save as a reusable meal" when logging one you eat often.</div>';
     return;
@@ -1926,29 +1961,50 @@ function classifyProcessedLevelKeyword(name) {
 function computeDailyFoodQuality(items, totals, calBasis, protTarget) {
   if (!items.length || totals.cal <= 0) return null;
 
-  let processedCals = 0, mixedCals = 0;
+  let processedCals = 0, mixedCals = 0, wholeCount = 0, mixedCount = 0, processedCount = 0;
   items.forEach(f => {
     const lvl = f.processed_level || 'mixed';
-    if (lvl === 'processed') processedCals += (f.cal || 0);
-    else if (lvl === 'mixed') mixedCals += (f.cal || 0);
+    if (lvl === 'processed') { processedCals += (f.cal || 0); processedCount++; }
+    else if (lvl === 'mixed') { mixedCals += (f.cal || 0); mixedCount++; }
+    else { wholeCount++; }
   });
-  const processedRatio = (processedCals + mixedCals * 0.5) / totals.cal;
-  const leanedProcessed = processedRatio >= 0.4;
+
+  // Blend a calorie-weighted ratio with a meal-COUNT ratio, rather than
+  // calories alone. Calories-only meant one dense processed breakfast could
+  // mathematically dominate the whole day even after three better meals
+  // followed it — which is exactly the "stuck all day" behavior this was
+  // built to avoid. Counting meals too means a single item out of several
+  // can't unilaterally decide the day's framing. "Mixed" meals are weighted
+  // at 0.3 (not 0.5) since "mixed" already implies real whole-food content.
+  const totalMeals = items.length;
+  const calRatio = (processedCals + mixedCals * 0.3) / totals.cal;
+  const countRatio = (processedCount + mixedCount * 0.3) / totalMeals;
+  const processedRatio = (calRatio + countRatio) / 2;
+  const leanedProcessed = processedRatio >= 0.5; // needs a real majority, not just a plurality
 
   const proteinHit = totals.protein >= protTarget;
   const calOnTrack = Math.abs(totals.cal - calBasis) <= Math.max(250, calBasis * 0.12);
   const hitGoals = proteinHit && calOnTrack;
   const carbsExceedProtein = (totals.carbs * 4) > (totals.protein * 4 * 1.2);
 
+  // Plain breakdown of what actually went into the verdict, so the message
+  // is never an opaque black box — the client can see exactly why it landed
+  // where it did, and that it's genuinely tracking today's meals, not stuck.
+  const parts = [];
+  if (wholeCount) parts.push(`${wholeCount} whole`);
+  if (mixedCount) parts.push(`${mixedCount} mixed`);
+  if (processedCount) parts.push(`${processedCount} processed`);
+  const breakdown = `(${parts.join(', ')} meal${totalMeals === 1 ? '' : 's'} logged today)`;
+
   let message;
   if (!leanedProcessed && hitGoals) {
-    message = `Great job eating those minimally processed, whole foods today — and you hit your goals! Keep up the great eating.`;
+    message = `Great job eating those minimally processed, whole foods today ${breakdown} — and you hit your goals! Keep up the great eating.`;
   } else if (!leanedProcessed && !hitGoals) {
-    message = `Great job eating those minimally processed, whole foods today! You didn't quite hit your goals though${carbsExceedProtein ? ' — it looks like carbs pulled ahead of protein. Try shifting a bit more toward protein-rich choices tomorrow to close that gap.' : '. Keep an eye on your calorie and protein targets tomorrow.'}`;
+    message = `Great job eating those minimally processed, whole foods today ${breakdown}! You didn't quite hit your goals though${carbsExceedProtein ? ' — it looks like carbs pulled ahead of protein. Try shifting a bit more toward protein-rich choices tomorrow to close that gap.' : '. Keep an eye on your calorie and protein targets tomorrow.'}`;
   } else if (leanedProcessed && hitGoals) {
-    message = `You ate a lot of heavily processed foods today, but you still hit your macro goals — nice work landing the numbers. Just know it's much harder to stay consistent long-term on processed foods. Sticking to minimally processed foods, packed with whole meats and vegetables, will help you feel more satiated on fewer calories and make hitting your goals easier day after day.`;
+    message = `You leaned processed today ${breakdown}, but you still hit your macro goals — nice work landing the numbers. Just know it's much harder to stay consistent long-term on processed foods. Sticking to minimally processed foods, packed with whole meats and vegetables, will help you feel more satiated on fewer calories and make hitting your goals easier day after day.`;
   } else {
-    message = `Today you leaned more on heavily processed foods, high in salts and sugars. Your goals will be achieved better with minimally processed foods, filled with fresh vegetables and whole meats. Tomorrow is a fresh start to get it going.`;
+    message = `Today you leaned more on heavily processed foods ${breakdown}, high in salts and sugars. Your goals will be achieved better with minimally processed foods, filled with fresh vegetables and whole meats. Tomorrow is a fresh start to get it going.`;
   }
 
   return { message, leanedProcessed, hitGoals, processedPct: Math.round(processedRatio * 100) };
