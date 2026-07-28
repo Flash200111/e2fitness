@@ -1494,9 +1494,19 @@ async function renderSavedMeals() {
 
 async function quickLogSavedMeal(id) {
   const session = getSession();
-  const rows = await sbGetAuth('saved_meals', `id=eq.${id}`);
-  const m = rows[0];
-  if (!m) return toast('Saved meal not found', true);
+
+  let m;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_meals?id=eq.${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+    const d = await r.json().catch(() => null);
+    console.log('quickLogSavedMeal lookup:', r.status, JSON.stringify(d));
+    if (!r.ok) return toast('Could not load saved meal: ' + (d?.message || 'HTTP ' + r.status), true);
+    if (!Array.isArray(d) || !d.length) return toast('Saved meal not found', true);
+    m = d[0];
+  } catch(e) {
+    console.error('quickLogSavedMeal lookup exception:', e);
+    return toast('Error loading saved meal: ' + e.message, true);
+  }
 
   const meal = document.getElementById('food-meal')?.value || 'Snack';
   const today = getLocalDateStr();
@@ -1507,15 +1517,29 @@ async function quickLogSavedMeal(id) {
   const updatedItems = [...currentItems, entry];
   const totals = calcFoodTotals(updatedItems);
 
-  if (existingRow) {
-    await sbUpdateAuth('client_nutrition_logs', existingRow.id, {
-      food_items: updatedItems, total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat
-    });
-  } else {
-    await sbInsertAuth('client_nutrition_logs', {
-      user_email: session.email, log_date: today, food_items: updatedItems,
-      total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat
-    });
+  try {
+    let r;
+    if (existingRow) {
+      r = await fetch(`${SUPABASE_URL}/rest/v1/client_nutrition_logs?id=eq.${existingRow.id}`, {
+        method: 'PATCH',
+        headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+        body: JSON.stringify({ food_items: updatedItems, total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat })
+      });
+    } else {
+      r = await fetch(`${SUPABASE_URL}/rest/v1/client_nutrition_logs`, {
+        method: 'POST',
+        headers: {...getAuthHeaders(), 'Prefer': 'return=representation'},
+        body: JSON.stringify({ user_email: session.email, log_date: today, food_items: updatedItems, total_calories: totals.cal, total_protein: totals.protein, total_carbs: totals.carbs, total_fat: totals.fat })
+      });
+    }
+    const d = await r.json().catch(() => null);
+    console.log('quickLogSavedMeal save:', r.status, JSON.stringify(d));
+    if (!r.ok || !Array.isArray(d) || !d.length) {
+      return toast('Log failed: ' + (d?.message || d?.hint || ('HTTP ' + r.status)), true);
+    }
+  } catch(e) {
+    console.error('quickLogSavedMeal save exception:', e);
+    return toast('Log error: ' + e.message, true);
   }
 
   await renderFoodLog();
