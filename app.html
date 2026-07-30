@@ -1407,14 +1407,19 @@ async function addFoodEntry(){
     });
   }
 
-  if (shouldSaveMeal) await saveMealFromEntry(newEntry);
+  let saveMealResult = null;
+  if (shouldSaveMeal) saveMealResult = await saveMealFromEntry(newEntry);
 
   ['food-name','food-cal','food-protein','food-carbs','food-fat','food-fiber']
     .forEach(id=>document.getElementById(id).value='');
   const saveCheckbox = document.getElementById('manual-save-meal');
   if (saveCheckbox) saveCheckbox.checked = false;
   await renderFoodLog();
-  toast('Food logged ✓');
+  if (saveMealResult) {
+    toast(saveMealResult.success ? 'Food logged ✓ · Saved for reuse ⭐' : 'Food logged ✓ — but save-for-reuse failed: ' + saveMealResult.error, !saveMealResult.success);
+  } else {
+    toast('Food logged ✓');
+  }
   }catch(e){toast('Error saving food — please try again',true);}
   finally{const btn=document.querySelector('button[onclick="addFoodEntry()"]');if(btn)btn.disabled=false;}
 }
@@ -1422,6 +1427,7 @@ async function addFoodEntry(){
 // ── SAVED MEALS (quick-add reusable meals) ─────────────────────────────────
 async function saveMealFromEntry(entry) {
   const session = getSession();
+  let result;
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_meals`, {
       method: 'POST',
@@ -1439,21 +1445,28 @@ async function saveMealFromEntry(entry) {
     const d = await r.json().catch(() => null);
     console.log('saveMealFromEntry response:', r.status, JSON.stringify(d));
     if (!r.ok) {
-      toast('Save failed: ' + (d?.message || d?.hint || JSON.stringify(d) || ('HTTP ' + r.status)), true);
-      return;
-    }
-    if (!Array.isArray(d) || !d.length) {
+      result = { success: false, error: d?.message || d?.hint || JSON.stringify(d) || ('HTTP ' + r.status) };
+    } else if (!Array.isArray(d) || !d.length) {
       // Request succeeded but no row came back — almost always an RLS policy
       // silently blocking the insert (Postgres returns 0 rows, not an error).
-      toast('Save didn\'t go through — check that saved_meals has the "own rows" RLS policy set up', true);
-      return;
+      result = { success: false, error: 'no row returned — check the saved_meals RLS policy' };
+    } else {
+      result = { success: true };
     }
-    toast(`Saved "${entry.name}" for quick reuse ⭐`);
   } catch(e) {
     console.error('saveMealFromEntry exception:', e);
-    toast('Save error: ' + e.message, true);
+    result = { success: false, error: e.message };
   }
   renderSavedMeals();
+  return result;
+}
+
+// For the standalone ⭐ button on an already-logged item — nothing else is
+// about to show a toast right after this, so it's safe to show its own here.
+async function saveMealFromEntryStandalone(entry) {
+  const result = await saveMealFromEntry(entry);
+  if (result.success) toast(`Saved "${entry.name}" for quick reuse ⭐`);
+  else toast('Save failed: ' + result.error, true);
 }
 
 async function renderSavedMeals() {
@@ -1576,7 +1589,7 @@ async function renderFoodLog(){
         <div class="log-item-detail">${f.cal} kcal &nbsp;·&nbsp; Protein: ${f.protein||0}g &nbsp;·&nbsp; Carbs: ${f.carbs||0}g &nbsp;·&nbsp; Fat: ${f.fat||0}g${f.fiber ? ` &nbsp;·&nbsp; Fiber: ${f.fiber}g` : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;">
-        <button onclick='saveMealFromEntry(${JSON.stringify({name:f.name,cal:f.cal,protein:f.protein||0,carbs:f.carbs||0,fat:f.fat||0,processed_level:f.processed_level||"mixed"}).replace(/'/g,"&#39;")})' title="Save for quick reuse" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:2px 4px;">⭐</button>
+        <button onclick='saveMealFromEntryStandalone(${JSON.stringify({name:f.name,cal:f.cal,protein:f.protein||0,carbs:f.carbs||0,fat:f.fat||0,processed_level:f.processed_level||"mixed"}).replace(/'/g,"&#39;")})' title="Save for quick reuse" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:2px 4px;">⭐</button>
         <button class="log-item-del" onclick="removeFoodEntry(${f.id})">✕</button>
       </div>
     </div>`).join('');
@@ -3638,14 +3651,19 @@ async function confirmAndLogFood() {
       });
     }
 
-    if (shouldSaveMeal) await saveMealFromEntry(entry);
+    let saveMealResult = null;
+    if (shouldSaveMeal) saveMealResult = await saveMealFromEntry(entry);
 
     // Supabase is source of truth — renderFoodLog will sync state
     await renderFoodLog(); refreshDashboard();
     document.getElementById('food-confirm-panel')?.remove();
     document.getElementById('ai-food-desc') && (document.getElementById('ai-food-desc').value = '');
     clearFoodPhoto();
-    toast('Food logged ✓');
+    if (saveMealResult) {
+      toast(saveMealResult.success ? 'Food logged ✓ · Saved for reuse ⭐' : 'Food logged ✓ — but save-for-reuse failed: ' + saveMealResult.error, !saveMealResult.success);
+    } else {
+      toast('Food logged ✓');
+    }
   } catch (e) {
     toast('Log failed: ' + e.message, true);
   } finally {
