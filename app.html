@@ -1813,10 +1813,36 @@ function switchCardioTab(tab) {
     : 'flex:1;padding:8px;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:#000;font-weight:700;cursor:pointer;';
 }
 
+// Loads the client's logged body-weight/metrics history from Supabase into
+// state.metrics. Previously, metrics only ever lived in local device storage
+// (set by saveMetrics()'s unshift + a fire-and-forget write to Supabase) —
+// nothing ever read them back FROM the database into state.metrics. That
+// meant any time local storage reset (a cache clear, a fresh device, the
+// service-worker cache issues this app has had), the app would silently
+// fall back to a different, older weight — even though the client's actual
+// logged entry never changed. Ordered newest-first, matching the existing
+// unshift() convention so state.metrics[0] is always the most recent entry.
+async function loadMetricsFromSupabase() {
+  const session = getSession();
+  if (!session?.email) return;
+  try {
+    const rows = await sbGetAuth('client_metrics',
+      `user_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc&limit=30`);
+    if (rows.length) {
+      state.metrics = rows.map(r => ({ weight: r.weight, bf: r.body_fat, waist: r.waist, date: r.log_date, id: r.id }));
+      saveState();
+    }
+  } catch(e) { console.warn('Could not load metrics from Supabase:', e); }
+}
+
 function getClientWeight() {
   const profile = clientProfileCache || {};
+  // state.metrics is newest-first (unshift on save, and loadMetricsFromSupabase
+  // orders by created_at.desc) — index 0 is the most recent entry. Reading
+  // length-1 here previously grabbed the OLDEST entry instead, a latent bug
+  // that only "worked" by accident when just one metric had ever been logged.
   let w = (state.metrics && state.metrics.length)
-    ? parseFloat(state.metrics[state.metrics.length - 1].weight)
+    ? parseFloat(state.metrics[0].weight)
     : null;
   if(!w || w < 50 || w > 500) w = parseFloat(profile.weight) || null;
   if(!w || w < 50 || w > 500) w = 154; // safe fallback
@@ -2178,17 +2204,14 @@ async function renderNutritionTotals(combined){
   const weightLbs = getClientWeight();
   const phase = state.settings.phase || profile.goal || 'maintain';
 
-  // Generate age-adjusted protein target
-  let adjProtTarget = protTarget;
-  if(weightLbs > 50 && weightLbs < 500){
-    if(phase === 'cut' || phase === 'weight_loss'){
-      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.2) : age >= 40 ? Math.round(weightLbs * 1.0) : Math.round(weightLbs * 0.75);
-    } else if(phase === 'bulk' || phase === 'muscle_gain'){
-      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.4) : age >= 40 ? Math.round(weightLbs * 1.15) : Math.round(weightLbs * 1.0);
-    } else {
-      adjProtTarget = age >= 60 ? Math.round(weightLbs * 1.1) : age >= 40 ? Math.round(weightLbs * 0.9) : Math.round(weightLbs * 0.75);
-    }
-  }
+  // Protein target: use the single steady value already calculated on the
+  // Settings page (renderCalculatedTargets — based on intake age/weight/sex/
+  // phase, stored in state.settings.proteinTarget). This used to be
+  // recalculated fresh here using the client's MOST RECENT logged body
+  // weight metric, which meant the target shifted every time a new weigh-in
+  // was logged (water weight, daily fluctuation, etc.) — the goal should
+  // stay steady day to day and only change when the client's profile/goal
+  // is deliberately updated on the Settings page.
 
   // Today's real computed expenditure (BMR+TEF+NEAT+cardio+workout+EPOC for
   // today specifically) — this is what the calorie coaching tip should be
@@ -2200,7 +2223,7 @@ async function renderNutritionTotals(combined){
     todaysExpenditure = result.total;
   } catch(e) { console.warn('Could not compute today\'s expenditure for nutrition tips:', e); }
 
-  const tips = getNutritionTips(totals, calTarget, adjProtTarget, weightLbs, age, phase, todaysExpenditure);
+  const tips = getNutritionTips(totals, calTarget, protTarget, weightLbs, age, phase, todaysExpenditure);
   const tipsHtml = tips.map(t => `
     <div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
       <span style="font-size:1.1rem;flex-shrink:0;">${t.icon}</span>
@@ -2220,7 +2243,7 @@ async function renderNutritionTotals(combined){
       <div style="font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Today's Totals</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px;text-align:center;margin-bottom:8px;">
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--accent);">${totals.cal}</div><div style="font-size:0.65rem;color:var(--muted);">kcal${displayBasis?` / ~${displayBasis}`:''}</div></div>
-        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein / ${adjProtTarget}g</div></div>
+        <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.protein}g</div><div style="font-size:0.65rem;color:var(--muted);">Protein / ${protTarget}g</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.carbs}g</div><div style="font-size:0.65rem;color:var(--muted);">Carbs</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fat}g</div><div style="font-size:0.65rem;color:var(--muted);">Fat</div></div>
         <div><div style="font-family:'DM Mono',monospace;font-size:1.05rem;">${totals.fiber}g</div><div style="font-size:0.65rem;color:var(--muted);">Fiber / ~${fiberTarget}g</div></div>
@@ -2233,7 +2256,7 @@ async function renderNutritionTotals(combined){
       <span style="font-size:0.75rem;color:var(--muted);">Fiber's on the low side today. Beans, oats, vegetables, and whole fruit are easy ways to close the gap — most manually-logged foods won't count toward this unless you fill in the Fiber field yourself.</span>
     </div>` : ''}
     ${(() => {
-      const quality = computeDailyFoodQuality(combined, totals, displayBasis, adjProtTarget);
+      const quality = computeDailyFoodQuality(combined, totals, displayBasis, protTarget);
       if (!quality) return '';
       const badgeColor = quality.leanedProcessed ? 'var(--danger)' : 'var(--success)';
       const badgeLabel = quality.leanedProcessed ? '📦 Leaned Processed' : '🥗 Mostly Whole Foods';
@@ -2300,9 +2323,25 @@ async function loadClientProfile() {
   if (clientProfileCache) return clientProfileCache;
   const session = getSession();
   if (!session?.email) return null;
-  const plans = await sbGetAuth('workout_plans',
-    `client_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc&limit=1`);
-  const intake = plans?.[0]?.plan_data?.intake || {};
+  // Prefer the client's currently APPROVED plan specifically — there's only
+  // ever one of these — rather than whichever workout_plans row happens to
+  // have been created most recently. Multiple rows can exist over time (plan
+  // rebuilds, 6-week updates, pending-review drafts), each snapshotting
+  // whatever weight/age/etc. was on file at the moment THAT row was created.
+  // Picking "most recent by timestamp" meant the profile data — and anything
+  // computed from it, like the protein target — could shift between plan
+  // snapshots even though the client's actual submitted profile hadn't
+  // changed. The approved plan is the one true "current" source.
+  const approved = await sbGetAuth('workout_plans',
+    `client_email=eq.${encodeURIComponent(session.email)}&status=eq.approved&order=created_at.desc&limit=1`);
+  let intake = approved?.[0]?.plan_data?.intake;
+  if (!intake) {
+    // No approved plan yet (e.g. still pending review) — fall back to the
+    // most recent plan of any status so profile data is still available.
+    const fallback = await sbGetAuth('workout_plans',
+      `client_email=eq.${encodeURIComponent(session.email)}&order=created_at.desc&limit=1`);
+    intake = fallback?.[0]?.plan_data?.intake || {};
+  }
   clientProfileCache = intake;
   return intake;
 }
@@ -3265,7 +3304,12 @@ async function renderCalculatedTargets(){
     return;
   }
 
-  const weightLbs = parseFloat(profile.weight) || 154;
+  // Weight source: the client's most recently LOGGED body metric takes
+  // priority (getClientWeight() checks state.metrics first), falling back to
+  // the intake-submitted weight only if no metric has ever been logged. This
+  // is deliberate — the protein target should move when the client updates
+  // their weight in Body Metrics, and otherwise stay exactly steady.
+  const weightLbs = getClientWeight();
   const age = parseInt(profile.age) || 35;
   const gender = (profile.gender||'male').toLowerCase();
   const phase = document.getElementById('s-phase')?.value || state.settings.phase || 'weight_loss';
@@ -6603,8 +6647,17 @@ async function init(){
   // Load today's food and workout from Supabase on startup to sync across devices
   await loadTodayFoodFromSupabase();
   await loadTodayWorkoutFromSupabase();
+  // Load logged body-weight history too — this is what the protein target is
+  // based on, so it needs to survive local cache resets the same way food/workout do.
+  await loadMetricsFromSupabase();
   // Render expenditure immediately after workout loads so trainedToday is reflected
   await updateExpenditureBreakdown();
+  // Compute the steady protein/calorie targets from profile (age/weight/sex/
+  // phase) on every load — not just when the client happens to visit
+  // Settings — so the number used everywhere else in the app (nutrition
+  // tips, food quality) is always real and consistent from the first day,
+  // and only changes when the client's profile/goal is deliberately updated.
+  await renderCalculatedTargets();
 
   // Show user info in header
   const userDisplay=document.getElementById('user-display');
