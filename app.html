@@ -2413,6 +2413,56 @@ const EXERCISE_TYPE_KCAL_PER_SET = { legs: 10, back: 8, chest: 8, shoulders: 6, 
 // scales the estimate up, lifting less scales it down.
 const EXERCISE_TYPE_REF_WEIGHT_LB = { legs: 135, back: 95, chest: 95, shoulders: 40, core: 20, arms: 25, corrective: 10 };
 
+// EPOC (afterburn) rate for a logged cardio activity, as a fraction of that
+// session's calories. Research consistently finds HIIT/sprint/interval work
+// produces a substantially larger afterburn than steady-state cardio, due to
+// the bigger oxygen deficit created by near-maximal effort — commonly cited
+// in the 6-15% range for interval work, vs roughly 3-5% for true steady-state
+// (the often-quoted "7% average" for cardio overall is skewed upward by
+// harder steady efforts mixed into that average). Matched by keyword against
+// the activity name, same approach as the cardio MET lookup.
+//
+// HIGH tier (0.12) — continuous-motion sports with repeated bursts of
+// sprinting, cutting, or sustained high-effort output and minimal true rest
+// (soccer, football, hockey, tennis, lacrosse, rugby, basketball, boxing/
+// combat sports, handball, squash, racquetball, water polo, wrestling,
+// netball, Ultimate Frisbee, badminton, pickleball, CrossFit, spin classes,
+// rock climbing, jump rope) — functionally resemble interval training.
+//
+// MODERATE tier (0.08) — activities that are continuous with no true rest,
+// but where the activity itself naturally embeds high-intensity surges
+// without ever fully stopping. Cross-country skiing is the clearest example:
+// research finds its EPOC sits between indoor cycling and downhill (alpine)
+// skiing — terrain forces uphill sections up to 110-160% of VO2peak with no
+// full rest in between, unlike downhill's lift-ride breaks. That's a
+// genuinely different profile from both pure steady-state and true
+// stop-start interval work, so it gets its own middle rate rather than
+// being forced into either bucket.
+//
+// STEADY-STATE tier (0.05, the default) — sports with much longer
+// stop-start gaps and lower continuous exertion (baseball, softball, golf,
+// volleyball, pool/billiards, cricket, bowling), non-sparring martial arts
+// practice, downhill skiing, and steady continuous cardio like walking,
+// jogging, swimming, or casual cycling.
+//
+// This keyword list can't cover every sport that exists; anything not
+// recognized here defaults to steady-state, so flag any specific sport that
+// should be reclassified.
+function getCardioEpocRate(type) {
+  const t = (type || '').toLowerCase();
+  const highIntensityKeywords = [
+    'hiit', 'sprint', 'interval', 'tabata',
+    'soccer', 'football', 'hockey', 'tennis', 'lacrosse', 'rugby',
+    'basketball', 'boxing', 'kickboxing', 'muay thai', 'mma',
+    'handball', 'squash', 'racquetball', 'water polo', 'wrestling', 'netball', 'frisbee',
+    'badminton', 'crossfit', 'spin', 'climbing', 'jump rope', 'pickleball'
+  ];
+  const moderateIntensityKeywords = ['cross country', 'cross-country', 'nordic ski'];
+  if (highIntensityKeywords.some(k => t.includes(k))) return 0.12;
+  if (moderateIntensityKeywords.some(k => t.includes(k))) return 0.08;
+  return 0.05;
+}
+
 // Parses a reps value like "10-12", "8", or "Max reps" into a numeric average.
 // Falls back to 10 (a typical hypertrophy rep count) when nothing parseable.
 function parseRepsAvg(repsStr) {
@@ -2499,6 +2549,9 @@ async function calcTodayExpenditure(trainedOverride) {
   else if (activityLevel.includes('active') || activityLevel.includes('high')) neat = Math.round(bmr * 0.35);
 
   const cardioCal = state.today.cardio.reduce((s,c)=>s+(c.cal||0),0);
+  // Cardio's own afterburn — steady-state gets a smaller EPOC contribution,
+  // HIIT/sprint/interval work gets a larger one (see getCardioEpocRate).
+  const cardioEpoc = Math.round(state.today.cardio.reduce((s,c)=> s + (c.cal||0) * getCardioEpocRate(c.type), 0));
 
   const trained = trainedOverride !== undefined ? trainedOverride
     : (state.today.trainedToday !== null && state.today.trainedToday !== undefined)
@@ -2516,7 +2569,7 @@ async function calcTodayExpenditure(trainedOverride) {
     }
   } catch(e) { console.warn('Could not load extra exercises for expenditure calc', e); }
 
-  let workoutBurn = 0, epoc = 0;
+  let workoutBurn = 0, workoutEpoc = 0;
   if (state.today.workout.length || extraLogs.length) {
     // Sum a type/rep/load/bodyweight-aware estimate per exercise instead of
     // a flat per-set rate, so leg day, load lifted, and client mass all matter.
@@ -2527,8 +2580,13 @@ async function calcTodayExpenditure(trainedOverride) {
     workoutBurn = rawKcal > 0
       ? Math.min(700, Math.max(80, Math.round(rawKcal)))
       : 250; // fallback if entries exist but nothing parsed to a valid estimate
-    epoc = Math.round(workoutBurn * 0.10);
+    // Resistance training — especially heavy/hypertrophy-style work — is
+    // consistently found to produce the largest and longest-lasting EPOC of
+    // any exercise type, often exceeding typical HIIT afterburn. 12% reflects
+    // the higher end of commonly-cited resistance-training EPOC estimates.
+    workoutEpoc = Math.round(workoutBurn * 0.12);
   }
+  const epoc = workoutEpoc + cardioEpoc;
 
   const total = bmr + tef + neat + cardioCal + workoutBurn + epoc;
   return { bmr, tef, neat, cardioCal, workoutBurn, epoc, total, trained };
@@ -2570,7 +2628,7 @@ async function updateExpenditureBreakdown() {
       <div><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Calories In</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;">${totalCal} kcal</div></div>
       <div style="text-align:right;"><div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Net ${balance>=0?'Surplus':'Deficit'}</div><div style="font-family:'DM Mono',monospace;font-size:1.3rem;color:${balance>=0?'var(--accent2)':'var(--success)'};">${balance>=0?'+':''}${balance} kcal</div></div>
     </div>
-    <div style="font-size:0.68rem;color:var(--muted);margin-top:10px;font-style:italic;">Estimates based on your logged food, cardio, and profile. BMR uses the Mifflin-St Jeor equation; TEF is calculated per macronutrient (protein ~25%, carbs ~8%, fat ~3% of their calories, since protein has a notably higher thermic cost); NEAT reflects your typical daily activity level; EPOC accounts for elevated post-exercise calorie burn.</div>
+    <div style="font-size:0.68rem;color:var(--muted);margin-top:10px;font-style:italic;">Estimates based on your logged food, cardio, and profile. BMR uses the Mifflin-St Jeor equation; TEF is calculated per macronutrient (protein ~25%, carbs ~8%, fat ~3% of their calories, since protein has a notably higher thermic cost); NEAT reflects your typical daily activity level; EPOC (afterburn) varies by exercise type — resistance training ~12%, HIIT/sprint/interval cardio ~12%, and steady-state cardio ~5% of that session's calories, reflecting how much larger and longer-lasting the afterburn is for high-intensity and resistance work versus lower-intensity steady cardio.</div>
   `;
 }
 
@@ -2632,16 +2690,16 @@ async function renderWeeklyOverview() {
       (bestRow.food_items||[]).forEach(f=>{ cal+=f.cal||0; protein+=f.protein||0; carbs+=f.carbs||0; fat+=f.fat||0; });
     }
 
-    let cardioCal=0;
+    let cardioCal=0, cardioEpoc=0;
     cardioLogs.filter(l=>l.log_date===date).forEach(l=>{
-      (l.activities||[]).forEach(a=>{ cardioCal+=a.cal||0; });
+      (l.activities||[]).forEach(a=>{ cardioCal+=a.cal||0; cardioEpoc+=Math.round((a.cal||0)*getCardioEpocRate(a.type)); });
     });
 
     // Only show trained checkmark for real resistance training — not cardio, not TRAINED_FLAG markers
     const trained = workoutLogs.some(l=>l.log_date===date && l.plan_id!=='TRAINED_FLAG_YES' && l.plan_id!=='TRAINED_FLAG_NO' && l.exercises?.length>0);
 
     const tef = Math.round((protein*4*0.25) + (carbs*4*0.08) + (fat*9*0.03));
-    let workoutBurn=0, epoc=0;
+    let workoutBurn=0, workoutEpoc=0;
     // Match daily card logic: workout burn scaled by actual sets logged,
     // including both plan-based exercises and Extra Exercises (rest-day work).
     // Dedupe by exercise id across all of the day's log rows first — mirrors
@@ -2664,8 +2722,9 @@ async function renderWeeklyOverview() {
       const extraKcal = dayExtraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
       const rawKcal = planKcal + extraKcal;
       workoutBurn = rawKcal > 0 ? Math.min(700, Math.max(80, Math.round(rawKcal))) : 250;
-      epoc = Math.round(workoutBurn*0.10);
+      workoutEpoc = Math.round(workoutBurn*0.12);
     }
+    const epoc = workoutEpoc + cardioEpoc;
     // For today use lastComputedExpenditure if available so numbers always match
     let totalExpenditure;
     const todayStr = getLocalDateStr();
@@ -3317,18 +3376,40 @@ async function renderCalculatedTargets(){
   // Age bracket
   const ageBracket = age >= 60 ? '60+' : age >= 40 ? '40-60' : 'Under 40';
 
-  // Protein target — age + gender adjusted
-  let protMultiplier;
-  if(phase==='weight_loss'){
-    protMultiplier = age>=60?1.2 : age>=40?1.0 : 0.75;
-    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.65);
-  } else if(phase==='bulk'){
-    protMultiplier = age>=60?1.4 : age>=40?1.15 : 1.0;
-    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.9);
-  } else {
-    protMultiplier = age>=60?1.1 : age>=40?0.9 : 0.75;
-    if(gender==='female') protMultiplier = Math.max(protMultiplier-0.1, 0.65);
-  }
+  // Protein target (g per lb bodyweight) — rebuilt on a coherent age +
+  // phase + sex model instead of three independent, inconsistent tables.
+  //
+  // AGE base reflects anabolic resistance: older adults need MORE protein
+  // per pound to get the same muscle-protein-synthesis response as someone
+  // younger, so the base rises with age regardless of phase.
+  //   Under 40: 0.75 g/lb · 40-59: 1.1 g/lb · 60+: 1.2 g/lb
+  //   (under-40 base set to 0.75 per coach's research — this lands right at
+  //   the muscle-growth benefit ceiling identified by meta-analysis (~1.6g/kg
+  //   ≈ 0.73g/lb; Phillips & Van Loon 2011 cite ~0.82g/lb as the practical
+  //   upper limit). Combined with the +0.1 phase bump below, this gives
+  //   Bulk=0.75g/lb and Weight Loss/Maintenance=0.85g/lb for under-40 —
+  //   both well within the commonly-cited 0.7-1.0g/lb range for muscle
+  //   preservation during a deficit)
+  //
+  // PHASE adjustment sits on top of that base:
+  //   Weight Loss: +0.1 — higher protein in a deficit protects muscle
+  //   Bulk: +0.0 — surplus calories already reduce the marginal need
+  //   Maintenance / Recomp: +0.1 — recomposition (building muscle while
+  //     losing fat) is well-supported as needing HIGH protein, not less;
+  //     the old formula had this backwards, undershooting bodyweight
+  //     entirely for a 40-59 client on this phase.
+  //
+  // SEX adjustment: a small reduction for women (-0.075g/lb, half the
+  // original -0.15), reflecting that protein needs track lean body mass
+  // rather than total bodyweight, and women average a higher body-fat
+  // percentage at an equivalent total weight. Kept modest per research
+  // showing active women's per-pound needs commonly land close to men's
+  // rather than substantially lower. Floored so it never drops below a
+  // sensible minimum.
+  const ageBase = age >= 60 ? 1.2 : age >= 40 ? 1.1 : 0.75;
+  const phaseAdd = (phase === 'weight_loss') ? 0.1 : (phase === 'bulk') ? 0.0 : 0.1;
+  let protMultiplier = ageBase + phaseAdd;
+  if (gender === 'female') protMultiplier = Math.max(protMultiplier - 0.075, 0.65);
   const protTarget = Math.round(weightLbs * protMultiplier);
 
   // BMR using Mifflin-St Jeor
