@@ -404,12 +404,9 @@
       <div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Anything outside your plan — extra sets, a sport, gym work on a rest day.</div>
       <div class="log-entry-form">
         <input id="extra-ex-name" type="text" placeholder="Exercise name">
-        <div class="form-row">
-          <input id="extra-ex-sets" type="number" inputmode="numeric" placeholder="Sets" min="1" style="flex:1;">
-          <input id="extra-ex-reps" type="text" placeholder="Reps" style="flex:1;">
-          <input id="extra-ex-weight" type="text" placeholder="Weight / BW" style="flex:1;">
-        </div>
-        <button class="btn btn-primary" onclick="addExtraExercise()">Add Exercise</button>
+        <div id="extra-ex-sets-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button class="btn" onclick="addExtraExerciseSetRow()" style="font-size:0.75rem;">+ Add Set</button>
+        <button class="btn btn-primary" onclick="addExtraExercise()">Save Exercise</button>
       </div>
       <div class="log-list" id="extra-ex-log-list"><div class="empty-state">No extra exercises logged</div></div>
     </div>
@@ -1945,33 +1942,90 @@ async function addCardioEntry(mode) {
   finally{const btn=document.querySelector(`button[onclick="addCardioEntry('${mode}')"]`);if(btn)btn.disabled=false;}
 }
 
+// Normalizes a client_extra_logs row into a per-set array [{set, weight, reps}, ...],
+// whether it came from the new per-set logging (sets stored as a JSON array
+// string) or an old-format row from before this change (a plain set count
+// with single flat reps/weight fields). Downstream code — display and the
+// calorie-burn estimate — can then always assume ex.sets is an array.
+function parseExtraExerciseSets(row) {
+  if (row.sets) {
+    try {
+      const parsed = typeof row.sets === 'string' ? JSON.parse(row.sets) : row.sets;
+      if (Array.isArray(parsed)) return parsed;
+    } catch(e) { /* not JSON — fall through to legacy handling below */ }
+  }
+  // Legacy row: sets was just a count, with one shared weight/reps for all
+  // of them — synthesize that many identical sets so it still works with
+  // code that expects the per-set shape.
+  const legacyCount = parseInt(row.sets, 10) || 1;
+  return Array.from({length: legacyCount}, (_, i) => ({ set: i+1, weight: row.weight || null, reps: row.reps || null }));
+}
+
+let extraExerciseSetCount = 1;
+
+function renderExtraExerciseSetRows() {
+  const container = document.getElementById('extra-ex-sets-list');
+  if (!container) return;
+  let html = '';
+  for (let i = 0; i < extraExerciseSetCount; i++) {
+    html += `
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-size:0.68rem;color:var(--muted);width:40px;flex-shrink:0;">Set ${i+1}</span>
+        <input type="number" inputmode="decimal" placeholder="lbs" id="extra-set-${i}-weight" style="flex:1;min-width:0;">
+        <button onclick="toggleBW('extra-set-${i}-weight', this)" style="font-size:0.6rem;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;">BW</button>
+        <input type="text" inputmode="numeric" placeholder="reps" id="extra-set-${i}-reps" style="flex:1;min-width:0;">
+        ${extraExerciseSetCount > 1 && i === extraExerciseSetCount - 1
+          ? `<button onclick="removeExtraExerciseSetRow()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.9rem;flex-shrink:0;">✕</button>`
+          : `<span style="width:22px;flex-shrink:0;"></span>`}
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function addExtraExerciseSetRow() {
+  extraExerciseSetCount++;
+  renderExtraExerciseSetRows();
+}
+
+function removeExtraExerciseSetRow() {
+  if (extraExerciseSetCount > 1) {
+    extraExerciseSetCount--;
+    renderExtraExerciseSetRows();
+  }
+}
+
 async function addExtraExercise() {
   const btn=document.querySelector('button[onclick="addExtraExercise()"]');
   if(btn && btn.disabled) return;
   if(btn) btn.disabled=true;
   try{
   const name = document.getElementById('extra-ex-name').value.trim();
-  const sets = document.getElementById('extra-ex-sets').value.trim();
-  const reps = document.getElementById('extra-ex-reps').value.trim();
-  const weight = document.getElementById('extra-ex-weight').value.trim();
   if (!name) return toast('Enter exercise name');
+
+  const sets = [];
+  for (let i = 0; i < extraExerciseSetCount; i++) {
+    const weightInput = document.getElementById(`extra-set-${i}-weight`);
+    const weight = weightInput?.dataset.bw === 'true' ? 'BW' : (weightInput?.value.trim() || null);
+    const reps = document.getElementById(`extra-set-${i}-reps`)?.value.trim() || null;
+    if (weight || reps) sets.push({ set: i + 1, weight, reps });
+  }
+  if (!sets.length) { if(btn)btn.disabled=false; return toast('Enter at least one set\'s weight or reps'); }
 
   const session = getSession();
   const today = getLocalDateStr();
-  const entry = { name, sets, reps, weight, id: Date.now() + Math.floor(Math.random() * 1000), extra: true };
 
-  // Save to dedicated extra exercises table
+  // Save to dedicated extra exercises table — sets stored as a JSON array
+  // so each set keeps its own weight and reps, same shape as My Plan logging.
   await sbInsertAuth('client_extra_logs', {
     user_email: session.email,
     log_date: today,
-    name: entry.name,
-    sets: entry.sets,
-    reps: entry.reps,
-    weight: entry.weight
+    name,
+    sets: JSON.stringify(sets)
   });
 
-  ['extra-ex-name', 'extra-ex-sets', 'extra-ex-reps', 'extra-ex-weight']
-    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('extra-ex-name').value = '';
+  extraExerciseSetCount = 1;
+  renderExtraExerciseSetRows();
   await renderExtraExerciseLog();
   toast('Exercise logged ✓');
   }catch(e){toast('Error saving — please try again',true);}
@@ -1991,14 +2045,21 @@ async function renderExtraExerciseLog() {
   const logs = await sbGetAuth('client_extra_logs',
     `user_email=eq.${encodeURIComponent(session.email)}&log_date=eq.${today}&order=created_at.asc`);
   if (!logs.length) { list.innerHTML = '<div class="empty-state">No extra exercises logged</div>'; return; }
-  list.innerHTML = logs.map(e => `
+  list.innerHTML = logs.map(e => {
+    const sets = parseExtraExerciseSets(e);
+    const detail = sets.map(s => {
+      const w = s.weight ? (s.weight === 'BW' ? 'BW' : `${s.weight} lbs`) : '—';
+      return `${w}×${s.reps || '—'}`;
+    }).join('  ·  ');
+    return `
     <div class="log-item">
       <div>
         <div class="log-item-name">${e.name}</div>
-        <div class="log-item-detail">${e.sets ? e.sets + ' sets' : ''}${e.reps ? ' · ' + e.reps + ' reps' : ''}${e.weight ? ' · ' + e.weight : ''}</div>
+        <div class="log-item-detail">${detail}</div>
       </div>
       <button class="log-item-del" onclick="removeExtraExercise(${e.id})">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 // Gives a plain-language read on today's macro split by percentage of
 // calories. General, goal-agnostic guidance — not tied to cut/bulk/maintain,
@@ -2576,7 +2637,7 @@ async function calcTodayExpenditure(trainedOverride) {
     // a flat per-set rate, so leg day, load lifted, and client mass all matter.
     const bodyWeightLb = latestWeight || parseFloat(profile?.weight) || 170;
     const planKcal = state.today.workout.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
-    const extraKcal = extraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
+    const extraKcal = extraLogs.reduce((s,row)=> s + estimateExerciseKcal({...row, sets: parseExtraExerciseSets(row)}, bodyWeightLb), 0);
     const rawKcal = planKcal + extraKcal;
     workoutBurn = rawKcal > 0
       ? Math.min(700, Math.max(80, Math.round(rawKcal)))
@@ -2720,7 +2781,7 @@ async function renderWeeklyOverview() {
         dedupedDayExercises.push(ex);
       }));
       const planKcal = dedupedDayExercises.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
-      const extraKcal = dayExtraLogs.reduce((s,ex)=> s + estimateExerciseKcal(ex, bodyWeightLb), 0);
+      const extraKcal = dayExtraLogs.reduce((s,row)=> s + estimateExerciseKcal({...row, sets: parseExtraExerciseSets(row)}, bodyWeightLb), 0);
       const rawKcal = planKcal + extraKcal;
       workoutBurn = rawKcal > 0 ? Math.min(700, Math.max(80, Math.round(rawKcal))) : 250;
       workoutEpoc = Math.round(workoutBurn*0.12);
@@ -6762,7 +6823,7 @@ async function init(){
     if(resBtn)resBtn.innerHTML='<button class="btn btn-primary" onclick="openResourceModal()">+ Add Link</button>';
   }
 
-  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();renderWeeklyOverview();updateExpenditureBreakdown();
+  renderFoodLog();renderWorkoutLog();renderCardioLog();renderGoals();renderMetrics();refreshDashboard();renderExercises();renderVideos();renderWeeklyOverview();updateExpenditureBreakdown();renderExtraExerciseSetRows();renderExtraExerciseLog();
   // Show welcome page to new users on first login
   if (!coachUnlocked) {
     const welcomeKey = 'e2fitness_welcomed_' + (getSession()?.email||'');
