@@ -3668,7 +3668,7 @@ function showFoodConfirmation(parsed) {
   panel.innerHTML = `
     <div style="font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">AI DETECTED</div>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
-      <div style="font-size:1rem;font-weight:600;">${parsed.name}</div>
+      <div style="font-size:1rem;font-weight:600;min-width:0;word-wrap:break-word;">${parsed.name}</div>
       <span style="flex-shrink:0;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;background:${procBadge.color}22;color:${procBadge.color};padding:3px 8px;border-radius:2px;white-space:nowrap;">${procBadge.icon} ${procBadge.label}</span>
     </div>
     ${parsed.processed_note ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;margin-top:-6px;">⚠️ ${parsed.processed_note}</div>` : ''}
