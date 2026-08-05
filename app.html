@@ -1966,20 +1966,25 @@ let extraExerciseSetCount = 1;
 function renderExtraExerciseSetRows() {
   const container = document.getElementById('extra-ex-sets-list');
   if (!container) return;
-  let html = '';
+  let cols = '';
   for (let i = 0; i < extraExerciseSetCount; i++) {
-    html += `
-      <div style="display:flex;gap:6px;align-items:center;">
-        <span style="font-size:0.68rem;color:var(--muted);width:40px;flex-shrink:0;">Set ${i+1}</span>
-        <input type="number" inputmode="decimal" placeholder="lbs" id="extra-set-${i}-weight" style="flex:1;min-width:0;">
-        <button onclick="toggleBW('extra-set-${i}-weight', this)" style="font-size:0.6rem;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;">BW</button>
-        <input type="text" inputmode="numeric" placeholder="reps" id="extra-set-${i}-reps" style="flex:1;min-width:0;">
+    cols += `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;">
+        <div style="font-size:0.6rem;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Set ${i+1}</div>
+        <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">WT</div>
+        <div style="display:flex;gap:2px;align-items:center;">
+          <input type="number" inputmode="decimal" placeholder="lbs" id="extra-set-${i}-weight" style="font-size:0.78rem;padding:6px 4px;width:48px;text-align:center;border-radius:4px;">
+          <button onclick="toggleBW('extra-set-${i}-weight', this)" style="font-size:0.6rem;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;white-space:nowrap;">BW</button>
+        </div>
+        <div style="font-size:0.6rem;color:var(--accent);font-weight:600;">×</div>
+        <div style="font-size:0.55rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">REPS</div>
+        <input type="text" inputmode="numeric" placeholder="reps" id="extra-set-${i}-reps" style="font-size:0.78rem;padding:6px 4px;width:58px;text-align:center;border-radius:4px;">
         ${extraExerciseSetCount > 1 && i === extraExerciseSetCount - 1
-          ? `<button onclick="removeExtraExerciseSetRow()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.9rem;flex-shrink:0;">✕</button>`
-          : `<span style="width:22px;flex-shrink:0;"></span>`}
+          ? `<button onclick="removeExtraExerciseSetRow()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.75rem;margin-top:2px;">✕ remove</button>`
+          : ''}
       </div>`;
   }
-  container.innerHTML = html;
+  container.innerHTML = `<div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;">${cols}</div>`;
 }
 
 function addExtraExerciseSetRow() {
